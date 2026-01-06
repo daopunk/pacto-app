@@ -948,57 +948,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "covenant"
-version = "0.1.0"
-dependencies = [
- "aes",
- "aes-gcm",
- "argon2",
- "base64 0.22.1",
- "bip39",
- "blurhash",
- "chacha20poly1305",
- "cpal",
- "futures-util",
- "generic-array",
- "hex",
- "hound",
- "image",
- "jni",
- "lazy_static",
- "mdk-core",
- "mdk-sqlite-storage",
- "mdk-storage-traits",
- "ndk-context",
- "nostr-blossom",
- "nostr-sdk",
- "once_cell",
- "openssl",
- "reqwest",
- "rubato",
- "rusqlite",
- "scraper",
- "serde",
- "serde_json",
- "sha2",
- "symphonia",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-deep-link",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-single-instance",
- "tauri-plugin-updater",
- "tauri-plugin-window-state",
- "tokio",
- "whisper-rs",
-]
-
-[[package]]
 name = "cpal"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4367,6 +4316,57 @@ checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
 dependencies = [
  "elliptic-curve",
  "primeorder",
+]
+
+[[package]]
+name = "pacto"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "argon2",
+ "base64 0.22.1",
+ "bip39",
+ "blurhash",
+ "chacha20poly1305",
+ "cpal",
+ "futures-util",
+ "generic-array",
+ "hex",
+ "hound",
+ "image",
+ "jni",
+ "lazy_static",
+ "mdk-core",
+ "mdk-sqlite-storage",
+ "mdk-storage-traits",
+ "ndk-context",
+ "nostr-blossom",
+ "nostr-sdk",
+ "once_cell",
+ "openssl",
+ "reqwest",
+ "rubato",
+ "rusqlite",
+ "scraper",
+ "serde",
+ "serde_json",
+ "sha2",
+ "symphonia",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-deep-link",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+ "tokio",
+ "whisper-rs",
 ]
 
 [[package]]

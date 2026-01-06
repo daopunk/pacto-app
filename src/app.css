@@ -18,6 +18,7 @@
 html, body {
   height: 100%;
   margin: 0;
+  background-color: #1c1c1c;
 }
 
 .container {

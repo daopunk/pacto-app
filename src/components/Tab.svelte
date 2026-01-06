@@ -1,6 +1,7 @@
 <script lang="ts">
   export let active: boolean = false;
   export let label: string = "";
+  export let image: string = "";
   
   $: firstLetter = label.charAt(0).toUpperCase();
 </script>
@@ -9,9 +10,13 @@
   class="server-button {active ? 'active' : ''}"
   aria-label={label}
 >
-  <span class="label">
-    <slot>{firstLetter}</slot>
-  </span>
+  {#if image}
+    <img src={image} alt={label} class="tab-image" />
+  {:else}
+    <span class="label">
+      <slot>{firstLetter}</slot>
+    </span>
+  {/if}
   <span class="tooltip">{label}</span>
 </button>
 
@@ -20,7 +25,7 @@
     width: 48px;
     height: 48px;
     background: #313338;
-    border-radius: 16px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -51,6 +56,13 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .tab-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
   }
 
   .tooltip {
