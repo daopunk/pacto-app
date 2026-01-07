@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import Navbar from '../components/Navbar.svelte';
   import CommunityNavbar from '../components/CommunityNavbar.svelte';
+  import ChatView from '../components/ChatView.svelte';
   import { activeCommunityId, activeChannelId } from '../stores/app';
 
   // Set default active community on mount
@@ -15,4 +16,5 @@
 <main class="container">
   <Navbar />
   <CommunityNavbar />
+  <ChatView />
 </main>
