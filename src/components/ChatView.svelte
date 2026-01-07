@@ -1,18 +1,19 @@
 <script lang="ts">
   import Message from './Message.svelte';
   import MessageInput from './MessageInput.svelte';
-  import { activeChannelId, communities, activeCommunityId } from '../stores/app';
-  import { mockMessages } from '../stores/mockData';
-
-  // Messages - replace with Nostr relay data later
-  let messages = [...mockMessages];
+  import { activeChannelId, communities, activeCommunityId, channelMessages } from '../stores/app';
 
   // Get active channel info
   $: activeCommunity = $communities.find(c => c.id === $activeCommunityId);
   $: activeChannel = activeCommunity?.channels.find(ch => ch.id === $activeChannelId);
   $: channelName = activeChannel?.name || 'channel';
 
+  // Get messages for the current channel
+  $: currentMessages = $activeChannelId ? ($channelMessages[$activeChannelId] || []) : [];
+
   function handleSendMessage(content: string) {
+    if (!$activeChannelId) return;
+    
     const newMessage = {
       id: String(Date.now()),
       authorName: 'You',
@@ -20,12 +21,17 @@
       timestamp: new Date().toISOString(),
       avatar: ''
     };
-    messages = [...messages, newMessage];
+    
+    // Update the store for this channel
+    channelMessages.update(messages => ({
+      ...messages,
+      [$activeChannelId]: [...(messages[$activeChannelId] || []), newMessage]
+    }));
   }
 
   // Auto-scroll to bottom when new messages arrive (only if already near bottom)
   let messagesContainer: HTMLDivElement;
-  $: if (messages && messagesContainer) {
+  $: if (currentMessages && messagesContainer) {
     setTimeout(() => {
       const isNearBottom = 
         messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 100;
@@ -48,7 +54,7 @@
 
     <div class="messages-container" bind:this={messagesContainer}>
       <div class="messages-list">
-        {#each messages as message (message.id)}
+        {#each currentMessages as message (message.id)}
           <Message 
             authorName={message.authorName}
             content={message.content}

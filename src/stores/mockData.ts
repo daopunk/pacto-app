@@ -22,27 +22,73 @@ export const mockCommunities = [
   }
 ];
 
-export const mockMessages = [
-  {
-    id: '1',
-    authorName: 'Alice',
-    content: 'Hey everyone! Welcome to the channel.',
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    avatar: ''
-  },
-  {
-    id: '2',
-    authorName: 'Bob',
-    content: 'Thanks! Excited to be here.',
-    timestamp: new Date(Date.now() - 1800000).toISOString(),
-    avatar: ''
-  },
-  {
-    id: '3',
-    authorName: 'Charlie',
-    content: 'This looks great! How do I get started?',
-    timestamp: new Date(Date.now() - 900000).toISOString(),
-    avatar: ''
-  }
-];
+// Messages organized by channel ID
+export const mockChannelMessages: Record<string, any[]> = {
+  'channel-1': [
+    {
+      id: '1',
+      authorName: 'Alice',
+      content: 'Hey everyone! Welcome to #general.',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      avatar: ''
+    },
+    {
+      id: '2',
+      authorName: 'Bob',
+      content: 'Thanks! Excited to be here.',
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      avatar: ''
+    }
+  ],
+  'channel-2': [
+    {
+      id: '3',
+      authorName: 'Charlie',
+      content: 'Random thoughts incoming!',
+      timestamp: new Date(Date.now() - 7200000).toISOString(),
+      avatar: ''
+    },
+    {
+      id: '4',
+      authorName: 'Dave',
+      content: 'This channel is pure chaos 😂',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      avatar: ''
+    }
+  ],
+  'channel-3': [
+    {
+      id: '5',
+      authorName: 'Admin',
+      content: '📢 Welcome to announcements!',
+      timestamp: new Date(Date.now() - 86400000).toISOString(),
+      avatar: ''
+    }
+  ],
+  'channel-4': [
+    {
+      id: '6',
+      authorName: 'Eve',
+      content: 'Welcome to Community Two!',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      avatar: ''
+    }
+  ],
+  'channel-5': [
+    {
+      id: '7',
+      authorName: 'Frank',
+      content: 'Anyone working on the new feature?',
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      avatar: ''
+    },
+    {
+      id: '8',
+      authorName: 'Grace',
+      content: 'Yeah, making good progress!',
+      timestamp: new Date(Date.now() - 900000).toISOString(),
+      avatar: ''
+    }
+  ]
+};
 
