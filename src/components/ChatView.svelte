@@ -78,14 +78,15 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #313338;
+    background: #242424;
     height: 100%;
     min-width: 0;
+    border-left: 1px solid #313338;
   }
 
   .channel-header {
     height: 48px;
-    border-bottom: 1px solid #26272b;
+    border-bottom: 1px solid #313338;
     display: flex;
     align-items: center;
     padding: 0 16px;

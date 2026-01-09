@@ -556,3 +556,14 @@ pub async fn set_nickname(npub: String, nickname: String) -> bool {
         None => false
     }
 }
+
+/// Gets a profile from the cache
+#[tauri::command]
+pub async fn get_profile(npub: String) -> Result<Profile, String> {
+    let state = STATE.lock().await;
+    
+    match state.get_profile(&npub) {
+        Some(profile) => Ok(profile.clone()),
+        None => Err(format!("Profile not found: {}", npub))
+    }
+}

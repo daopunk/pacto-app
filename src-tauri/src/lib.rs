@@ -4839,6 +4839,7 @@ pub fn run() {
             chat::mark_as_read,
             profile::toggle_muted,
             profile::set_nickname,
+            profile::get_profile,
             message::message,
             message::paste_message,
             message::voice_message,
