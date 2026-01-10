@@ -1,0 +1,229 @@
+<script lang="ts">
+  export let onImport: (privateKey: string) => void;
+  export let onBack: () => void;
+  export let isValidating: boolean = false;
+  export let error: string | null = null;
+
+  let privateKey = '';
+
+  function handleSubmit() {
+    const trimmed = privateKey.trim();
+    if (!trimmed) {
+      error = 'Please enter your private key';
+      return;
+    }
+    onImport(trimmed);
+  }
+
+  function handlePaste(event: ClipboardEvent) {
+    // Let default paste behavior work, then trim
+    setTimeout(() => {
+      privateKey = privateKey.trim();
+    }, 0);
+  }
+
+  // Clear error when user starts typing
+  $: if (privateKey && error) {
+    error = null;
+  }
+</script>
+
+<div class="key-import-container">
+  <div class="key-import-content">
+    <div class="import-header">
+      <h2>Import Your Keys</h2>
+      <p class="import-subtitle">
+        Enter your private key (nsec or hex format)
+      </p>
+    </div>
+
+    {#if error}
+      <div class="import-error">{error}</div>
+    {/if}
+
+    <div class="import-form">
+      <textarea
+        bind:value={privateKey}
+        on:paste={handlePaste}
+        placeholder="nsec1... or hex private key"
+        disabled={isValidating}
+        class="key-textarea"
+        rows="4"
+      ></textarea>
+
+      <div class="import-actions">
+        <button
+          class="btn-secondary"
+          on:click={onBack}
+          disabled={isValidating}
+        >
+          Back
+        </button>
+        <button
+          class="btn-primary"
+          on:click={handleSubmit}
+          disabled={isValidating || !privateKey.trim()}
+        >
+          {isValidating ? 'Validating...' : 'Continue'}
+        </button>
+      </div>
+    </div>
+
+    <div class="import-notice">
+      <p>⚠️ Your private key will be encrypted with a PIN and stored securely on this device.</p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .key-import-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    background: #1c1c1c;
+  }
+
+  .key-import-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 480px;
+    width: 100%;
+    padding: 32px;
+  }
+
+  .import-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .import-header h2 {
+    color: #f2f3f5;
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .import-subtitle {
+    color: #949ba4;
+    font-size: 0.875rem;
+    margin: 0;
+  }
+
+  .import-error {
+    color: #f23f42;
+    font-size: 0.875rem;
+    background: rgba(242, 63, 66, 0.1);
+    padding: 12px 16px;
+    border-radius: 8px;
+    animation: shake 0.3s;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+  }
+
+  .import-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .key-textarea {
+    width: 100%;
+    padding: 16px;
+    background: #313338;
+    border: 2px solid #404249;
+    border-radius: 8px;
+    color: #f2f3f5;
+    font-size: 0.9375rem;
+    font-family: 'Courier New', monospace;
+    resize: vertical;
+    outline: none;
+    transition: all 0.2s;
+  }
+
+  .key-textarea:focus {
+    border-color: #5865f2;
+    background: #383a40;
+    box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.2);
+  }
+
+  .key-textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .key-textarea::placeholder {
+    color: #6d6f78;
+  }
+
+  .import-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .btn-primary, .btn-secondary {
+    flex: 1;
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+  }
+
+  .btn-primary {
+    background: #5865f2;
+    color: #ffffff;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #4752c4;
+    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: #949ba4;
+    border: 2px solid #404249;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: #313338;
+    border-color: #5865f2;
+    color: #f2f3f5;
+  }
+
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .import-notice {
+    padding: 12px 16px;
+    background: rgba(88, 101, 242, 0.1);
+    border-radius: 8px;
+    border-left: 3px solid #5865f2;
+  }
+
+  .import-notice p {
+    color: #949ba4;
+    font-size: 0.75rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+</style>
+

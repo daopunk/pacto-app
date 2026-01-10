@@ -1,20 +1,35 @@
 import { invoke } from "@tauri-apps/api/core";
 
-// Type definitions for Nostr data structures - matches Rust Profile struct
+/**
+ * Represents a user status
+ */
+export interface Status {
+  title: string;
+  purpose: string;
+  url: string;
+}
+
+/**
+ * Represents a user profile
+ */
 export interface NostrProfile {
   id: string;
   name: string;
+  avatar: string;
+  last_read: string;
+  status: Status;
+  last_updated: number;
+  typing_until: number;
+  mine: boolean;
+  // Extended fields from Rust backend
   display_name: string;
   nickname: string;
   lud06: string;
   lud16: string;
   banner: string;
-  avatar: string;
   about: string;
   website: string;
   nip05: string;
-  last_updated: number;
-  mine: boolean;
   muted: boolean;
   bot: boolean;
 }

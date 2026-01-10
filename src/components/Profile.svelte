@@ -1,23 +1,51 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { loadProfile, profiles, profileLoadingStates } from '../stores/profiles';
+  import { logout, currentUser } from '../stores/auth';
 
-  // For testing, we'll need an npub - you'll replace this with the actual logged-in user
-  let testNpub = 'npub17mfu73mgy8fm9jn5jyepekedqph2y9pf9rf8g4gvg6ftqpxsy24q5mzhwj';
-  
-  $: profile = $profiles[testNpub];
-  $: loading = $profileLoadingStates[testNpub] || false;
+  // Get the logged-in user's npub from auth store
+  $: userNpub = $currentUser?.npub || '';
+  $: profile = userNpub ? $profiles[userNpub] : null;
+  $: loading = userNpub ? ($profileLoadingStates[userNpub] || false) : false;
   
   let error: string | null = null;
+  let isLoggingOut = false;
 
-  onMount(async () => {
+  // Watch for changes to userNpub and load profile
+  $: if (userNpub) {
+    loadUserProfile(userNpub);
+  }
+
+  async function loadUserProfile(npub: string) {
+    if (!npub) return;
+    
     try {
-      await loadProfile(testNpub);
+      error = null;
+      await loadProfile(npub);
     } catch (e: any) {
       error = e.message || 'Failed to load profile';
       console.error('Profile load error:', e);
     }
+  }
+
+  onMount(() => {
+    // Initial load will be triggered by reactive statement above
+    if (!userNpub) {
+      error = 'No user logged in';
+    }
   });
+
+  async function handleLogout() {
+    if (!confirm('Are you sure you want to logout?')) return;
+    
+    isLoggingOut = true;
+    try {
+      await logout(false); // Don't clear keys, just logout
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
+    // Will redirect to login automatically via +layout.svelte
+  }
 </script>
 
 <div class="profile-view">
@@ -78,6 +106,17 @@
             <p class="meta">ID: {profile.id}</p>
             <p class="meta">Last Updated: {new Date(profile.last_updated * 1000).toLocaleString()}</p>
             <p class="meta">Muted: {profile.muted ? 'Yes' : 'No'} | Bot: {profile.bot ? 'Yes' : 'No'}</p>
+          </div>
+
+          <!-- Actions -->
+          <div class="profile-actions">
+            <button 
+              class="btn-logout" 
+              on:click={handleLogout}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? 'Logging out...' : 'Logout'}
+            </button>
           </div>
         </div>
       </div>
@@ -239,6 +278,35 @@
     font-size: 0.75rem;
     margin: 4px 0;
     font-family: monospace;
+  }
+
+  .profile-actions {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #313338;
+  }
+
+  .btn-logout {
+    width: 100%;
+    height: 48px;
+    background: transparent;
+    color: #f23f42;
+    border: 2px solid #f23f42;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+  }
+
+  .btn-logout:hover:not(:disabled) {
+    background: rgba(242, 63, 66, 0.1);
+  }
+
+  .btn-logout:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
 
