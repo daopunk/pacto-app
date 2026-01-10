@@ -1,10 +1,17 @@
 <script lang="ts">
   import Tab from './Tab.svelte';
   import settingsIcon from '../icons/settings.svg';
-  import { communities, activeCommunityId } from '../stores/app';
+  import { communities, activeCommunityId, activeChannelId, activeView } from '../stores/app';
 
   function selectCommunity(communityId: string) {
     $activeCommunityId = communityId;
+    $activeView = 'hub';
+  }
+
+  function openProfile() {
+    $activeView = 'profile';
+    $activeCommunityId = null;
+    $activeChannelId = null;
   }
 </script>
 
@@ -20,13 +27,20 @@
         <Tab 
           label={community.name} 
           image={community.image}
-          active={$activeCommunityId === community.id}
+          active={$activeView === 'hub' && $activeCommunityId === community.id}
         />
       </div>
     {/each}
   </div>
   <div class="tab-list bottom">
-    <Tab label="Settings" image={settingsIcon} />
+    <div 
+      on:click={openProfile}
+      on:keydown={(e) => e.key === 'Enter' && openProfile()}
+      role="button"
+      tabindex="0"
+    >
+      <Tab label="Settings" image={settingsIcon} active={$activeView === 'profile'} />
+    </div>
   </div>
 </div>
 
@@ -34,7 +48,7 @@
   .navbar {
     width: 64px;
     height: 100%;
-    background-color: #2b2c2c;
+    background-color: #242424;
     display: flex;
     flex-direction: column;
     justify-content: space-between;

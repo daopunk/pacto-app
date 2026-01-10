@@ -1,6 +1,6 @@
 <script lang="ts">
   import Channel from './Channel.svelte';
-  import { communities, activeCommunityId, activeChannelId } from '../stores/app';
+  import { communities, activeCommunityId, activeChannelId, activeView } from '../stores/app';
 
   // Get the active community's data
   $: activeCommunity = $communities.find(c => c.id === $activeCommunityId);
@@ -8,6 +8,7 @@
 
   function selectChannel(channelId: string) {
     $activeChannelId = channelId;
+    $activeView = 'hub';
   }
 
   // Resize functionality
@@ -54,7 +55,7 @@
             <Channel 
               name={channel.name} 
               type={channel.type as 'text' | 'announcement'}
-              active={$activeChannelId === channel.id}
+              active={$activeView === 'hub' && $activeChannelId === channel.id}
             />
           </div>
         {/each}
@@ -77,11 +78,12 @@
 <style>
   .community-navbar {
     height: 100%;
-    background-color: #2b2d31;
+    background-color:#202020;
     display: flex;
     flex-direction: column;
     position: relative;
     flex-shrink: 0;
+    border-left: 1px solid #313338;
   }
 
   .community-header {
@@ -89,7 +91,7 @@
     padding: 0 16px;
     display: flex;
     align-items: center;
-    border-bottom: 1px solid #1e1f22;
+    border-bottom: 1px solid #313338;
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
   }
 
