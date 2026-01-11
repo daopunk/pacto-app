@@ -133,6 +133,7 @@
         <PinInput
           title={pinTitle}
           onComplete={pinHandler}
+          onErrorClear={() => { error = null; clearAuthError(); }}
           isProcessing={$authLoading}
           {error}
         />
