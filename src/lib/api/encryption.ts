@@ -15,39 +15,43 @@ export async function hasStoredKey(): Promise<boolean> {
 
 /**
  * Encrypt and save a private key with a PIN
- * NOTE: Currently stores plaintext - PIN encryption needs to be implemented in Rust
  * @param privateKey - The private key to encrypt
  * @param pin - The 6-digit PIN for encryption
  */
 export async function encryptAndSaveKey(privateKey: string, pin: string): Promise<void> {
-  // TODO: Implement PIN-based encryption in Rust
-  // For now, this stores the key directly (NOT SECURE FOR PRODUCTION)
-  console.warn('WARNING: Key encryption not yet implemented. Storing plaintext.');
-  await invoke('set_pkey', { pkey: privateKey });
+  // Encrypt the private key using the PIN as password
+  const encryptedKey = await invoke<string>('encrypt', { 
+    input: privateKey, 
+    password: pin 
+  });
+  
+  // Store the encrypted key
+  await invoke('set_pkey', { pkey: encryptedKey });
 }
 
 /**
  * Load and decrypt a private key using a PIN
- * NOTE: Currently loads plaintext - PIN decryption needs to be implemented in Rust
  * @param pin - The 6-digit PIN for decryption
  * @returns The decrypted private key
  * @throws Error if key doesn't exist or PIN is incorrect
  */
 export async function loadAndDecryptKey(pin: string): Promise<string> {
-  // TODO: Implement PIN-based decryption in Rust
-  // For now, this loads the key directly (NOT SECURE FOR PRODUCTION)
-  console.warn('WARNING: Key decryption not yet implemented. Loading plaintext.');
+  const encryptedKey = await invoke<string | null>('get_pkey');
   
-  const pkey = await invoke<string | null>('get_pkey');
-  
-  if (!pkey) {
+  if (!encryptedKey) {
     throw new Error('No stored key found');
   }
   
-  // Simulate delay for decryption
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
-  return pkey;
+  // Decrypt the key using the PIN as password
+  try {
+    const decryptedKey = await invoke<string>('decrypt', { 
+      ciphertext: encryptedKey, 
+      password: pin 
+    });
+    return decryptedKey;
+  } catch (error) {
+    throw new Error('Incorrect PIN');
+  }
 }
 
 /**

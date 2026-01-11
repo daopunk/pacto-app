@@ -5,9 +5,28 @@
   export let onComplete: (pin: string) => void;
   export let isProcessing: boolean = false;
   export let error: string | null = null;
+  export let onErrorClear: (() => void) | undefined = undefined;
 
   let digits: string[] = ['', '', '', '', '', ''];
   let inputs: HTMLInputElement[] = [];
+  let isShaking = false;
+  let lastClearedForError: string | null = null;
+
+  function clearInputs() {
+    digits = ['', '', '', '', '', ''];
+    inputs.forEach(input => {
+      if (input) input.value = '';
+    });
+    // Focus first input after clearing
+    setTimeout(() => inputs[0]?.focus(), 100);
+  }
+
+  function triggerShake() {
+    isShaking = true;
+    setTimeout(() => {
+      isShaking = false;
+    }, 500);
+  }
 
   function handleInput(index: number, event: Event) {
     const target = event.target as HTMLInputElement;
@@ -28,6 +47,12 @@
     // Check if all digits filled
     if (digits.every(d => d !== '')) {
       const pin = digits.join('');
+      // Reset the clear tracking so next error will trigger clear
+      lastClearedForError = null;
+      // Clear any previous error when submitting new PIN
+      if (error && onErrorClear) {
+        onErrorClear();
+      }
       onComplete(pin);
     }
   }
@@ -78,9 +103,17 @@
     inputs[0]?.focus();
   });
 
-  // Clear error when user starts typing again
-  $: if (digits.some(d => d !== '') && error) {
-    error = null;
+  // Watch for errors - clear inputs when error appears after PIN submission
+  // Only clear once per error to avoid clearing while user is typing
+  $: if (error && error !== lastClearedForError && digits.every(d => d !== '')) {
+    lastClearedForError = error;
+    clearInputs();
+    triggerShake();
+  }
+
+  // Reset tracking when error is cleared
+  $: if (!error) {
+    lastClearedForError = null;
   }
 </script>
 
@@ -91,7 +124,7 @@
     <div class="pin-error">{error}</div>
   {/if}
 
-  <div class="pin-inputs">
+  <div class="pin-inputs" class:shake={isShaking}>
     {#each digits as digit, i}
       <input
         bind:this={inputs[i]}
@@ -152,6 +185,10 @@
   .pin-inputs {
     display: flex;
     gap: 12px;
+  }
+
+  .pin-inputs.shake {
+    animation: shake 0.5s;
   }
 
   .pin-digit {
