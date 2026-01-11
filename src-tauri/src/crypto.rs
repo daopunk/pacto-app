@@ -62,10 +62,10 @@ pub fn encrypt_data(data: &[u8], params: &EncryptionParams) -> Result<Vec<u8>, S
 
 /// Hash a password using Argon2id
 pub async fn hash_pass(password: String) -> [u8; 32] {
-    // 150000 KiB memory size
-    let memory = 150000;
-    // 10 iterations
-    let iterations = 10;
+    // 96000 KiB (96 MB) memory size - balanced security and performance
+    let memory = 96000;
+    // 3 iterations - balanced security and performance for local device
+    let iterations = 4;
     let params = Params::new(memory, iterations, 1, Some(32)).unwrap();
 
     // TODO: create a random on-disk salt at first init
