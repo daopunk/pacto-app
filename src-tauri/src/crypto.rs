@@ -64,13 +64,13 @@ pub fn encrypt_data(data: &[u8], params: &EncryptionParams) -> Result<Vec<u8>, S
 pub async fn hash_pass(password: String) -> [u8; 32] {
     // 96000 KiB (96 MB) memory size - balanced security and performance
     let memory = 96000;
-    // 3 iterations - balanced security and performance for local device
+    // 4 iterations - balanced security and performance for local device
     let iterations = 4;
     let params = Params::new(memory, iterations, 1, Some(32)).unwrap();
 
     // TODO: create a random on-disk salt at first init
     // However, with the nature of this being local software, it won't help a user whom has their system compromised in the first place
-    let salt = "vectorvectovectvecvev".as_bytes();
+    let salt = "vectovectvecvevpacto".as_bytes();
 
     // Prepare derivation
     let argon = Argon2::new(argon2::Algorithm::Argon2id, Version::V0x13, params);
