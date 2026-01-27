@@ -59,6 +59,9 @@ hound = "3.5.1"
 rubato = "0.16.2"
 symphonia = { version = "0.5.5", features = ["mp3", "wav", "flac", "pcm"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
+log = "0.4"
+rand = "0.8"
+url = "2.5"
 
 # Android-only dependencies
 [target.'cfg(target_os = "android")'.dependencies]
@@ -85,3 +88,6 @@ whisper-rs = { version = "0.13.2", optional = true }
 tauri-plugin-updater = "2.9.0"
 tauri-plugin-single-instance = { version = "2.3.6", features = ["deep-link"] }
 tauri-plugin-window-state = "2.4.1"
+
+# MCP bridge for AI-assisted debugging (only included in debug builds via cfg)
+tauri-plugin-mcp-bridge = "0.7"

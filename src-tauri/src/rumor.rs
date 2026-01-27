@@ -28,7 +28,7 @@
 use std::borrow::Cow;
 use nostr_sdk::prelude::*;
 use tauri::Manager;
-use crate::{Message, Attachment, Reaction, TAURI_APP};
+use crate::{Message, Attachment, Reaction, TAURI_APP, StoredEvent, StoredEventBuilder};
 use crate::message::ImageMetadata;
 
 /// Protocol-agnostic rumor event representation
@@ -88,8 +88,22 @@ pub enum RumorProcessingResult {
         profile_id: String,
         until: u64,
     },
-    /// Event was ignored (unknown type or invalid)
+    /// Unknown event type - stored for future compatibility
+    /// The frontend will render this as "Unknown Event" placeholder
+    UnknownEvent(StoredEvent),
+    /// Event was ignored (invalid, expired, or should not be stored)
     Ignored,
+    /// A message edit event
+    Edit {
+        /// The ID of the message being edited
+        message_id: String,
+        /// The new content
+        new_content: String,
+        /// Timestamp of the edit (milliseconds)
+        edited_at: u64,
+        /// The stored event for persistence
+        event: StoredEvent,
+    },
 }
 
 /// Main rumor processor - protocol agnostic
@@ -120,6 +134,10 @@ pub async fn process_rumor(
         k if k.as_u16() == 15 => {
             process_file_attachment(rumor, context).await
         }
+        // Message edits
+        k if k.as_u16() == crate::stored_event::event_kind::MESSAGE_EDIT => {
+            process_edit_event(rumor, context).await
+        }
         // Emoji reactions
         Kind::Reaction => {
             process_reaction(rumor, context).await
@@ -128,9 +146,46 @@ pub async fn process_rumor(
         Kind::ApplicationSpecificData => {
             process_app_specific(rumor, context).await
         }
-        // Unknown or unsupported kind
-        _ => Ok(RumorProcessingResult::Ignored),
+        // Unknown or unsupported kind - store for future compatibility
+        _ => {
+            process_unknown_event(rumor, context).await
+        }
     }
+}
+
+/// Process an unknown event type
+///
+/// Creates a StoredEvent for unknown kinds so they can be stored
+/// and potentially displayed/processed in future versions.
+async fn process_unknown_event(
+    rumor: RumorEvent,
+    context: RumorContext,
+) -> Result<RumorProcessingResult, String> {
+    // Convert tags to Vec<Vec<String>> format
+    let tags: Vec<Vec<String>> = rumor.tags.iter()
+        .map(|tag| {
+            tag.as_slice().iter().map(|s| s.to_string()).collect()
+        })
+        .collect();
+
+    // Extract reference_id from e-tag if present
+    let reference_id = rumor.tags
+        .find(TagKind::e())
+        .and_then(|tag| tag.content())
+        .map(|s| s.to_string());
+
+    let event = StoredEventBuilder::new()
+        .id(rumor.id.to_hex())
+        .kind(rumor.kind.as_u16())
+        .content(rumor.content)
+        .tags(tags)
+        .reference_id(reference_id)
+        .created_at(rumor.created_at.as_u64())
+        .mine(context.is_mine)
+        .npub(rumor.pubkey.to_bech32().ok())
+        .build();
+
+    Ok(RumorProcessingResult::UnknownEvent(event))
 }
 
 /// Process a text message rumor
@@ -151,6 +206,9 @@ async fn process_text_message(
         id: rumor.id.to_hex(),
         content: rumor.content,
         replied_to,
+        replied_to_content: None, // Populated by get_message_views
+        replied_to_npub: None,
+        replied_to_has_attachment: None,
         preview_metadata: None,
         at: ms_timestamp,
         attachments: Vec::new(),
@@ -166,6 +224,8 @@ async fn process_text_message(
             None
         },
         wrapper_event_id: None, // Set by caller after processing
+        edited: false,
+        edit_history: None,
     };
     
     Ok(RumorProcessingResult::TextMessage(msg))
@@ -310,6 +370,7 @@ async fn process_file_attachment(
         img_meta,
         downloading: false,
         downloaded,
+        webxdc_topic: None,
     };
     
     // Create the message with attachment
@@ -317,6 +378,9 @@ async fn process_file_attachment(
         id: rumor.id.to_hex(),
         content: String::new(),
         replied_to,
+        replied_to_content: None, // Populated by get_message_views
+        replied_to_npub: None,
+        replied_to_has_attachment: None,
         preview_metadata: None,
         at: ms_timestamp,
         attachments: vec![attachment],
@@ -332,6 +396,8 @@ async fn process_file_attachment(
             None
         },
         wrapper_event_id: None, // Set by caller after processing
+        edited: false,
+        edit_history: None,
     };
     
     Ok(RumorProcessingResult::FileAttachment(msg))
@@ -364,12 +430,58 @@ async fn process_reaction(
     Ok(RumorProcessingResult::Reaction(reaction))
 }
 
+/// Process a message edit rumor
+///
+/// Extracts the edited content and references the original message.
+async fn process_edit_event(
+    rumor: RumorEvent,
+    context: RumorContext,
+) -> Result<RumorProcessingResult, String> {
+    // Find the reference event (the message being edited)
+    let reference_tag = rumor.tags
+        .find(TagKind::e())
+        .ok_or("Edit event missing reference event tag")?;
+
+    let message_id = reference_tag.content()
+        .ok_or("Edit reference tag has no content")?
+        .to_string();
+
+    // Extract millisecond-precision timestamp
+    let edited_at = extract_millisecond_timestamp(&rumor);
+
+    // Convert tags to Vec<Vec<String>> format for storage
+    let tags: Vec<Vec<String>> = rumor.tags.iter()
+        .map(|tag| {
+            tag.as_slice().iter().map(|s| s.to_string()).collect()
+        })
+        .collect();
+
+    // Create StoredEvent for persistence
+    let event = StoredEventBuilder::new()
+        .id(rumor.id.to_hex())
+        .kind(crate::stored_event::event_kind::MESSAGE_EDIT)
+        .content(rumor.content.clone())
+        .tags(tags)
+        .reference_id(Some(message_id.clone()))
+        .created_at(rumor.created_at.as_u64())
+        .mine(context.is_mine)
+        .npub(rumor.pubkey.to_bech32().ok())
+        .build();
+
+    Ok(RumorProcessingResult::Edit {
+        message_id,
+        new_content: rumor.content,
+        edited_at,
+        event,
+    })
+}
+
 /// Process application-specific data (typing indicators, etc.)
 ///
 /// Currently handles typing indicators for real-time status updates.
 async fn process_app_specific(
     rumor: RumorEvent,
-    _context: RumorContext,
+    context: RumorContext,
 ) -> Result<RumorProcessingResult, String> {
     // Check if this is a typing indicator
     if is_typing_indicator(&rumor) {
@@ -403,7 +515,6 @@ async fn process_app_specific(
             until: expiry_timestamp,
         });
     }
-    
     // Unknown application-specific data
     Ok(RumorProcessingResult::Ignored)
 }
