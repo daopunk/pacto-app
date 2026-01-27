@@ -64,9 +64,6 @@ mod miniapps;
 // Image caching for avatars, banners, and Mini App icons
 mod image_cache;
 
-// PIVX Promos (addressless cryptocurrency payments)
-mod pivx;
-
 // Audio processing: resampling (all platforms) + notification playback (desktop only)
 mod audio;
 
@@ -1471,26 +1468,6 @@ async fn handle_event(event: Event, is_new: bool) -> bool {
                             handle_unknown_event(event, &contact).await
                         }
                         RumorProcessingResult::Ignored => false,
-                        RumorProcessingResult::PivxPayment { gift_code, amount_piv, address, message_id, event } => {
-                            // Save PIVX payment event to database
-                            if let Some(handle) = TAURI_APP.get() {
-                                let event_timestamp = event.created_at;
-                                let _ = db::save_pivx_payment_event(handle, &contact, event).await;
-
-                                // Emit PIVX payment event to frontend for DMs
-                                let _ = handle.emit("pivx_payment_received", serde_json::json!({
-                                    "conversation_id": contact,
-                                    "gift_code": gift_code,
-                                    "amount_piv": amount_piv,
-                                    "address": address,
-                                    "message_id": message_id,
-                                    "sender": sender,
-                                    "is_mine": is_mine,
-                                    "at": event_timestamp * 1000,
-                                }));
-                            }
-                            true
-                        }
                         RumorProcessingResult::Edit { message_id, new_content, edited_at, mut event } => {
                             // Skip if this edit event was already processed (deduplication)
                             if let Some(handle) = TAURI_APP.get() {
@@ -2323,26 +2300,6 @@ async fn notifs() -> Result<bool, String> {
                                                                 None // Don't emit as message
                                                             }
                                                             RumorProcessingResult::Ignored => None,
-                                                            RumorProcessingResult::PivxPayment { gift_code, amount_piv, address, message_id, event } => {
-                                                                // Save PIVX payment event and emit to frontend
-                                                                if let Some(handle) = TAURI_APP.get() {
-                                                                    let event_timestamp = event.created_at;
-                                                                    let _ = db::save_pivx_payment_event(handle, &group_id_for_persist, event).await;
-
-                                                                    let sender_npub = msg.pubkey.to_bech32().unwrap_or_default();
-                                                                    let _ = handle.emit("pivx_payment_received", serde_json::json!({
-                                                                        "conversation_id": group_id_for_persist,
-                                                                        "gift_code": gift_code,
-                                                                        "amount_piv": amount_piv,
-                                                                        "address": address,
-                                                                        "message_id": message_id,
-                                                                        "sender": sender_npub,
-                                                                        "is_mine": is_mine,
-                                                                        "at": event_timestamp * 1000,
-                                                                    }));
-                                                                }
-                                                                None // Don't emit as message
-                                                            }
                                                             RumorProcessingResult::Edit { message_id, new_content, edited_at, event } => {
                                                                 // Skip if this edit event was already processed (deduplication)
                                                                 if let Some(handle) = TAURI_APP.get() {
@@ -6146,26 +6103,6 @@ pub fn run() {
             image_cache::clear_image_cache,
             image_cache::get_image_cache_stats,
             image_cache::cache_url_image,
-            // PIVX Promos commands
-            pivx::pivx_create_promo,
-            pivx::pivx_get_promo_balance,
-            pivx::pivx_get_wallet_balance,
-            pivx::pivx_list_promos,
-            pivx::pivx_sweep_promo,
-            pivx::pivx_set_wallet_address,
-            pivx::pivx_get_wallet_address,
-            pivx::pivx_claim_from_message,
-            pivx::pivx_import_promo,
-            pivx::pivx_refresh_balances,
-            pivx::pivx_send_payment,
-            pivx::pivx_send_existing_promo,
-            pivx::pivx_get_chat_payments,
-            pivx::pivx_check_address_balance,
-            pivx::pivx_withdraw,
-            pivx::pivx_get_currencies,
-            pivx::pivx_get_price,
-            pivx::pivx_set_preferred_currency,
-            pivx::pivx_get_preferred_currency,
             // Notification sound commands (desktop only)
             #[cfg(desktop)]
             audio::get_notification_settings,
