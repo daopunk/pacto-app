@@ -58,10 +58,7 @@ pub use stored_event::{StoredEvent, StoredEventBuilder, event_kind};
 
 mod deep_link;
 
-// Mini Apps (WebXDC-compatible) support
-mod miniapps;
-
-// Image caching for avatars, banners, and Mini App icons
+// Image caching for avatars, banners, and inline images
 mod image_cache;
 
 // Audio processing: resampling (all platforms) + notification playback (desktop only)
@@ -1069,91 +1066,6 @@ async fn start_typing(receiver: String) -> bool {
     }
 }
 
-/// Send a WebXDC peer advertisement to chat participants
-/// This announces our Iroh node address for realtime channel peer discovery
-#[tauri::command]
-async fn send_webxdc_peer_advertisement(
-    receiver: String,
-    topic_id: String,
-    node_addr: String,
-) -> bool {
-    let client = NOSTR_CLIENT.get().expect("Nostr client not initialized");
-    let signer = client.signer().await.unwrap();
-    let my_public_key = signer.get_public_key().await.unwrap();
-    let my_npub = my_public_key.to_bech32().unwrap_or_else(|_| "unknown".to_string());
-
-    println!("[WEBXDC] Sending peer advertisement: my_npub={}, receiver={}, topic={}", my_npub, receiver, topic_id);
-    log::info!("Sending WebXDC peer advertisement to {} for topic {}", receiver, topic_id);
-    log::debug!("Node address: {}", node_addr);
-
-    // Check if this is a group chat (group IDs are hex, not bech32)
-    match PublicKey::from_bech32(receiver.as_str()) {
-        Ok(pubkey) => {
-            // This is a DM - use NIP-17 gift wrapping
-
-            // Build the peer advertisement rumor
-            let rumor = EventBuilder::new(Kind::ApplicationSpecificData, "peer-advertisement")
-                .tag(Tag::public_key(pubkey))
-                .tag(Tag::custom(TagKind::d(), vec!["vector-webxdc-peer"]))
-                .tag(Tag::custom(TagKind::custom("webxdc-topic"), vec![topic_id]))
-                .tag(Tag::custom(TagKind::custom("webxdc-node-addr"), vec![node_addr]))
-                .tag(Tag::expiration(Timestamp::from_secs(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
-                        + 300, // 5 minute expiry
-                )))
-                .build(my_public_key);
-
-            // Gift Wrap and send to receiver via our Trusted Relays
-            let expiry_time = Timestamp::from_secs(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()
-                    + 300,
-            );
-            match client
-                .gift_wrap_to(
-                    TRUSTED_RELAYS.iter().copied(),
-                    &pubkey,
-                    rumor,
-                    [Tag::expiration(expiry_time)],
-                )
-                .await
-            {
-                Ok(_) => true,
-                Err(_) => false,
-            }
-        }
-        Err(_) => {
-            // This is a group chat - use MLS
-            let group_id = receiver.clone();
-            
-            // Build the peer advertisement rumor
-            let rumor = EventBuilder::new(Kind::ApplicationSpecificData, "peer-advertisement")
-                .tag(Tag::custom(TagKind::d(), vec!["vector-webxdc-peer"]))
-                .tag(Tag::custom(TagKind::custom("webxdc-topic"), vec![topic_id]))
-                .tag(Tag::custom(TagKind::custom("webxdc-node-addr"), vec![node_addr]))
-                .tag(Tag::expiration(Timestamp::from_secs(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
-                        + 300,
-                )))
-                .build(my_public_key);
-
-            // Send via MLS
-            match mls::send_mls_message(&group_id, rumor, None).await {
-                Ok(_) => true,
-                Err(_e) => false,
-            }
-        }
-    }
-}
-
 /// Get paginated messages for a chat directly from the database
 /// Also adds the messages to the backend state for cache synchronization
 #[tauri::command]
@@ -1457,10 +1369,6 @@ async fn handle_event(event: Event, is_new: bool) -> bool {
                             }
                             
                             true
-                        }
-                        RumorProcessingResult::WebxdcPeerAdvertisement { topic_id, node_addr } => {
-                            // Handle WebXDC peer advertisement - add peer to realtime channel
-                            handle_webxdc_peer_advertisement(&topic_id, &node_addr).await
                         }
                         RumorProcessingResult::UnknownEvent(mut event) => {
                             // Store unknown events for future compatibility
@@ -1777,94 +1685,6 @@ async fn handle_unknown_event(mut event: StoredEvent, contact: &str) -> bool {
     }
 }
 
-/// Handle a WebXDC peer advertisement - add the peer to our realtime channel
-async fn handle_webxdc_peer_advertisement(topic_id: &str, node_addr_encoded: &str) -> bool {
-    use crate::miniapps::realtime::{decode_topic_id, decode_node_addr};
-    
-    println!("[WEBXDC] Received peer advertisement for topic {}", topic_id);
-    
-    // Decode the topic ID
-    let topic = match decode_topic_id(topic_id) {
-        Ok(t) => t,
-        Err(e) => {
-            log::warn!("Failed to decode topic ID in peer advertisement: {}", e);
-            return false;
-        }
-    };
-    
-    // Decode the node address
-    let node_addr = match decode_node_addr(node_addr_encoded) {
-        Ok(addr) => addr,
-        Err(e) => {
-            log::warn!("Failed to decode node address in peer advertisement: {}", e);
-            return false;
-        }
-    };
-    
-    // Get the MiniApps state and add the peer
-    if let Some(handle) = TAURI_APP.get() {
-        let state = handle.state::<miniapps::state::MiniAppsState>();
-        
-        // Check if we have an active realtime channel for this topic
-        // We need to find any instance that has this topic active
-        let has_channel = {
-            let channels = state.realtime_channels.read().await;
-            println!("[WEBXDC] Checking {} active channels for topic match", channels.len());
-            for (label, ch) in channels.iter() {
-                println!("[WEBXDC]   Channel '{}': topic={}, active={}",
-                    label,
-                    crate::miniapps::realtime::encode_topic_id(&ch.topic),
-                    ch.active);
-            }
-            channels.values().any(|ch| ch.topic == topic && ch.active)
-        };
-        
-        println!("[WEBXDC] has_channel for topic {}: {}", topic_id, has_channel);
-        
-        if has_channel {
-            println!("[WEBXDC] Found active channel for topic {}, adding peer", topic_id);
-            // Get the realtime manager and add the peer
-            match state.realtime.get_or_init().await {
-                Ok(iroh) => {
-                    match iroh.add_peer(topic, node_addr.clone()).await {
-                        Ok(_) => {
-                            println!("[WEBXDC] Successfully added peer {} to realtime channel topic {}",
-                                node_addr.node_id, topic_id);
-                            return true;
-                        }
-                        Err(e) => {
-                            println!("[WEBXDC] ERROR: Failed to add peer to realtime channel: {}", e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    println!("[WEBXDC] ERROR: Failed to get realtime manager: {}", e);
-                }
-            }
-        } else {
-            // Store as pending peer - we'll add them when we join the channel
-            println!("[WEBXDC] Storing pending peer for topic {} (no active channel yet)", topic_id);
-            state.add_pending_peer(topic, node_addr).await;
-            
-            // Emit event to frontend so it can update the UI (show "Click to Join" and player count)
-            let pending_count = state.get_pending_peer_count(&topic).await;
-            if let Some(main_window) = handle.get_webview_window("main") {
-                use tauri::Emitter;
-                let _ = main_window.emit("miniapp_realtime_status", serde_json::json!({
-                    "topic": topic_id,
-                    "peer_count": pending_count,
-                    "is_active": false,
-                    "has_pending_peers": true,
-                }));
-                println!("[WEBXDC] Emitted miniapp_realtime_status event: topic={}, pending_count={}", topic_id, pending_count);
-            }
-            
-            return true;
-        }
-    }
-    
-    false
-}
 
 /*
 MLS live subscriptions overview (using Marmot/MDK):
@@ -2281,11 +2101,6 @@ async fn notifs() -> Result<bool, String> {
                                                                     }));
                                                                 }
                                                                 
-                                                                None // Don't emit as message
-                                                            }
-                                                            RumorProcessingResult::WebxdcPeerAdvertisement { topic_id, node_addr } => {
-                                                                // Handle WebXDC peer advertisement - add peer to realtime channel
-                                                                handle_webxdc_peer_advertisement(&topic_id, &node_addr).await;
                                                                 None // Don't emit as message
                                                             }
                                                             RumorProcessingResult::UnknownEvent(mut event) => {
@@ -4614,7 +4429,7 @@ async fn get_storage_info() -> Result<serde_json::Value, String> {
         }
     }
 
-    // Calculate image cache size (avatars, banners, miniapp icons)
+    // Calculate image cache size (avatars, banners)
     // Cache is global (not per-account) for deduplication across accounts
     if let Ok(cache_size) = image_cache::get_cache_size(handle) {
         if cache_size > 0 {
@@ -4891,6 +4706,36 @@ async fn regenerate_device_keypackage(cache: bool) -> Result<serde_json::Value, 
     let signer = client.signer().await.map_err(|e| e.to_string())?;
     let my_pubkey = signer.get_public_key().await.map_err(|e| e.to_string())?;
     let owner_pubkey_b32 = my_pubkey.to_bech32().map_err(|e| e.to_string())?;
+
+    // Ensure we're connected to TRUSTED_RELAYS (needed for both cache verification and publishing)
+    for relay in TRUSTED_RELAYS.iter() {
+        if let Ok(relay_url) = nostr_sdk::RelayUrl::parse(relay) {
+            // Check if relay is in the pool
+            if !client.relays().await.contains_key(&relay_url) {
+                println!("[MLS][KeyPackage] Adding TRUSTED_RELAY to pool: {}", relay);
+                client.add_relay(*relay).await.map_err(|e| e.to_string())?;
+            }
+            
+            // Connect with timeout if not already connected
+            match client.relay(relay_url.clone()).await {
+                Ok(relay_instance) => {
+                    if !relay_instance.is_connected() {
+                        println!("[MLS][KeyPackage] Connecting to TRUSTED_RELAY: {}", relay);
+                        let _ = client.connect_relay(*relay).await;
+                        // Give it time to connect
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    }
+                }
+                Err(_) => {
+                    // Relay not in pool, add and connect
+                    println!("[MLS][KeyPackage] Adding and connecting to TRUSTED_RELAY: {}", relay);
+                    let _ = client.add_relay(*relay).await;
+                    let _ = client.connect_relay(*relay).await;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                }
+            }
+        }
+    }
 
     // If caching is requested, attempt to load and verify an existing KeyPackage
     if cache {
@@ -5801,11 +5646,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_deep_link::init())
-        // Register the webxdc:// custom protocol for Mini Apps (async to avoid deadlocks on Windows)
-        .register_asynchronous_uri_scheme_protocol("webxdc", miniapps::scheme::miniapp_protocol)
-        // Register Mini Apps state
-        .manage(miniapps::state::MiniAppsState::new());
+        .plugin(tauri_plugin_deep_link::init());
 
     // MCP Bridge plugin for AI-assisted debugging (desktop debug builds only)
     #[cfg(all(debug_assertions, desktop))]
@@ -5901,21 +5742,6 @@ pub fn run() {
             tauri::async_runtime::spawn(async {
                 profile_sync::start_profile_sync_processor().await;
             });
-            
-            // Start the Mini Apps pending peer cleanup task (runs every 5 minutes)
-            {
-                let handle_for_cleanup = handle.clone();
-                tauri::async_runtime::spawn(async move {
-                    loop {
-                        // Wait 5 minutes between cleanups
-                        tokio::time::sleep(std::time::Duration::from_secs(300)).await;
-                        
-                        // Get the MiniAppsState and run cleanup
-                        let state = handle_for_cleanup.state::<miniapps::state::MiniAppsState>();
-                        state.cleanup_expired_pending_peers().await;
-                    }
-                });
-            }
 
             // Setup deep link listener for macOS/iOS/Android
             // On these platforms, deep links are received as events rather than CLI args
@@ -6004,7 +5830,6 @@ pub fn run() {
             get_relay_logs,
             monitor_relay_connections,
             start_typing,
-            send_webxdc_peer_advertisement,
             connect,
             encrypt,
             decrypt,
@@ -6055,49 +5880,6 @@ pub fn run() {
             account_manager::list_all_accounts,
             account_manager::check_any_account_exists,
             account_manager::switch_account,
-            // Mini Apps commands
-            miniapps::commands::miniapp_load_info,
-            miniapps::commands::miniapp_load_info_from_bytes,
-            miniapps::commands::miniapp_open,
-            miniapps::commands::miniapp_close,
-            miniapps::commands::miniapp_get_updates,
-            miniapps::commands::miniapp_send_update,
-            miniapps::commands::miniapp_list_open,
-            // Mini Apps realtime channel commands (Iroh P2P)
-            miniapps::commands::miniapp_join_realtime_channel,
-            miniapps::commands::miniapp_send_realtime_data,
-            miniapps::commands::miniapp_leave_realtime_channel,
-            miniapps::commands::miniapp_add_realtime_peer,
-            miniapps::commands::miniapp_get_realtime_node_addr,
-            miniapps::commands::miniapp_get_realtime_status,
-            // Mini Apps history commands
-            miniapps::commands::miniapp_record_opened,
-            miniapps::commands::miniapp_get_history,
-            miniapps::commands::miniapp_toggle_favorite,
-            miniapps::commands::miniapp_set_favorite,
-            // Mini Apps marketplace commands
-            miniapps::commands::marketplace_fetch_apps,
-            miniapps::commands::marketplace_get_cached_apps,
-            miniapps::commands::marketplace_get_app,
-            miniapps::commands::marketplace_get_app_by_hash,
-            miniapps::commands::marketplace_get_install_status,
-            miniapps::commands::marketplace_install_app,
-            miniapps::commands::marketplace_check_installed,
-            miniapps::commands::marketplace_sync_install_status,
-            miniapps::commands::marketplace_add_trusted_publisher,
-            miniapps::commands::marketplace_open_app,
-            miniapps::commands::marketplace_uninstall_app,
-            miniapps::commands::marketplace_update_app,
-            miniapps::commands::marketplace_publish_app,
-            miniapps::commands::marketplace_get_trusted_publisher,
-            // Mini App permissions commands
-            miniapps::commands::miniapp_get_available_permissions,
-            miniapps::commands::miniapp_get_granted_permissions,
-            miniapps::commands::miniapp_get_granted_permissions_for_window,
-            miniapps::commands::miniapp_set_permission,
-            miniapps::commands::miniapp_set_permissions,
-            miniapps::commands::miniapp_has_permission_prompt,
-            miniapps::commands::miniapp_revoke_all_permissions,
             // Image cache commands
             image_cache::get_or_cache_image,
             image_cache::clear_image_cache,

@@ -1,6 +1,6 @@
 //! Image Cache Module
 //!
-//! Handles caching of user avatars, banners, and Mini App icons for offline
+//! Handles caching of user avatars, banners, and inline images for offline
 //! support and graceful fallback when images fail to load.
 //!
 //! ## Storage Structure
@@ -8,7 +8,7 @@
 //! AppData/cache/
 //!   avatars/{hash}.{ext}
 //!   banners/{hash}.{ext}
-//!   miniapp_icons/{hash}.{ext}
+//!   inline_images/{hash}.{ext}
 //! ```
 //!
 //! Images are stored globally (not per-account) to enable deduplication across
@@ -69,7 +69,6 @@ const VALID_IMAGE_SIGNATURES: &[(&[u8], &str)] = &[
 pub enum ImageType {
     Avatar,
     Banner,
-    MiniAppIcon,
     /// Inline images from URLs posted in chat messages
     InlineImage,
 }
@@ -80,7 +79,6 @@ impl ImageType {
         match self {
             ImageType::Avatar => "avatars",
             ImageType::Banner => "banners",
-            ImageType::MiniAppIcon => "miniapp_icons",
             ImageType::InlineImage => "inline_images",
         }
     }
@@ -382,15 +380,6 @@ pub async fn cache_banner<R: Runtime>(
     cache_image(handle, banner_url, ImageType::Banner).await
 }
 
-/// Cache a Mini App icon
-#[allow(dead_code)] // Available for future Mini App icon caching
-pub async fn cache_miniapp_icon<R: Runtime>(
-    handle: &AppHandle<R>,
-    icon_url: &str,
-) -> CacheResult {
-    cache_image(handle, icon_url, ImageType::MiniAppIcon).await
-}
-
 /// Remove a cached image (e.g., when user changes their avatar)
 #[allow(dead_code)] // Available for cache invalidation when avatars change
 pub fn remove_cached_image<R: Runtime>(
@@ -468,7 +457,6 @@ pub async fn get_or_cache_image<R: Runtime>(
     let img_type = match image_type.as_str() {
         "avatar" => ImageType::Avatar,
         "banner" => ImageType::Banner,
-        "miniapp_icon" => ImageType::MiniAppIcon,
         _ => return Err("Invalid image type".to_string()),
     };
 
@@ -489,7 +477,6 @@ pub async fn clear_image_cache<R: Runtime>(
     let mut total = 0;
     total += clear_cache(&handle, ImageType::Avatar)?;
     total += clear_cache(&handle, ImageType::Banner)?;
-    total += clear_cache(&handle, ImageType::MiniAppIcon)?;
     total += clear_cache(&handle, ImageType::InlineImage)?;
     Ok(total)
 }
@@ -504,7 +491,6 @@ pub async fn get_image_cache_stats<R: Runtime>(
     // Count files per type
     let mut avatar_count = 0;
     let mut banner_count = 0;
-    let mut icon_count = 0;
     let mut inline_count = 0;
 
     if let Ok(dir) = get_cache_dir(&handle, ImageType::Avatar) {
@@ -512,9 +498,6 @@ pub async fn get_image_cache_stats<R: Runtime>(
     }
     if let Ok(dir) = get_cache_dir(&handle, ImageType::Banner) {
         banner_count = std::fs::read_dir(dir).map(|e| e.count()).unwrap_or(0);
-    }
-    if let Ok(dir) = get_cache_dir(&handle, ImageType::MiniAppIcon) {
-        icon_count = std::fs::read_dir(dir).map(|e| e.count()).unwrap_or(0);
     }
     if let Ok(dir) = get_cache_dir(&handle, ImageType::InlineImage) {
         inline_count = std::fs::read_dir(dir).map(|e| e.count()).unwrap_or(0);
@@ -524,7 +507,6 @@ pub async fn get_image_cache_stats<R: Runtime>(
         "total_size_bytes": size,
         "avatar_count": avatar_count,
         "banner_count": banner_count,
-        "miniapp_icon_count": icon_count,
         "inline_image_count": inline_count,
     }))
 }

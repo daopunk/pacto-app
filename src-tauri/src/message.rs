@@ -14,7 +14,6 @@ use crate::STATE;
 use crate::util::{self, calculate_file_hash};
 use crate::TAURI_APP;
 use crate::NOSTR_CLIENT;
-use crate::miniapps::realtime::{generate_topic_id, encode_topic_id};
 
 /// Cached compressed image data
 #[derive(Clone)]
@@ -477,15 +476,6 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
             (params, enc_file)
         };
 
-        // For WebXDC (.xdc) files, generate topic ID upfront so it's available immediately
-        // This needs to be outside the block so it's available when building the Nostr event
-        let webxdc_topic = if attached_file.extension.to_lowercase() == "xdc" {
-            let topic_id = generate_topic_id();
-            Some(encode_topic_id(&topic_id))
-        } else {
-            None
-        };
-
         // Update the attachment in-state
         {
             // Use a clone of the Arc for this block
@@ -543,7 +533,7 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
                 img_meta: attached_file.img_meta.clone(),
                 downloading: false,
                 downloaded: true,
-                webxdc_topic: webxdc_topic.clone(),
+                webxdc_topic: None,
             });
 
             // Send the pending file upload to our frontend with appropriate event
@@ -621,12 +611,6 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
                         .tag(Tag::custom(TagKind::custom("dim"), [format!("{}x{}", img_meta.width, img_meta.height)]));
                 }
 
-                // For WebXDC (.xdc) files, use the topic ID from the attachment (generated earlier)
-                if let Some(ref topic_encoded) = webxdc_topic {
-                    attachment_rumor = attachment_rumor
-                        .tag(Tag::custom(TagKind::custom("webxdc-topic"), [topic_encoded.clone()]));
-                }
-
                 attachment_rumor
             } else {
                 // URL is dead, need to upload
@@ -697,13 +681,6 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
                             .tag(Tag::custom(TagKind::custom("blurhash"), [&img_meta.blurhash]))
                             .tag(Tag::custom(TagKind::custom("dim"), [format!("{}x{}", img_meta.width, img_meta.height)]));
                     }
-
-                    // For WebXDC (.xdc) files, use the topic ID from the attachment (generated earlier)
-                    if let Some(ref topic_encoded) = webxdc_topic {
-                        attachment_rumor = attachment_rumor
-                            .tag(Tag::custom(TagKind::custom("webxdc-topic"), [topic_encoded.clone()]));
-                    }
-
                     attachment_rumor
                 },
                 Err(e) => {

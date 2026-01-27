@@ -119,19 +119,6 @@ CREATE TABLE IF NOT EXISTS mls_event_cursors (
     last_seen_at INTEGER NOT NULL
 );
 
--- Mini Apps history table (tracks recently used Mini Apps)
-CREATE TABLE IF NOT EXISTS miniapps_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    src_url TEXT NOT NULL,
-    attachment_ref TEXT NOT NULL,
-    open_count INTEGER NOT NULL DEFAULT 1,
-    last_opened_at INTEGER NOT NULL,
-    is_favorite INTEGER NOT NULL DEFAULT 0,
-    categories TEXT NOT NULL DEFAULT '',
-    marketplace_id TEXT DEFAULT NULL
-);
-
 -- Events table: flat, protocol-aligned storage for all Nostr events
 -- Every event (message, reaction, attachment, etc.) is a separate row
 -- This is the PRIMARY storage for all message data
@@ -158,21 +145,6 @@ CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
 CREATE INDEX IF NOT EXISTS idx_events_reference ON events(reference_id) WHERE reference_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_wrapper ON events(wrapper_event_id) WHERE wrapper_event_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
-
--- PIVX Promos table (for addressless PIVX payments via promo codes)
-CREATE TABLE IF NOT EXISTS pivx_promos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    gift_code TEXT NOT NULL UNIQUE,
-    address TEXT NOT NULL,
-    privkey_encrypted TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    claimed_at INTEGER,
-    amount_piv REAL,
-    status TEXT NOT NULL DEFAULT 'active'
-);
-CREATE INDEX IF NOT EXISTS idx_pivx_promos_code ON pivx_promos(gift_code);
-CREATE INDEX IF NOT EXISTS idx_pivx_promos_address ON pivx_promos(address);
-CREATE INDEX IF NOT EXISTS idx_pivx_promos_status ON pivx_promos(status);
 "#;
 
 /// Get the profile directory for a given npub (full npub, no truncation)
@@ -496,55 +468,7 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         }
     }
 
-    // Migration 2: Create miniapps_history table if it doesn't exist
-    let has_miniapps_history: bool = conn.query_row(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='miniapps_history'",
-        [],
-        |row| row.get::<_, i32>(0)
-    ).map(|count| count > 0)
-    .unwrap_or(false);
-
-    if !has_miniapps_history {
-        println!("[Migration] Creating miniapps_history table...");
-        conn.execute(
-            r#"
-            CREATE TABLE IF NOT EXISTS miniapps_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                src_url TEXT NOT NULL,
-                attachment_ref TEXT,
-                open_count INTEGER DEFAULT 1,
-                last_opened_at INTEGER NOT NULL,
-                is_favorite INTEGER NOT NULL DEFAULT 0,
-                categories TEXT NOT NULL DEFAULT '',
-                marketplace_id TEXT DEFAULT NULL
-            )
-            "#,
-            []
-        ).map_err(|e| format!("Failed to create miniapps_history table: {}", e))?;
-
-        println!("[Migration] miniapps_history table created successfully");
-    }
-
-    // Migration 3: Add installed_version column to miniapps_history if it doesn't exist
-    let has_installed_version: bool = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('miniapps_history') WHERE name='installed_version'",
-        [],
-        |row| row.get::<_, i32>(0)
-    ).map(|count| count > 0)
-    .unwrap_or(false);
-
-    if !has_installed_version {
-        println!("[Migration] Adding installed_version column to miniapps_history table...");
-        conn.execute(
-            "ALTER TABLE miniapps_history ADD COLUMN installed_version TEXT DEFAULT NULL",
-            []
-        ).map_err(|e| format!("Failed to add installed_version column: {}", e))?;
-
-        println!("[Migration] installed_version column added successfully");
-    }
-
-    // Migration 4: Add cached image path columns to profiles table
+    // Migration 2: Add cached image path columns to profiles table
     let has_avatar_cached: bool = conn.query_row(
         "SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name='avatar_cached'",
         [],
@@ -567,40 +491,7 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         println!("[Migration] Cached image columns added successfully");
     }
 
-    // Migration 5: Create miniapp_permissions table for storing granted permissions per-app
-    let has_permissions_table: bool = conn.query_row(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='miniapp_permissions'",
-        [],
-        |row| row.get::<_, i32>(0)
-    ).map(|count| count > 0)
-    .unwrap_or(false);
-
-    if !has_permissions_table {
-        println!("[Migration] Creating miniapp_permissions table...");
-        conn.execute(
-            r#"
-            CREATE TABLE IF NOT EXISTS miniapp_permissions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_hash TEXT NOT NULL,
-                permission TEXT NOT NULL,
-                granted INTEGER NOT NULL DEFAULT 0,
-                granted_at INTEGER,
-                UNIQUE(file_hash, permission)
-            )
-            "#,
-            []
-        ).map_err(|e| format!("Failed to create miniapp_permissions table: {}", e))?;
-
-        // Create index for fast permission lookups
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_miniapp_permissions_hash ON miniapp_permissions(file_hash)",
-            []
-        ).map_err(|e| format!("Failed to create miniapp_permissions index: {}", e))?;
-
-        println!("[Migration] miniapp_permissions table created successfully");
-    }
-
-    // Migration 6: Create events table for flat event-based storage
+    // Migration 3: Create events table for flat event-based storage
     // This is the new protocol-aligned storage format where all events (messages, reactions,
     // attachments, etc.) are stored as flat rows rather than nested JSON.
     let has_events_table: bool = conn.query_row(
@@ -667,7 +558,7 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         migrate_messages_to_events(conn)?;
     }
 
-    // Migration 7: Backfill attachment metadata into event tags
+    // Migration 4: Backfill attachment metadata into event tags
     // Migration 6 didn't copy attachment JSON into tags, so kind=15 events need updating
     // NOTE: This migration requires the messages table to exist - skip if already dropped
     let storage_version: String = conn.query_row(
@@ -704,36 +595,7 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         println!("[Migration 7] Messages table already dropped, skipping attachment backfill. Storage version set to 3.");
     }
 
-    // Migration 8: Create pivx_promos table for addressless PIVX payments
-    let has_pivx_table: bool = conn.query_row(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='pivx_promos'",
-        [],
-        |row| row.get::<_, i32>(0)
-    ).map(|count| count > 0)
-    .unwrap_or(false);
-
-    if !has_pivx_table {
-        println!("[Migration 8] Creating pivx_promos table...");
-        conn.execute_batch(r#"
-            CREATE TABLE IF NOT EXISTS pivx_promos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                gift_code TEXT NOT NULL UNIQUE,
-                address TEXT NOT NULL,
-                privkey_encrypted TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                claimed_at INTEGER,
-                amount_piv REAL,
-                status TEXT NOT NULL DEFAULT 'active'
-            );
-            CREATE INDEX IF NOT EXISTS idx_pivx_promos_code ON pivx_promos(gift_code);
-            CREATE INDEX IF NOT EXISTS idx_pivx_promos_address ON pivx_promos(address);
-            CREATE INDEX IF NOT EXISTS idx_pivx_promos_status ON pivx_promos(status);
-        "#).map_err(|e| format!("Failed to create pivx_promos table: {}", e))?;
-
-        println!("[Migration 8] pivx_promos table created successfully");
-    }
-
-    // Migration 9: Fix DM chats with empty participants
+    // Migration 5: Fix DM chats with empty participants
     // DM chats (chat_type = 0) should have the other party's npub in participants
     // A bug in get_or_create_chat_id was creating DM chats with participants = '[]'
     let empty_dm_count: i64 = conn.query_row(
@@ -743,7 +605,7 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
     ).unwrap_or(0);
 
     if empty_dm_count > 0 {
-        println!("[Migration 9] Fixing {} DM chats with empty participants...", empty_dm_count);
+        println!("[Migration 5] Fixing {} DM chats with empty participants...", empty_dm_count);
 
         // For DM chats, the chat_identifier IS the other party's npub
         // So we set participants = '["<chat_identifier>"]'
@@ -754,11 +616,11 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
             [],
         ).map_err(|e| format!("Failed to fix DM chat participants: {}", e))?;
 
-        println!("[Migration 9] Fixed {} DM chats with empty participants", empty_dm_count);
+        println!("[Migration 5] Fixed {} DM chats with empty participants", empty_dm_count);
     }
 
-    // Migration 10: Backfill npub for events that have user_id but no npub
-    // Migration 6 incorrectly set npub = NULL for all migrated messages, but the user_id
+    // Migration 6: Backfill npub for events that have user_id but no npub
+    // Migration 3 incorrectly set npub = NULL for all migrated messages, but the user_id
     // foreign key points to the profiles table which has the npub. This fixes old group
     // chat messages so they display the correct sender avatar and username.
     let events_missing_npub: i64 = conn.query_row(
@@ -768,7 +630,7 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
     ).unwrap_or(0);
 
     if events_missing_npub > 0 {
-        println!("[Migration 10] Backfilling npub for {} events from user_id -> profiles...", events_missing_npub);
+        println!("[Migration 6] Backfilling npub for {} events from user_id -> profiles...", events_missing_npub);
 
         let updated = conn.execute(
             r#"UPDATE events
@@ -777,13 +639,13 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
             [],
         ).map_err(|e| format!("Failed to backfill event npubs: {}", e))?;
 
-        println!("[Migration 10] Backfilled npub for {} events", updated);
+        println!("[Migration 6] Backfilled npub for {} events", updated);
     }
 
     Ok(())
 }
 
-/// Migration 7: Copy attachment metadata from messages table into event tags
+/// Migration 4: Copy attachment metadata from messages table into event tags
 /// This completes the migration to fully self-contained events
 fn migrate_attachments_to_event_tags(conn: &rusqlite::Connection) -> Result<(), String> {
     // Find all kind=15 events that don't have attachment tags yet
