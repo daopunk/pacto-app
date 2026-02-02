@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { loadProfile, profiles, profileLoadingStates } from '../stores/profiles';
   import { logout, currentUser } from '../stores/auth';
+  import { exportKeys } from '../lib/api/auth';
+  import { loadAndDecryptKey } from '../lib/api/encryption';
 
   // Get the logged-in user's npub from auth store
   $: userNpub = $currentUser?.npub || '';
@@ -10,6 +12,17 @@
   
   let error: string | null = null;
   let isLoggingOut = false;
+  
+  // Export keys modal state
+  let showExportModal = false;
+  let showPinModal = false;
+  let exportedKeys: { nsec: string; seed_phrase?: string } | null = null;
+  let pinDigits = ['', '', '', '', '', ''];
+  let pinError = '';
+  let isExporting = false;
+  let copiedNsec = false;
+  let copiedSeed = false;
+  let pinInputs: HTMLInputElement[] = [];
 
   // Watch for changes to userNpub and load profile
   $: if (userNpub) {
@@ -45,6 +58,148 @@
       console.error('Logout failed:', e);
     }
     // Will redirect to login automatically via +layout.svelte
+  }
+
+  function handleExportAccount() {
+    showPinModal = true;
+    pinDigits = ['', '', '', '', '', ''];
+    pinError = '';
+    // Focus first input after modal opens
+    setTimeout(() => {
+      if (pinInputs[0]) pinInputs[0].focus();
+    }, 100);
+  }
+
+  async function handlePinSubmit() {
+    const pinValue = pinDigits.join('');
+    if (pinValue.length !== 6) {
+      pinError = 'PIN must be 6 digits';
+      return;
+    }
+
+    isExporting = true;
+    pinError = '';
+
+    try {
+      // Verify PIN by trying to decrypt the stored key
+      await loadAndDecryptKey(pinValue);
+      
+      // If successful, export the keys
+      exportedKeys = await exportKeys();
+      showPinModal = false;
+      showExportModal = true;
+    } catch (e: any) {
+      pinError = 'Incorrect PIN';
+      console.error('Export failed:', e);
+      // Clear PIN boxes on error
+      pinDigits = ['', '', '', '', '', ''];
+      // Focus first input
+      setTimeout(() => {
+        if (pinInputs[0]) pinInputs[0].focus();
+      }, 100);
+    } finally {
+      isExporting = false;
+    }
+  }
+
+  function handlePinInput(index: number, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value;
+
+    // Only allow digits
+    if (value && !/^\d$/.test(value)) {
+      input.value = pinDigits[index];
+      return;
+    }
+
+    pinDigits[index] = value;
+    pinError = '';
+
+    // Move to next input if value entered
+    if (value && index < 5) {
+      pinInputs[index + 1]?.focus();
+    }
+
+    // Auto-submit when all digits entered
+    if (pinDigits.every(d => d !== '')) {
+      handlePinSubmit();
+    }
+  }
+
+  function handlePinKeydown(index: number, event: KeyboardEvent) {
+    // Handle backspace
+    if (event.key === 'Backspace') {
+      if (!pinDigits[index] && index > 0) {
+        // If current is empty, go back and clear previous
+        pinDigits[index - 1] = '';
+        pinInputs[index - 1]?.focus();
+      } else {
+        // Clear current
+        pinDigits[index] = '';
+      }
+      event.preventDefault();
+    }
+    // Handle left arrow
+    else if (event.key === 'ArrowLeft' && index > 0) {
+      pinInputs[index - 1]?.focus();
+    }
+    // Handle right arrow
+    else if (event.key === 'ArrowRight' && index < 5) {
+      pinInputs[index + 1]?.focus();
+    }
+    // Handle Enter
+    else if (event.key === 'Enter') {
+      handlePinSubmit();
+    }
+  }
+
+  function handlePinPaste(event: ClipboardEvent) {
+    event.preventDefault();
+    const pastedData = event.clipboardData?.getData('text') || '';
+    const digits = pastedData.replace(/\D/g, '').split('').slice(0, 6);
+    
+    digits.forEach((digit, i) => {
+      if (i < 6) {
+        pinDigits[i] = digit;
+      }
+    });
+
+    // Focus last filled input or first empty
+    const lastIndex = Math.min(digits.length - 1, 5);
+    pinInputs[lastIndex]?.focus();
+
+    // Auto-submit if all 6 digits pasted
+    if (digits.length === 6) {
+      handlePinSubmit();
+    }
+  }
+
+  function closeExportModal() {
+    showExportModal = false;
+    exportedKeys = null;
+    copiedNsec = false;
+    copiedSeed = false;
+  }
+
+  function closePinModal() {
+    showPinModal = false;
+    pinDigits = ['', '', '', '', '', ''];
+    pinError = '';
+  }
+
+  async function copyToClipboard(text: string, type: 'nsec' | 'seed') {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (type === 'nsec') {
+        copiedNsec = true;
+        setTimeout(() => copiedNsec = false, 2000);
+      } else {
+        copiedSeed = true;
+        setTimeout(() => copiedSeed = false, 2000);
+      }
+    } catch (e) {
+      console.error('Failed to copy:', e);
+    }
   }
 </script>
 
@@ -111,6 +266,12 @@
           <!-- Actions -->
           <div class="profile-actions">
             <button 
+              class="btn-export" 
+              on:click={handleExportAccount}
+            >
+              Export Account
+            </button>
+            <button 
               class="btn-logout" 
               on:click={handleLogout}
               disabled={isLoggingOut}
@@ -127,6 +288,92 @@
     {/if}
   </div>
 </div>
+
+<!-- PIN Modal -->
+{#if showPinModal}
+  <div class="modal-overlay" on:click={closePinModal} on:keydown={(e) => e.key === 'Escape' && closePinModal()} role="button" tabindex="-1">
+    <div class="modal-content" on:click|stopPropagation on:keydown={(e) => e.key === 'Escape' && closePinModal()} role="dialog" aria-modal="true" tabindex="0">
+      <h2>Enter PIN</h2>
+      <p class="modal-subtitle">Enter your PIN to export your account keys</p>
+      
+      {#if pinError}
+        <div class="modal-error">{pinError}</div>
+      {/if}
+      
+      <div class="pin-boxes">
+        {#each pinDigits as digit, i}
+          <input
+            bind:this={pinInputs[i]}
+            type="password"
+            inputmode="numeric"
+            maxlength="1"
+            value={digit}
+            on:input={(e) => handlePinInput(i, e)}
+            on:keydown={(e) => handlePinKeydown(i, e)}
+            on:paste={handlePinPaste}
+            class="pin-box"
+            disabled={isExporting}
+          />
+        {/each}
+      </div>
+      
+      <div class="modal-actions">
+        <button class="btn-cancel" on:click={closePinModal} disabled={isExporting}>
+          Cancel
+        </button>
+        <button class="btn-confirm" on:click={handlePinSubmit} disabled={isExporting || pinDigits.some(d => d === '')}>
+          {isExporting ? 'Verifying...' : 'Continue'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Export Keys Modal -->
+{#if showExportModal && exportedKeys}
+  <div class="modal-overlay" on:click={closeExportModal} on:keydown={(e) => e.key === 'Escape' && closeExportModal()} role="button" tabindex="-1">
+    <div class="modal-content export-modal" on:click|stopPropagation on:keydown={(e) => e.key === 'Escape' && closeExportModal()} role="dialog" aria-modal="true" tabindex="0">
+      <h2>⚠️ Export Account Keys</h2>
+      <p class="modal-warning">
+        Keep these keys safe and never share them with anyone. Anyone with access to these keys can control your account.
+      </p>
+      
+      <!-- Private Key (nsec) -->
+      <div class="key-section">
+        <div class="key-header">
+          <h3>Private Key (nsec)</h3>
+          <button class="btn-copy" on:click={() => copyToClipboard(exportedKeys!.nsec, 'nsec')}>
+            {copiedNsec ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
+        <div class="key-value">{exportedKeys.nsec}</div>
+      </div>
+      
+      <!-- Seed Phrase (if available) -->
+      {#if exportedKeys.seed_phrase}
+        <div class="key-section">
+          <div class="key-header">
+            <h3>Recovery Phrase (12 words)</h3>
+            <button class="btn-copy" on:click={() => copyToClipboard(exportedKeys!.seed_phrase!, 'seed')}>
+              {copiedSeed ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+          <div class="key-value seed-phrase">{exportedKeys.seed_phrase}</div>
+        </div>
+      {/if}
+      
+      <div class="modal-notice">
+        <p>💡 Tip: Store these keys securely offline. The recovery phrase is easier to backup than the nsec key.</p>
+      </div>
+      
+      <div class="modal-actions">
+        <button class="btn-close" on:click={closeExportModal}>
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .profile-view {
@@ -284,6 +531,27 @@
     margin-top: 24px;
     padding-top: 24px;
     border-top: 1px solid #313338;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .btn-export {
+    width: 100%;
+    height: 48px;
+    background: transparent;
+    color: #5865f2;
+    border: 2px solid #5865f2;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+  }
+
+  .btn-export:hover {
+    background: rgba(88, 101, 242, 0.1);
   }
 
   .btn-logout {
@@ -307,6 +575,222 @@
   .btn-logout:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Modal styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-content {
+    background: #2b2d31;
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .modal-content h2 {
+    color: #f2f3f5;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+  }
+
+  .modal-subtitle {
+    color: #949ba4;
+    font-size: 0.9375rem;
+    margin: 0 0 24px 0;
+  }
+
+  .modal-warning {
+    color: #faa61a;
+    background: rgba(250, 166, 26, 0.1);
+    padding: 16px;
+    border-radius: 8px;
+    border-left: 3px solid #faa61a;
+    margin-bottom: 24px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .modal-error {
+    color: #f23f42;
+    background: rgba(242, 63, 66, 0.1);
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+  }
+
+  .pin-boxes {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  .pin-box {
+    width: 56px;
+    height: 64px;
+    padding: 0;
+    background: #1e1f22;
+    border: 2px solid #404249;
+    border-radius: 8px;
+    color: #f2f3f5;
+    font-size: 1.5rem;
+    text-align: center;
+    outline: none;
+    transition: all 0.2s;
+    caret-color: #5865f2;
+  }
+
+  .pin-box:focus {
+    border-color: #5865f2;
+    box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.2);
+    background: #23252a;
+  }
+
+  .pin-box:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .key-section {
+    margin-bottom: 24px;
+  }
+
+  .key-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .key-header h3 {
+    color: #f2f3f5;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .btn-copy {
+    padding: 8px 16px;
+    background: #5865f2;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-copy:hover {
+    background: #4752c4;
+  }
+
+  .key-value {
+    background: #1e1f22;
+    padding: 16px;
+    border-radius: 8px;
+    color: #dbdee1;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    word-break: break-all;
+    line-height: 1.6;
+    border: 1px solid #313338;
+  }
+
+  .seed-phrase {
+    line-height: 1.8;
+  }
+
+  .modal-notice {
+    background: rgba(88, 101, 242, 0.1);
+    padding: 16px;
+    border-radius: 8px;
+    border-left: 3px solid #5865f2;
+    margin-bottom: 24px;
+  }
+
+  .modal-notice p {
+    color: #949ba4;
+    font-size: 0.875rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .btn-cancel, .btn-confirm, .btn-close {
+    flex: 1;
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+  }
+
+  .btn-cancel {
+    background: transparent;
+    color: #949ba4;
+    border: 2px solid #404249;
+  }
+
+  .btn-cancel:hover:not(:disabled) {
+    background: #313338;
+    border-color: #5865f2;
+    color: #f2f3f5;
+  }
+
+  .btn-confirm {
+    background: #5865f2;
+    color: #ffffff;
+  }
+
+  .btn-confirm:hover:not(:disabled) {
+    background: #4752c4;
+    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+  }
+
+  .btn-confirm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-close {
+    background: #5865f2;
+    color: #ffffff;
+  }
+
+  .btn-close:hover {
+    background: #4752c4;
+    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+  }
+
+  .export-modal {
+    max-width: 640px;
   }
 </style>
 

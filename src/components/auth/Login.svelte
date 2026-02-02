@@ -112,6 +112,33 @@
   $: pinHandler = currentStep === 'pin-create' ? handlePinCreate :
                   currentStep === 'pin-confirm' ? handlePinConfirm :
                   handlePinUnlock;
+
+  // Back handlers for PIN screens
+  function handlePinCreateBack() {
+    if (privateKey) {
+      // If importing, go back to import screen
+      currentStep = 'import';
+      privateKey = '';
+    } else {
+      // If creating new account, go back to welcome
+      currentStep = 'welcome';
+    }
+    firstPin = '';
+    error = null;
+    clearAuthError();
+  }
+
+  function handlePinConfirmBack() {
+    currentStep = 'pin-create';
+    firstPin = '';
+    error = null;
+    clearAuthError();
+  }
+
+  // Get back handler based on step
+  $: pinBackHandler = currentStep === 'pin-create' ? handlePinCreateBack :
+                      currentStep === 'pin-confirm' ? handlePinConfirmBack :
+                      undefined; // No back button for unlock screen
 </script>
 
 <div class="login-container">
@@ -134,6 +161,7 @@
           title={pinTitle}
           onComplete={pinHandler}
           onErrorClear={() => { error = null; clearAuthError(); }}
+          onBack={pinBackHandler}
           isProcessing={$authLoading}
           {error}
         />

@@ -5,14 +5,40 @@
   export let error: string | null = null;
 
   let privateKey = '';
+  let localError: string | null = null;
+
+  $: displayError = localError || error;
 
   function handleSubmit() {
     const trimmed = privateKey.trim();
+    localError = null;
+    
     if (!trimmed) {
-      error = 'Please enter your private key';
+      localError = 'Please enter your private key or recovery phrase';
       return;
     }
-    onImport(trimmed);
+    
+    // Check if it's a mnemonic (12 or 24 words)
+    const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+    const isMnemonic = words.length === 12 || words.length === 24;
+    
+    if (isMnemonic) {
+      if (words.length !== 12 && words.length !== 24) {
+        localError = `Invalid mnemonic: expected 12 or 24 words, got ${words.length}`;
+        return;
+      }
+      onImport(trimmed);
+    } else {
+      if (!trimmed.startsWith('nsec1')) {
+        localError = 'Please enter either an nsec key (starting with "nsec1") or a 12/24-word recovery phrase';
+        return;
+      }
+      if (trimmed.length !== 63) {
+        localError = `Invalid nsec key length. Expected 63 characters, got ${trimmed.length}`;
+        return;
+      }
+      onImport(trimmed);
+    }
   }
 
   function handlePaste(event: ClipboardEvent) {
@@ -22,9 +48,12 @@
     }, 0);
   }
 
-  // Clear error when user starts typing
-  $: if (privateKey && error) {
-    error = null;
+  // Clear errors when user starts typing
+  $: if (privateKey) {
+    localError = null;
+    if (error) {
+      error = null;
+    }
   }
 </script>
 
@@ -33,19 +62,19 @@
     <div class="import-header">
       <h2>Import Your Keys</h2>
       <p class="import-subtitle">
-        Enter your private key (nsec or hex format)
+        Enter your nsec key or 12-word recovery phrase
       </p>
     </div>
 
-    {#if error}
-      <div class="import-error">{error}</div>
+    {#if displayError}
+      <div class="import-error">{displayError}</div>
     {/if}
 
     <div class="import-form">
       <textarea
         bind:value={privateKey}
         on:paste={handlePaste}
-        placeholder="nsec1... or hex private key"
+        placeholder="nsec1... or 12-word recovery phrase"
         disabled={isValidating}
         class="key-textarea"
         rows="4"
