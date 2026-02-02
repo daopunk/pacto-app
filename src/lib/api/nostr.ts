@@ -32,6 +32,9 @@ export interface NostrProfile {
   nip05: string;
   muted: boolean;
   bot: boolean;
+  // Cached image paths (for offline support)
+  avatar_cached: string;
+  banner_cached: string;
 }
 
 /**
@@ -50,4 +53,12 @@ export async function fetchNostrProfile(npub: string): Promise<NostrProfile> {
  */
 export async function loadNostrProfile(npub: string): Promise<boolean> {
   return await invoke('load_profile', { npub });
+}
+
+/**
+ * Force immediate refresh of a profile from Nostr (critical priority)
+ * @param npub - The npub (bech32 format) of the user
+ */
+export async function refreshProfileNow(npub: string): Promise<void> {
+  return await invoke('refresh_profile_now', { npub });
 }

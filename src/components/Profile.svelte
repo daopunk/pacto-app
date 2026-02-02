@@ -4,14 +4,21 @@
   import { logout, currentUser } from '../stores/auth';
   import { exportKeys } from '../lib/api/auth';
   import { loadAndDecryptKey } from '../lib/api/encryption';
+  import { refreshProfileNow } from '../lib/api/nostr';
+  import { getProfileAvatarSrc, getProfileBannerSrc } from '../lib/utils/profile';
 
   // Get the logged-in user's npub from auth store
   $: userNpub = $currentUser?.npub || '';
   $: profile = userNpub ? $profiles[userNpub] : null;
   $: loading = userNpub ? ($profileLoadingStates[userNpub] || false) : false;
   
+  // Compute avatar and banner sources with caching priority
+  $: avatarSrc = getProfileAvatarSrc(profile);
+  $: bannerSrc = getProfileBannerSrc(profile);
+  
   let error: string | null = null;
   let isLoggingOut = false;
+  let isRefreshing = false;
   
   // Export keys modal state
   let showExportModal = false;
@@ -58,6 +65,24 @@
       console.error('Logout failed:', e);
     }
     // Will redirect to login automatically via +layout.svelte
+  }
+
+  async function handleRefreshProfile() {
+    if (!userNpub || isRefreshing) return;
+    
+    isRefreshing = true;
+    try {
+      await refreshProfileNow(userNpub);
+      // The profile_update event will automatically update the UI
+    } catch (e: any) {
+      console.error('Refresh failed:', e);
+      error = 'Failed to refresh profile';
+    } finally {
+      // Small delay to show the button feedback
+      setTimeout(() => {
+        isRefreshing = false;
+      }, 500);
+    }
   }
 
   function handleExportAccount() {
@@ -221,8 +246,24 @@
       <div class="profile-content">
         <!-- Avatar -->
         <div class="avatar-section">
-          {#if profile.avatar}
-            <img src={profile.avatar} alt={profile.display_name || profile.name} class="avatar" />
+          {#if avatarSrc}
+            <img 
+              src={avatarSrc} 
+              alt={profile.display_name || profile.name} 
+              class="avatar"
+              on:error={(e) => {
+                // On error, hide img and show placeholder
+                const img = e.currentTarget as HTMLImageElement;
+                img.style.display = 'none';
+                const placeholder = img.nextElementSibling as HTMLElement;
+                if (placeholder?.classList.contains('avatar-placeholder')) {
+                  placeholder.style.display = 'flex';
+                }
+              }}
+            />
+            <div class="avatar-placeholder" style="display: none;">
+              {(profile.display_name || profile.name || 'U').charAt(0).toUpperCase()}
+            </div>
           {:else}
             <div class="avatar-placeholder">
               {(profile.display_name || profile.name || 'U').charAt(0).toUpperCase()}
@@ -265,6 +306,13 @@
 
           <!-- Actions -->
           <div class="profile-actions">
+            <button 
+              class="btn-refresh" 
+              on:click={handleRefreshProfile}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? 'Refreshing...' : 'Refresh Profile'}
+            </button>
             <button 
               class="btn-export" 
               on:click={handleExportAccount}
@@ -534,6 +582,29 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .btn-refresh {
+    width: 100%;
+    height: 48px;
+    background: transparent;
+    color: #3ba55c;
+    border: 2px solid #3ba55c;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+  }
+
+  .btn-refresh:hover:not(:disabled) {
+    background: rgba(59, 165, 92, 0.1);
+  }
+
+  .btn-refresh:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .btn-export {

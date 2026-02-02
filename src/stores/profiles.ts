@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { listen } from '@tauri-apps/api/event';
 import { fetchNostrProfile, loadNostrProfile, type NostrProfile } from '../lib/api/nostr';
 
 // Store all loaded profiles, keyed by npub
@@ -6,6 +7,15 @@ export const profiles = writable<Record<string, NostrProfile>>({});
 
 // Track loading states for profiles
 export const profileLoadingStates = writable<Record<string, boolean>>({});
+
+// Listen for profile updates from backend
+listen('profile_update', (event: any) => {
+  const profile = event.payload as NostrProfile;
+  if (profile?.id) {
+    console.log('Profile update received:', profile.id);
+    profiles.update(p => ({ ...p, [profile.id]: profile }));
+  }
+});
 
 /**
  * Load a Nostr profile from the backend cache (or trigger fetch if not cached)
