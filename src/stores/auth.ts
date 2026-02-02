@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import { login as apiLogin, checkAnyAccountExists, getCurrentAccount } from '../lib/api/auth';
+import { login as apiLogin, createAccount as apiCreateAccount, connect as apiConnect, checkAnyAccountExists, getCurrentAccount } from '../lib/api/auth';
 import { hasStoredKey, encryptAndSaveKey, loadAndDecryptKey, clearStoredKey, validatePrivateKeyFormat } from '../lib/api/encryption';
 
 // Auth state
@@ -66,16 +66,17 @@ export async function createAccount(pin: string): Promise<void> {
   authError.set(null);
 
   try {
-    // Login with empty string to generate new keys
-    const keys = await apiLogin('');
+    // Generate keys with mnemonic (initializes Nostr client)
+    const keys = await apiCreateAccount();
     
-    // Encrypt and save the private key
+    // Encrypt and save private key + mnemonic
     await encryptAndSaveKey(keys.private, pin);
     
-    // Get current account npub from backend
-    const npub = await getCurrentAccount();
+    // Connect to relays
+    await apiConnect();
     
-    // Set auth state
+    // Set frontend state
+    const npub = await getCurrentAccount();
     isAuthenticated.set(true);
     currentUser.set({
       npub: npub,

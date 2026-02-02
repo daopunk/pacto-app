@@ -7,12 +7,28 @@ export interface LoginKeyPair {
 }
 
 /**
- * Login with a private key (generates or imports)
- * @param importKey - Private key in hex or nsec format, empty string to generate new
+ * Login with a private key (imports existing account)
+ * @param importKey - Private key in nsec format OR 12-word BIP39 mnemonic
  * @returns Public and private keys
  */
 export async function login(importKey: string = ''): Promise<LoginKeyPair> {
   return await invoke('login', { importKey });
+}
+
+/**
+ * Create a new account with generated keys and mnemonic
+ * @returns Public and private keys (Nostr client already initialized)
+ */
+export async function createAccount(): Promise<LoginKeyPair> {
+  return await invoke('create_account');
+}
+
+/**
+ * Connect to Nostr relays
+ * @returns True if connected, false if already connected
+ */
+export async function connect(): Promise<boolean> {
+  return await invoke('connect');
 }
 
 /**
@@ -37,5 +53,13 @@ export async function getCurrentAccount(): Promise<string> {
  */
 export async function listAllAccounts(): Promise<string[]> {
   return await invoke('list_all_accounts');
+}
+
+/**
+ * Export account keys (requires PIN for decryption)
+ * @returns Object containing nsec and optional seed_phrase
+ */
+export async function exportKeys(): Promise<{ nsec: string; seed_phrase?: string }> {
+  return await invoke('export_keys');
 }
 

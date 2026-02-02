@@ -6,6 +6,7 @@
   export let isProcessing: boolean = false;
   export let error: string | null = null;
   export let onErrorClear: (() => void) | undefined = undefined;
+  export let onBack: (() => void) | undefined = undefined;
 
   let digits: string[] = ['', '', '', '', '', ''];
   let inputs: HTMLInputElement[] = [];
@@ -148,6 +149,16 @@
       <p>Processing...</p>
     </div>
   {/if}
+
+  {#if onBack && error}
+    <button
+      class="btn-back"
+      on:click={onBack}
+      disabled={isProcessing}
+    >
+      Back
+    </button>
+  {/if}
 </div>
 
 <style>
@@ -240,6 +251,30 @@
   .pin-processing p {
     margin: 0;
     font-size: 0.875rem;
+  }
+
+  .btn-back {
+    padding: 12px 24px;
+    background: transparent;
+    color: #949ba4;
+    border: 2px solid #404249;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+  }
+
+  .btn-back:hover:not(:disabled) {
+    background: #313338;
+    border-color: #5865f2;
+    color: #f2f3f5;
+  }
+
+  .btn-back:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
 
