@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { listen } from '@tauri-apps/api/event';
 import { fetchNostrProfile, loadNostrProfile, type NostrProfile } from '../lib/api/nostr';
 
 // Store all loaded profiles, keyed by npub
@@ -6,6 +7,37 @@ export const profiles = writable<Record<string, NostrProfile>>({});
 
 // Track loading states for profiles
 export const profileLoadingStates = writable<Record<string, boolean>>({});
+
+// Listen for initial DB load
+(async () => {
+  try {
+    await listen('init_finished', (event: any) => {
+      if (event.payload?.profiles) {
+        const profilesMap: Record<string, NostrProfile> = {};
+        for (const profile of event.payload.profiles) {
+          profilesMap[profile.id] = profile;
+        }
+        profiles.set(profilesMap);
+      }
+    });
+  } catch (error) {
+    console.error('Failed to register init_finished listener:', error);
+  }
+})();
+
+// Listen for profile updates from backend
+(async () => {
+  try {
+    await listen('profile_update', (event: any) => {
+      const profile = event.payload as NostrProfile;
+      if (profile?.id) {
+        profiles.update(p => ({ ...p, [profile.id]: profile }));
+      }
+    });
+  } catch (error) {
+    console.error('Failed to register profile_update event listener:', error);
+  }
+})();
 
 /**
  * Load a Nostr profile from the backend cache (or trigger fetch if not cached)
@@ -30,7 +62,7 @@ export async function loadProfile(npub: string): Promise<NostrProfile> {
       const profile = await fetchNostrProfile(npub);
       profiles.update(p => ({ ...p, [npub]: profile }));
       return profile;
-    } catch {
+    } catch (fetchError) {
       // Not in cache, trigger background fetch
       await loadNostrProfile(npub);
       
@@ -43,7 +75,7 @@ export async function loadProfile(npub: string): Promise<NostrProfile> {
       return profile;
     }
   } catch (error) {
-    console.error(`Failed to load profile for ${npub}:`, error);
+    console.error('Failed to load profile for', npub, ':', error);
     throw error;
   } finally {
     // Clear loading state

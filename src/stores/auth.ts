@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import { login as apiLogin, createAccount as apiCreateAccount, connect as apiConnect, checkAnyAccountExists, getCurrentAccount } from '../lib/api/auth';
 import { hasStoredKey, encryptAndSaveKey, loadAndDecryptKey, clearStoredKey, validatePrivateKeyFormat } from '../lib/api/encryption';
+import { refreshProfileNow } from '../lib/api/nostr';
 
 // Auth state
 export const isAuthenticated = writable<boolean>(false);
@@ -113,6 +114,9 @@ export async function importAccount(privateKey: string, pin: string): Promise<vo
     // Encrypt and save the private key
     await encryptAndSaveKey(keys.private, pin);
     
+    // Connect to relays
+    await apiConnect();
+    
     // Get current account npub from backend
     const npub = await getCurrentAccount();
     
@@ -122,6 +126,14 @@ export async function importAccount(privateKey: string, pin: string): Promise<vo
       npub: npub,
       pubkey: keys.public
     });
+    
+    // Auto-refresh profile on login
+    try {
+      await refreshProfileNow(npub);
+    } catch (e) {
+      console.error('Auto profile refresh failed:', e);
+      // Don't fail login if profile refresh fails
+    }
     
     authLoading.set(false);
   } catch (error: any) {
@@ -147,6 +159,9 @@ export async function unlockWithPin(pin: string): Promise<void> {
     // Login with the decrypted key
     const keys = await apiLogin(privateKey);
     
+    // Connect to relays
+    await apiConnect();
+    
     // Get current account npub from backend
     const npub = await getCurrentAccount();
     
@@ -156,6 +171,14 @@ export async function unlockWithPin(pin: string): Promise<void> {
       npub: npub,
       pubkey: keys.public
     });
+    
+    // Auto-refresh profile on login
+    try {
+      await refreshProfileNow(npub);
+    } catch (e) {
+      console.error('Auto profile refresh failed:', e);
+      // Don't fail login if profile refresh fails
+    }
     
     authLoading.set(false);
   } catch (error: any) {
