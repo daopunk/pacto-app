@@ -113,6 +113,9 @@ export async function importAccount(privateKey: string, pin: string): Promise<vo
     // Encrypt and save the private key
     await encryptAndSaveKey(keys.private, pin);
     
+    // Connect to relays
+    await apiConnect();
+    
     // Get current account npub from backend
     const npub = await getCurrentAccount();
     
@@ -146,6 +149,9 @@ export async function unlockWithPin(pin: string): Promise<void> {
     
     // Login with the decrypted key
     const keys = await apiLogin(privateKey);
+    
+    // Connect to relays
+    await apiConnect();
     
     // Get current account npub from backend
     const npub = await getCurrentAccount();

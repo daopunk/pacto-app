@@ -2272,7 +2272,10 @@ pub(crate) const DEFAULT_RELAYS: &[&str] = &[
     "wss://jskitty.cat/nostr",        // TRUSTED_RELAY
     "wss://asia.vectorapp.io/nostr",  // TRUSTED_RELAY
     "wss://nostr.computingcache.com", // TRUSTED_RELAY
-    "wss://relay.damus.io",
+    "wss://relay.damus.io",           // Damus (popular)
+    "wss://relay.primal.net",         // Primal (popular)
+    "wss://nos.lol",                  // nos.lol (popular)
+    "wss://relay.nostr.band",         // nostr.band (popular)
 ];
 
 /// Check if a URL is a default relay
@@ -3726,17 +3729,25 @@ async fn login(import_key: String) -> Result<LoginKeyPair, String> {
 async fn connect<R: Runtime>(handle: AppHandle<R>) -> bool {
     let client = NOSTR_CLIENT.get().expect("Nostr client not initialized");
 
-    // If we're already connected to some relays - skip and tell the frontend our client is already online
-    if client.relays().await.len() > 0 {
-        return false;
-    }
+    // Check which relays are already in the pool
+    let existing_relays = client.relays().await;
 
     // Get disabled default relays
     let disabled_defaults = get_disabled_default_relays(&handle).await.unwrap_or_default();
 
-    // Add default relays (unless disabled)
+    // Add default relays (unless disabled or already present)
     for default_url in DEFAULT_RELAYS {
         let is_disabled = disabled_defaults.iter().any(|d| d.to_lowercase() == default_url.to_lowercase());
+        
+        // Check if relay already exists in pool (case-insensitive)
+        let already_exists = existing_relays.iter().any(|(url, _)| 
+            url.to_string().to_lowercase() == default_url.to_lowercase()
+        );
+        
+        if already_exists {
+            continue;
+        }
+        
         if !is_disabled {
             match client.pool().add_relay(*default_url, RelayOptions::new().reconnect(false)).await {
                 Ok(_) => {
@@ -3749,7 +3760,6 @@ async fn connect<R: Runtime>(handle: AppHandle<R>) -> bool {
                 }
             }
         } else {
-            println!("[Relay] Skipping disabled default relay: {}", default_url);
             add_relay_log(default_url, "info", "Skipped (disabled by user)");
         }
     }
@@ -3775,7 +3785,7 @@ async fn connect<R: Runtime>(handle: AppHandle<R>) -> bool {
         Err(e) => eprintln!("[Relay] Failed to load custom relays: {}", e),
     }
 
-    // Connect!
+    // Connect to all relays in the pool
     client.connect().await;
     true
 }
