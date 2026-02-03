@@ -8,23 +8,17 @@ export const profiles = writable<Record<string, NostrProfile>>({});
 // Track loading states for profiles
 export const profileLoadingStates = writable<Record<string, boolean>>({});
 
-// Payload from backend init_finished: { profiles: NostrProfile[], chats: ... }
-interface InitFinishedPayload {
-  profiles?: NostrProfile[];
-  chats?: unknown;
-}
-
-// Populate profiles store from init_finished (batch from backend cache)
+// Listen for initial DB load
 (async () => {
   try {
-    await listen('init_finished', (event: { payload: InitFinishedPayload }) => {
-      const list = event.payload?.profiles;
-      if (!Array.isArray(list)) return;
-      const profilesMap: Record<string, NostrProfile> = {};
-      for (const profile of list) {
-        if (profile?.id) profilesMap[profile.id] = profile;
+    await listen('init_finished', (event: any) => {
+      if (event.payload?.profiles) {
+        const profilesMap: Record<string, NostrProfile> = {};
+        for (const profile of event.payload.profiles) {
+          profilesMap[profile.id] = profile;
+        }
+        profiles.set(profilesMap);
       }
-      profiles.set(profilesMap);
     });
   } catch (error) {
     console.error('Failed to register init_finished listener:', error);
