@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
   import Navbar from '../components/Navbar.svelte';
   import TopNavbar from '../components/TopNavbar.svelte';
   import CommunityNavbar from '../components/CommunityNavbar.svelte';
@@ -7,25 +8,131 @@
   import Profile from '../components/Profile.svelte';
   import MessengerNavbar from '../components/MessengerNavbar.svelte';
   import MessengerChatView from '../components/MessengerChatView.svelte';
+  import Message from '../components/Message.svelte';
   import MessageInput from '../components/MessageInput.svelte';
-  import { sendDmMessage } from '../lib/api/nostr';
-  import { activeCommunityId, activeChannelId, activeView, activeTopNavTab, activeDmId, composingNewChat } from '../stores/app';
+  import { getDmMessages, sendDmMessage, queueProfileSync } from '../lib/api/nostr';
+  import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
+  import {
+    activeCommunityId,
+    activeChannelId,
+    activeView,
+    activeTopNavTab,
+    activeDmId,
+    composingNewChat,
+    backendDmMessages,
+    type DmMessage,
+  } from '../stores/app';
+
+  let dmMessagesContainer: HTMLDivElement;
+  let dmSendError: string | null = null;
+  let prevDmId: string | null = null;
+
+  // Clear send error when user switches to a different DM
+  $: if (prevDmId !== $activeDmId) {
+    prevDmId = $activeDmId;
+    if (prevDmId != null) dmSendError = null;
+  }
 
   function truncateNpub(n: string): string {
     if (n.length <= 16) return n;
     return n.slice(0, 8) + '…' + n.slice(-4);
   }
 
+  // Backend messages for active DM, sorted by at (oldest first). Backend emits message_new on send.
+  $: mergedDmMessages = (() => {
+    const npub = $activeDmId;
+    if (!npub) return [];
+    const list = [...($backendDmMessages[npub] ?? [])];
+    list.sort((a, b) => a.at - b.at);
+    return list;
+  })();
+
+  // Load backend messages when active DM changes; queue profile sync (per reference flow).
+  $: if ($activeDmId && $activeTopNavTab === 'dms') {
+    queueProfileSync($activeDmId).catch(() => {});
+    getDmMessages($activeDmId, 100, 0)
+      .then((msgs) => {
+        backendDmMessages.update((byNpub) => ({
+          ...byNpub,
+          [$activeDmId!]: msgs as DmMessage[],
+        }));
+      })
+      .catch(() => {});
+  }
+
+  function toMessageProps(msg: DmMessage) {
+    return {
+      authorName: msg.mine ? 'You' : (msg.npub ? truncateNpub(msg.npub) : 'Unknown'),
+      content: msg.content,
+      timestamp: new Date(msg.at).toISOString(),
+      avatar: '',
+    };
+  }
+
   async function handleDmSend(content: string) {
     const id = $activeDmId;
     if (!id) return;
-    await sendDmMessage(id, content);
+    dmSendError = null;
+    try {
+      const ok = await sendDmMessage(id, content);
+      if (!ok) {
+        dmSendError = friendlyMessage(
+          'Could not deliver to relays. Message may appear as pending or failed.',
+          'dm_send'
+        );
+      }
+    } catch (e: unknown) {
+      const raw = getInvokeErrorMessage(e, 'Failed to send message');
+      dmSendError = friendlyMessage(raw, 'dm_send');
+      if (import.meta.env.DEV) console.error('[DM send error]', e);
+    }
   }
 
-  // Set default active community on mount
   onMount(() => {
     $activeCommunityId = 'community-1';
     $activeChannelId = 'channel-1';
+
+    const unlistenNew = listen<{ message: DmMessage; chat_id: string }>('message_new', (event) => {
+      const { message, chat_id } = event.payload;
+      if (!chat_id.startsWith('npub1')) return;
+      const m: DmMessage = {
+        id: message.id,
+        content: message.content,
+        at: message.at,
+        mine: message.mine,
+        npub: message.npub,
+      };
+      backendDmMessages.update((byNpub) => {
+        const list = byNpub[chat_id] ?? [];
+        if (list.some((x) => x.id === m.id)) return byNpub;
+        return { ...byNpub, [chat_id]: [...list, m] };
+      });
+    });
+
+    const unlistenUpdate = listen<{ old_id: string; message: DmMessage; chat_id: string }>(
+      'message_update',
+      (event) => {
+        const { old_id, message, chat_id } = event.payload;
+        if (!chat_id.startsWith('npub1')) return;
+        const m: DmMessage = {
+          id: message.id,
+          content: message.content,
+          at: message.at,
+          mine: message.mine,
+          npub: message.npub,
+        };
+        backendDmMessages.update((byNpub) => {
+          const list = byNpub[chat_id] ?? [];
+          const out = list.filter((x) => x.id !== old_id && x.id !== m.id);
+          return { ...byNpub, [chat_id]: [...out, m].sort((a, b) => a.at - b.at) };
+        });
+      }
+    );
+
+    return () => {
+      unlistenNew.then((fn) => fn());
+      unlistenUpdate.then((fn) => fn());
+    };
   });
 </script>
 
@@ -47,10 +154,18 @@
             <h3 class="dm-thread-title">Conversation</h3>
             <span class="dm-thread-npub">{truncateNpub($activeDmId)}</span>
           </div>
-          <div class="dm-thread-messages">
-            <!-- Messages will load from backend when wired -->
-            <p class="dm-thread-placeholder">Messages will appear here</p>
+          <div class="dm-thread-messages" bind:this={dmMessagesContainer}>
+            {#if mergedDmMessages.length > 0}
+              {#each mergedDmMessages as msg (msg.id)}
+                <Message {...toMessageProps(msg)} />
+              {/each}
+            {:else}
+              <p class="dm-thread-placeholder">No messages yet</p>
+            {/if}
           </div>
+          {#if dmSendError}
+            <p class="dm-thread-error" role="alert">{dmSendError}</p>
+          {/if}
           <MessageInput channelName={truncateNpub($activeDmId)} onSend={handleDmSend} />
         </div>
       {:else}
@@ -116,6 +231,15 @@
     font-size: 0.875rem;
     color: #6d6f78;
     margin: 0;
+  }
+
+  .dm-thread-error {
+    font-size: 0.875rem;
+    color: #ed4245;
+    margin: 0;
+    padding: 8px 24px;
+    background-color: rgba(237, 66, 69, 0.1);
+    border-top: 1px solid #1e1f22;
   }
 
   .dm-empty {

@@ -64,10 +64,39 @@ export async function refreshProfileNow(npub: string): Promise<void> {
 }
 
 /**
- * Send a DM to an npub (NIP-17 gift wrap).
- * @param receiver - Recipient npub (bech32)
- * @param content - Message text
- * @param repliedTo - Optional message ID being replied to
+ * Get paginated messages for a DM chat (backend: get_message_views).
+ * chat_id = npub for DMs
+ */
+export async function getDmMessages(
+  chatId: string,
+  limit: number,
+  offset: number
+): Promise<Array<{ id: string; content: string; at: number; mine: boolean; npub?: string }>> {
+  return await invoke('get_message_views', {
+    chat_id: chatId,
+    limit,
+    offset,
+  });
+}
+
+/**
+ * Queue profile sync for a contact (e.g. when opening a DM).
+ * Backend: queue_profile_sync.
+ */
+export async function queueProfileSync(
+  npub: string,
+  priority: 'low' | 'medium' | 'high' | 'critical' = 'medium',
+  forceRefresh = false
+): Promise<void> {
+  return await invoke('queue_profile_sync', {
+    npub,
+    priority,
+    force_refresh: forceRefresh,
+  });
+}
+
+/**
+ * Send a DM to an npub (NIP-17 gift wrap). Calls backend message command.
  */
 export async function sendDmMessage(
   receiver: string,
@@ -77,7 +106,7 @@ export async function sendDmMessage(
   return await invoke('message', {
     receiver,
     content,
-    replied_to: repliedTo,
+    repliedTo,
     file: null,
   });
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { activeDmId, composingNewChat } from '../stores/app';
   import { sendDmMessage } from '../lib/api/nostr';
+  import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
 
   let npub = '';
   let messageText = '';
@@ -22,10 +23,12 @@
         npub = '';
         messageText = '';
       } else {
-        error = 'Failed to send message';
+        error = 'Could not deliver to relays. Message may appear as pending or failed.';
       }
-    } catch (e: any) {
-      error = e?.message ?? 'Failed to send message';
+    } catch (e: unknown) {
+      const raw = getInvokeErrorMessage(e, 'Failed to send message');
+      error = friendlyMessage(raw, 'dm_send');
+      if (import.meta.env.DEV) console.error('[DM send error]', e);
     } finally {
       sending = false;
     }

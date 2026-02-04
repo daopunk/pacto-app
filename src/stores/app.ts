@@ -34,6 +34,20 @@ export const requestsList = writable<DmEntry[]>([]);
 // Selected DM conversation (other user's npub)
 export const activeDmId = writable<string | null>(null);
 
+// DM message shape (matches backend Message for id, content, at, mine; used for display)
+export interface DmMessage {
+  id: string;
+  content: string;
+  at: number;
+  mine: boolean;
+  npub?: string;
+  pending?: boolean;
+  failed?: boolean;
+}
+
+// Backend DM messages (from get_chat_messages_paginated + message_new). Keyed by npub.
+export const backendDmMessages = writable<Record<string, DmMessage[]>>({});
+
 // Communities store - will be populated from Nostr relay data
 export const communities = writable<any[]>([]);
 
