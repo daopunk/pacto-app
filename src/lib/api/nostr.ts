@@ -62,3 +62,22 @@ export async function loadNostrProfile(npub: string): Promise<boolean> {
 export async function refreshProfileNow(npub: string): Promise<void> {
   return await invoke('refresh_profile_now', { npub });
 }
+
+/**
+ * Send a DM to an npub (NIP-17 gift wrap).
+ * @param receiver - Recipient npub (bech32)
+ * @param content - Message text
+ * @param repliedTo - Optional message ID being replied to
+ */
+export async function sendDmMessage(
+  receiver: string,
+  content: string,
+  repliedTo: string = ''
+): Promise<boolean> {
+  return await invoke('message', {
+    receiver,
+    content,
+    replied_to: repliedTo,
+    file: null,
+  });
+}
