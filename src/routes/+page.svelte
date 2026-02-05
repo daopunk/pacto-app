@@ -3,7 +3,7 @@
   import { listen } from '@tauri-apps/api/event';
   import Navbar from '../components/Navbar.svelte';
   import TopNavbar from '../components/TopNavbar.svelte';
-  import CommunityNavbar from '../components/CommunityNavbar.svelte';
+  import SquadNavbar from '../components/SquadNavbar.svelte';
   import ChatView from '../components/ChatView.svelte';
   import Profile from '../components/Profile.svelte';
   import MessengerNavbar from '../components/MessengerNavbar.svelte';
@@ -14,7 +14,7 @@
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { isAuthenticated } from '../stores/auth';
   import {
-    activeCommunityId,
+    activeSquadId,
     activeChannelId,
     activeView,
     activeTopNavTab,
@@ -91,7 +91,7 @@
   }
 
   onMount(() => {
-    $activeCommunityId = 'community-1';
+    $activeSquadId = 'squad-1';
     $activeChannelId = 'channel-1';
 
     // Pull DMs from Nostr relays when app loads (if already authenticated)
@@ -138,6 +138,8 @@
           at: message.at,
           mine: message.mine,
           npub: message.npub,
+          pending: message.pending,
+          failed: message.failed,
         };
         backendDmMessages.update((byNpub) => {
           const list = byNpub[chat_id] ?? [];
@@ -192,7 +194,7 @@
         </div>
       {/if}
     {:else}
-      <CommunityNavbar />
+      <SquadNavbar />
       <ChatView />
     {/if}
   </main>

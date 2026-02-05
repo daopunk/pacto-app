@@ -1,11 +1,11 @@
 import { writable } from 'svelte/store';
 
-// Top navbar tab - determines what the side Navbar shows (DMs, Networks, Communities)
-export type TopNavTab = 'dms' | 'networks' | 'communities';
+// Top navbar tab - determines what the side Navbar shows (DMs, Networks, Squads)
+export type TopNavTab = 'dms' | 'networks' | 'squads';
 export const activeTopNavTab = writable<TopNavTab>('dms');
 
 // UI state stores - what's currently selected
-export const activeCommunityId = writable<string | null>(null);
+export const activeSquadId = writable<string | null>(null);
 export const activeChannelId = writable<string | null>(null);
 
 // View state - which main view is active
@@ -51,8 +51,8 @@ export interface DmMessage {
 // Backend DM messages (from get_chat_messages_paginated + message_new). Keyed by npub.
 export const backendDmMessages = writable<Record<string, DmMessage[]>>({});
 
-// Communities store - will be populated from Nostr relay data
-export const communities = writable<any[]>([]);
+// Squads store - will be populated from Nostr relay data
+export const squads = writable<any[]>([]);
 
 // Messages store organized by channelId - will be populated from Nostr relay data
 export const channelMessages = writable<Record<string, any[]>>({});
