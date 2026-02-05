@@ -83,9 +83,7 @@ export async function createAccount(pin: string): Promise<void> {
       npub: npub,
       pubkey: keys.public
     });
-    // Pull DMs from Nostr relays (backend fetches Gift Wraps, emits init_finished with chats)
-    fetchMessages(true).catch((e) => console.error('fetch_messages failed:', e));
-
+    
     authLoading.set(false);
   } catch (error: any) {
     console.error('Create account failed:', error);

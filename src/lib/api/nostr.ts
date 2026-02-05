@@ -76,6 +76,15 @@ export async function fetchMessages(init: boolean, relayUrl?: string): Promise<v
 }
 
 /**
+ * Start live subscriptions for DMs and group messages (backend: notifs).
+ * Subscribes to Gift Wrap (kind 1059) and MlsGroupMessage (kind 444); relays then push new events.
+ * Call after init_finished so new messages arrive via push, not polling (per MESSAGING_OVERVIEW §9).
+ */
+export async function startNotifs(): Promise<boolean> {
+  return await invoke('notifs');
+}
+
+/**
  * Get paginated messages for a DM chat (backend: get_message_views).
  * chat_id = npub for DMs; reads from backend DB (filled by fetch_messages from relays).
  */

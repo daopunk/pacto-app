@@ -1,6 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
-import { fetchNostrProfile, loadNostrProfile, type NostrProfile } from '../lib/api/nostr';
+import { fetchNostrProfile, loadNostrProfile, startNotifs, type NostrProfile } from '../lib/api/nostr';
 import { dmList, type DmEntry } from './app';
 
 // Store all loaded profiles, keyed by npub
@@ -33,7 +33,7 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
           .filter(
             (c: { id: string; chat_type?: string }) =>
               typeof c.id === 'string' &&
-              (c.id.startsWith('npub1') || c.chat_type === 'DirectMessage' || c.chat_type === 0)
+              (c.id.startsWith('npub1') || c.chat_type === 'DirectMessage')
           )
           .map((c: { id: string }) => {
             const profile = profilesMap[c.id];
@@ -45,6 +45,9 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
           });
         dmList.set(dmEntries);
       }
+
+      // Start live subscriptions so relays push new DMs/group messages (per MESSAGING_OVERVIEW §9)
+      startNotifs().catch((e) => console.error('notifs failed:', e));
     });
   } catch (error) {
     console.error('Failed to register init_finished listener:', error);
