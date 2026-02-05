@@ -34,6 +34,9 @@ export const requestsList = writable<DmEntry[]>([]);
 // Selected DM conversation (other user's npub)
 export const activeDmId = writable<string | null>(null);
 
+// DM send error (shown in thread; set by both thread send and new-chat send)
+export const dmSendError = writable<string | null>(null);
+
 // DM message shape (matches backend Message for id, content, at, mine; used for display)
 export interface DmMessage {
   id: string;

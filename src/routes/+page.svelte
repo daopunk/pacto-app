@@ -22,17 +22,17 @@
     composingNewChat,
     backendDmMessages,
     dmList,
+    dmSendError,
     type DmMessage,
   } from '../stores/app';
 
   let dmMessagesContainer: HTMLDivElement;
-  let dmSendError: string | null = null;
   let prevDmId: string | null = null;
 
   // Clear send error when user switches to a different DM
   $: if (prevDmId !== $activeDmId) {
     prevDmId = $activeDmId;
-    if (prevDmId != null) dmSendError = null;
+    if (prevDmId != null) $dmSendError = null;
   }
 
   function truncateNpub(n: string): string {
@@ -74,18 +74,18 @@
   async function handleDmSend(content: string) {
     const id = $activeDmId;
     if (!id) return;
-    dmSendError = null;
+    $dmSendError = null;
     try {
       const ok = await sendDmMessage(id, content);
       if (!ok) {
-        dmSendError = friendlyMessage(
+        $dmSendError = friendlyMessage(
           'Could not deliver to relays. Message may appear as pending or failed.',
           'dm_send'
         );
       }
     } catch (e: unknown) {
       const raw = getInvokeErrorMessage(e, 'Failed to send message');
-      dmSendError = friendlyMessage(raw, 'dm_send');
+      $dmSendError = friendlyMessage(raw, 'dm_send');
       if (import.meta.env.DEV) console.error('[DM send error]', e);
     }
   }
@@ -108,11 +108,17 @@
         at: message.at,
         mine: message.mine,
         npub: message.npub,
+        pending: message.pending,
+        failed: message.failed,
       };
       backendDmMessages.update((byNpub) => {
         const list = byNpub[chat_id] ?? [];
         if (list.some((x) => x.id === m.id)) return byNpub;
-        return { ...byNpub, [chat_id]: [...list, m] };
+        // Replace optimistic message (opt-*) with same content when backend confirms (avoids duplicate)
+        const withoutOpt = list.filter(
+          (x) => !(x.id.startsWith('opt-') && x.mine && x.content === m.content)
+        );
+        return { ...byNpub, [chat_id]: [...withoutOpt, m] };
       });
       // Add new DM to list if not already present (e.g. first message from a new contact)
       dmList.update((list) => {
@@ -175,8 +181,8 @@
               <p class="dm-thread-placeholder">No messages yet</p>
             {/if}
           </div>
-          {#if dmSendError}
-            <p class="dm-thread-error" role="alert">{dmSendError}</p>
+          {#if $dmSendError}
+            <p class="dm-thread-error" role="alert">{$dmSendError}</p>
           {/if}
           <MessageInput channelName={truncateNpub($activeDmId)} onSend={handleDmSend} />
         </div>
