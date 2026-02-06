@@ -1,7 +1,8 @@
 import { writable, derived } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
-import { fetchNostrProfile, loadNostrProfile, startNotifs, type NostrProfile } from '../lib/api/nostr';
+import { fetchNostrProfile, loadNostrProfile, startNotifs, syncAllProfiles, type NostrProfile } from '../lib/api/nostr';
 import { dmLog } from '../lib/utils/dm-debug';
+import { getProfileDisplayName } from '../lib/utils/profile';
 import { dmList, activeDmId, type DmEntry } from './app';
 
 const LAST_DM_NPUB_KEY = 'pacto_last_dm_npub';
@@ -54,7 +55,7 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
           const profile = profilesMap[c.id];
           return {
             npub: c.id,
-            name: profile?.display_name || profile?.name,
+            name: getProfileDisplayName(profile ?? undefined),
             avatar: profile?.avatar_cached || profile?.avatar,
           } as DmEntry;
         });
@@ -79,6 +80,9 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
           }
         }
       }
+
+      // Queue all contacts for profile sync so names/PFPs fill in over time (PFP_FLOW §6.2)
+      syncAllProfiles().catch((e) => console.error('sync_all_profiles failed:', e));
 
       // Start live subscriptions so relays push new DMs/group messages (per MESSAGING_OVERVIEW §9)
       dmLog('init_finished: calling startNotifs()');
