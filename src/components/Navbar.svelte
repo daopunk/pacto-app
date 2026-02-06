@@ -28,9 +28,9 @@
   let showTooltip = false;
 
   const addButtonLabels: Record<TopNavTab, string> = {
-    dms: 'New Chat',
-    networks: 'Network Chat',
-    squads: 'Squad Hub',
+    dms: 'Start a DM',
+    squads: 'Organize a Squad',
+    networks: 'Coordinate a Network',
   };
   $: addButtonLabel = addButtonLabels[$activeTopNavTab];
 
