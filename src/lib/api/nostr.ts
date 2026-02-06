@@ -166,12 +166,12 @@ export async function sendDmMessage(
   repliedTo: string = ''
 ): Promise<boolean> {
   dmLog('message (send DM)', { receiver: receiver.slice(0, 20) + '…', contentLen: content.length, repliedTo: repliedTo || '(none)' });
-  const ok = await invoke('message', {
+  const ok = (await invoke('message', {
     receiver,
     content,
     repliedTo,
     file: null,
-  }) as boolean;
+  })) as boolean;
   dmLog('message result', { ok });
   return ok;
 }

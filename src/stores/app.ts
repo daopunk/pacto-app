@@ -70,3 +70,11 @@ export const squads = writable<any[]>([]);
 // Messages store organized by channelId - will be populated from Nostr relay data
 export const channelMessages = writable<Record<string, any[]>>({});
 
+// Persist last open DM for restore on next app open (DM_FLOW §8.2)
+const LAST_DM_NPUB_KEY = 'pacto_last_dm_npub';
+activeDmId.subscribe((id) => {
+  if (id && typeof localStorage !== 'undefined') {
+    localStorage.setItem(LAST_DM_NPUB_KEY, id);
+  }
+});
+
