@@ -1,57 +1,104 @@
 <script lang="ts">
   import Tab from './Tab.svelte';
   import settingsIcon from '../icons/settings.svg';
-  import { communities, activeCommunityId, activeChannelId, activeView } from '../stores/app';
+  import { squads, activeSquadId, activeChannelId, activeView, activeTopNavTab, activeDmTab, composingNewChat, type TopNavTab, type DmTab } from '../stores/app';
 
-  function selectCommunity(communityId: string) {
-    $activeCommunityId = communityId;
+  function selectSquad(squadId: string) {
+    $activeSquadId = squadId;
+    $activeView = 'hub';
+  }
+
+  function selectDmTab(tab: DmTab) {
+    $activeDmTab = tab;
+    $activeView = 'hub';
+    $composingNewChat = false;
+  }
+
+  function startNewChat() {
+    $composingNewChat = true;
     $activeView = 'hub';
   }
 
   function openProfile() {
     $activeView = 'profile';
-    $activeCommunityId = null;
+    $activeSquadId = null;
     $activeChannelId = null;
   }
 
   let showTooltip = false;
 
-  function deployCommunity() {
-    // TODO: Implement community deployment
-    console.log('Deploy community hub');
+  const addButtonLabels: Record<TopNavTab, string> = {
+    dms: 'New Chat',
+    networks: 'Network Chat',
+    squads: 'Squad Hub',
+  };
+  $: addButtonLabel = addButtonLabels[$activeTopNavTab];
+
+  function handleAddAction() {
+    // TODO: Implement per context (start chat / create group / deploy hub)
+    console.log(addButtonLabel);
   }
 </script>
 
 <div class="navbar">
   <div class="tab-list">
-    {#each $communities as community}
+    {#if $activeTopNavTab === 'dms'}
       <div 
-        on:click={() => selectCommunity(community.id)}
-        on:keydown={(e) => e.key === 'Enter' && selectCommunity(community.id)}
+        on:click={() => selectDmTab('friends')}
+        on:keydown={(e) => e.key === 'Enter' && selectDmTab('friends')}
         role="button"
         tabindex="0"
       >
-        <Tab 
-          label={community.name} 
-          image={community.image}
-          active={$activeView === 'hub' && $activeCommunityId === community.id}
-        />
+        <Tab label="Friends" active={$activeView === 'hub' && $activeDmTab === 'friends'} />
       </div>
-    {/each}
+      <div 
+        on:click={() => selectDmTab('requests')}
+        on:keydown={(e) => e.key === 'Enter' && selectDmTab('requests')}
+        role="button"
+        tabindex="0"
+      >
+        <Tab label="Requests" active={$activeView === 'hub' && $activeDmTab === 'requests'} />
+      </div>
+      <div 
+        on:click={() => selectDmTab('pending')}
+        on:keydown={(e) => e.key === 'Enter' && selectDmTab('pending')}
+        role="button"
+        tabindex="0"
+      >
+        <Tab label="Pending" active={$activeView === 'hub' && $activeDmTab === 'pending'} />
+      </div>
+    {:else if $activeTopNavTab === 'squads'}
+      {#each $squads as squad}
+        <div 
+          on:click={() => selectSquad(squad.id)}
+          on:keydown={(e) => e.key === 'Enter' && selectSquad(squad.id)}
+          role="button"
+          tabindex="0"
+        >
+          <Tab 
+            label={squad.name} 
+            image={squad.image}
+            active={$activeView === 'hub' && $activeSquadId === squad.id}
+          />
+        </div>
+      {/each}
+    {:else}
+      <!-- Networks: placeholder for future tabs -->
+    {/if}
   </div>
   <div class="tab-list bottom">
     <div class="tooltip-wrapper">
       <button 
-        class="add-community-btn"
-        on:click={deployCommunity}
+        class="add-squad-btn"
+        on:click={$activeTopNavTab === 'dms' ? startNewChat : handleAddAction}
         on:mouseenter={() => showTooltip = true}
         on:mouseleave={() => showTooltip = false}
-        aria-label="Deploy a community hub"
+        aria-label={addButtonLabel}
       >
         <span class="plus-icon">+</span>
       </button>
       {#if showTooltip}
-        <div class="tooltip">Deploy a Hub</div>
+        <div class="tooltip">{addButtonLabel}</div>
       {/if}
     </div>
     <div 
@@ -82,7 +129,7 @@
     gap: 8px;
   }
 
-  .add-community-btn {
+  .add-squad-btn {
     width: 48px;
     height: 48px;
     border-radius: 50%;
@@ -97,14 +144,14 @@
     outline: none;
   }
 
-  .add-community-btn:hover {
+  .add-squad-btn:hover {
     background: #5865f2;
     color: #ffffff;
     border-style: solid;
     transform: scale(1.05);
   }
 
-  .add-community-btn:active {
+  .add-squad-btn:active {
     transform: scale(0.95);
   }
 

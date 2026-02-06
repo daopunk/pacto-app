@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { dmLog } from "../utils/dm-debug";
 
 /**
  * Represents a user status
@@ -61,4 +62,85 @@ export async function loadNostrProfile(npub: string): Promise<boolean> {
  */
 export async function refreshProfileNow(npub: string): Promise<void> {
   return await invoke('refresh_profile_now', { npub });
+}
+
+/**
+ * Fetch DMs from Nostr relays (backend: fetch_messages).
+ * Pulls Gift Wraps (kind 1059) for our pubkey, unwraps and stores in state/DB, then emits init_finished with profiles + chats.
+ * Call after login so DMs are loaded from relays (per MESSAGING_OVERVIEW §8).
+ */
+export async function fetchMessages(init: boolean, relayUrl?: string): Promise<void> {
+  dmLog('fetch_messages', { init, relayUrl: relayUrl ?? null });
+  await invoke('fetch_messages', {
+    init,
+    relay_url: relayUrl ?? null,
+  });
+  dmLog('fetch_messages done', { init });
+}
+
+/**
+ * Start live subscriptions for DMs and group messages (backend: notifs).
+ * Subscribes to Gift Wrap (kind 1059) and MlsGroupMessage (kind 444); relays then push new events.
+ * Call after init_finished so new messages arrive via push, not polling (per MESSAGING_OVERVIEW §9).
+ */
+export async function startNotifs(): Promise<boolean> {
+  dmLog('notifs() starting live subscriptions');
+  const ok = (await invoke('notifs')) as boolean;
+  dmLog('notifs() done', ok);
+  return ok;
+}
+
+/**
+ * Get paginated messages for a DM chat (backend: get_message_views).
+ * chat_id = npub for DMs; reads from backend DB (filled by fetch_messages from relays).
+ */
+export async function getDmMessages(
+  chatId: string,
+  limit: number,
+  offset: number
+): Promise<Array<{ id: string; content: string; at: number; mine: boolean; npub?: string }>> {
+  dmLog('get_message_views', { chatId: chatId.slice(0, 20) + '…', limit, offset });
+  const msgs = await invoke('get_message_views', {
+    chatId,
+    limit,
+    offset,
+  }) as Array<{ id: string; content: string; at: number; mine: boolean; npub?: string }>;
+  dmLog('get_message_views result', { count: msgs.length });
+  return msgs;
+}
+
+/**
+ * Queue profile sync for a contact (e.g. when opening a DM).
+ * Backend: queue_profile_sync.
+ */
+export async function queueProfileSync(
+  npub: string,
+  priority: 'low' | 'medium' | 'high' | 'critical' = 'medium',
+  forceRefresh = false
+): Promise<void> {
+  dmLog('queue_profile_sync', { npub: npub.slice(0, 20) + '…', priority, forceRefresh });
+  return await invoke('queue_profile_sync', {
+    npub,
+    priority,
+    force_refresh: forceRefresh,
+  });
+}
+
+/**
+ * Send a DM to an npub (NIP-17 gift wrap). Calls backend message command.
+ */
+export async function sendDmMessage(
+  receiver: string,
+  content: string,
+  repliedTo: string = ''
+): Promise<boolean> {
+  dmLog('message (send DM)', { receiver: receiver.slice(0, 20) + '…', contentLen: content.length, repliedTo: repliedTo || '(none)' });
+  const ok = await invoke('message', {
+    receiver,
+    content,
+    repliedTo,
+    file: null,
+  }) as boolean;
+  dmLog('message result', { ok });
+  return ok;
 }

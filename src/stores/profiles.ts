@@ -1,6 +1,8 @@
 import { writable, derived } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
-import { fetchNostrProfile, loadNostrProfile, type NostrProfile } from '../lib/api/nostr';
+import { fetchNostrProfile, loadNostrProfile, startNotifs, type NostrProfile } from '../lib/api/nostr';
+import { dmLog } from '../lib/utils/dm-debug';
+import { dmList, type DmEntry } from './app';
 
 // Store all loaded profiles, keyed by npub
 export const profiles = writable<Record<string, NostrProfile>>({});
@@ -8,17 +10,66 @@ export const profiles = writable<Record<string, NostrProfile>>({});
 // Track loading states for profiles
 export const profileLoadingStates = writable<Record<string, boolean>>({});
 
-// Listen for initial DB load
+// Listen for initial DB load (profiles + chats from Nostr relay sync)
 (async () => {
   try {
     await listen('init_finished', (event: any) => {
-      if (event.payload?.profiles) {
+      const payload = event.payload;
+      dmLog('init_finished received', {
+        profilesCount: payload?.profiles?.length ?? 0,
+        chatsCount: payload?.chats?.length ?? 0,
+      });
+      if (!payload) return;
+
+      if (payload.profiles) {
         const profilesMap: Record<string, NostrProfile> = {};
-        for (const profile of event.payload.profiles) {
+        for (const profile of payload.profiles) {
           profilesMap[profile.id] = profile;
         }
         profiles.set(profilesMap);
+        dmLog('init_finished: profiles store set', Object.keys(profilesMap).length);
       }
+
+      // Populate DM list from chats (DMs = id starts with npub1 or chat_type DirectMessage).
+      // Sort by last activity (DM_FLOW §5.1): newest first.
+      if (payload.chats && Array.isArray(payload.chats)) {
+        const profilesMap = payload.profiles
+          ? Object.fromEntries(payload.profiles.map((p: NostrProfile) => [p.id, p]))
+          : {};
+        type ChatPayload = {
+          id: string;
+          chat_type?: string;
+          messages?: Array<{ at: number }>;
+          created_at?: number;
+        };
+        const dmChats = (payload.chats as ChatPayload[]).filter(
+          (c) =>
+            typeof c.id === 'string' &&
+            (c.id.startsWith('npub1') || c.chat_type === 'DirectMessage')
+        );
+        const dmEntries: DmEntry[] = dmChats.map((c) => {
+          const profile = profilesMap[c.id];
+          return {
+            npub: c.id,
+            name: profile?.display_name || profile?.name,
+            avatar: profile?.avatar_cached || profile?.avatar,
+          } as DmEntry;
+        });
+        // Last activity: last message .at, or created_at, or 0
+        const lastAt = (c: ChatPayload) => {
+          const ms = c.messages;
+          if (ms && ms.length > 0) return ms[ms.length - 1].at ?? 0;
+          return c.created_at ?? 0;
+        };
+        const orderByLastAt = new Map(dmChats.map((c) => [c.id, lastAt(c)]));
+        dmEntries.sort((a, b) => (orderByLastAt.get(b.npub) ?? 0) - (orderByLastAt.get(a.npub) ?? 0));
+        dmList.set(dmEntries);
+        dmLog('init_finished: dmList set (sorted by last activity)', dmEntries.length, 'DMs');
+      }
+
+      // Start live subscriptions so relays push new DMs/group messages (per MESSAGING_OVERVIEW §9)
+      dmLog('init_finished: calling startNotifs()');
+      startNotifs().catch((e) => console.error('notifs failed:', e));
     });
   } catch (error) {
     console.error('Failed to register init_finished listener:', error);
@@ -31,6 +82,7 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
     await listen('profile_update', (event: any) => {
       const profile = event.payload as NostrProfile;
       if (profile?.id) {
+        dmLog('profile_update', { npub: profile.id.slice(0, 20) + '…', name: profile.display_name || profile.name });
         profiles.update(p => ({ ...p, [profile.id]: profile }));
       }
     });
