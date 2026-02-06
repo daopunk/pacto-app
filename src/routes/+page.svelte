@@ -10,7 +10,7 @@
   import MessengerChatView from '../components/MessengerChatView.svelte';
   import Message from '../components/Message.svelte';
   import MessageInput from '../components/MessageInput.svelte';
-  import { getDmMessages, sendDmMessage, queueProfileSync, fetchMessages } from '../lib/api/nostr';
+  import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
   import { isAuthenticated } from '../stores/auth';
@@ -22,13 +22,21 @@
     activeDmId,
     composingNewChat,
     backendDmMessages,
+    messageCountByChat,
+    loadedOffsetByChat,
+    dmSyncStatus,
+    typingByChat,
     dmList,
     dmSendError,
     type DmMessage,
   } from '../stores/app';
 
+  const PAGE_SIZE = 100;
+  const LOAD_OLDER_PAGE_SIZE = 50;
+
   let dmMessagesContainer: HTMLDivElement;
   let prevDmId: string | null = null;
+  let loadingOlder = false;
 
   // Clear send error when user switches to a different DM
   $: if (prevDmId !== $activeDmId) {
@@ -50,22 +58,63 @@
     return list;
   })();
 
-  // Load backend messages when active DM changes; queue profile sync (per reference flow).
+  // Load backend messages when active DM changes; queue profile sync, get total count (DM_FLOW §5.2).
   $: if ($activeDmId && $activeTopNavTab === 'dms') {
-    dmLog('open conversation', { npub: $activeDmId.slice(0, 20) + '…', tab: 'dms' });
-    queueProfileSync($activeDmId).catch(() => {});
-    getDmMessages($activeDmId, 100, 0)
+    const npub = $activeDmId;
+    dmLog('open conversation', { npub: npub.slice(0, 20) + '…', tab: 'dms' });
+    queueProfileSync(npub).catch(() => {});
+    getChatMessageCount(npub)
+      .then((count) => {
+        messageCountByChat.update((byChat) => ({ ...byChat, [npub]: count }));
+      })
+      .catch((err) => {
+        dmError('open conversation: getChatMessageCount failed', err);
+      });
+    getDmMessages(npub, PAGE_SIZE, 0)
       .then((msgs) => {
-        dmLog('open conversation: messages loaded', { npub: $activeDmId!.slice(0, 20) + '…', count: msgs.length });
+        dmLog('open conversation: messages loaded', { npub: npub.slice(0, 20) + '…', count: msgs.length });
         backendDmMessages.update((byNpub) => ({
           ...byNpub,
-          [$activeDmId!]: msgs as DmMessage[],
+          [npub]: msgs as DmMessage[],
         }));
+        loadedOffsetByChat.update((by) => ({ ...by, [npub]: PAGE_SIZE }));
+        // Mark as read up to the latest message (backend returns newest first; DM_FLOW §5.2)
+        const lastMessageId = msgs.length > 0 ? (msgs[0] as DmMessage).id : null;
+        markAsRead(npub, lastMessageId).catch(() => {});
       })
       .catch((err) => {
         dmError('open conversation: getDmMessages failed', err);
       });
   }
+
+  async function loadOlder() {
+    const npub = $activeDmId;
+    if (!npub || loadingOlder) return;
+    const currentOffset = $loadedOffsetByChat[npub] ?? PAGE_SIZE;
+    loadingOlder = true;
+    dmLog('loadOlder', { npub: npub.slice(0, 20) + '…', offset: currentOffset });
+    try {
+      const older = await getDmMessages(npub, LOAD_OLDER_PAGE_SIZE, currentOffset);
+      backendDmMessages.update((byNpub) => {
+        const list = byNpub[npub] ?? [];
+        const ids = new Set(list.map((m) => m.id));
+        const newMsgs = (older as DmMessage[]).filter((m) => !ids.has(m.id));
+        if (newMsgs.length === 0) return byNpub;
+        dmLog('loadOlder: prepending', { count: newMsgs.length });
+        return { ...byNpub, [npub]: [...newMsgs, ...list] };
+      });
+      loadedOffsetByChat.update((by) => ({ ...by, [npub]: currentOffset + LOAD_OLDER_PAGE_SIZE }));
+    } catch (err) {
+      dmError('loadOlder failed', err);
+    } finally {
+      loadingOlder = false;
+    }
+  }
+
+  $: canLoadOlder =
+    $activeDmId &&
+    !loadingOlder &&
+    (($messageCountByChat[$activeDmId] ?? 0) > ($backendDmMessages[$activeDmId]?.length ?? 0));
 
   function toMessageProps(msg: DmMessage) {
     return {
@@ -74,6 +123,17 @@
       timestamp: new Date(msg.at).toISOString(),
       avatar: '',
     };
+  }
+
+  let dmTypingTimeout: ReturnType<typeof setTimeout> | null = null;
+  function handleDmTyping() {
+    const npub = $activeDmId;
+    if (!npub) return;
+    if (dmTypingTimeout) clearTimeout(dmTypingTimeout);
+    dmTypingTimeout = setTimeout(() => {
+      dmTypingTimeout = null;
+      startTyping(npub).catch(() => {});
+    }, 400);
   }
 
   async function handleDmSend(content: string) {
@@ -104,6 +164,7 @@
     // Pull DMs from Nostr relays when app loads (if already authenticated)
     if ($isAuthenticated) {
       dmLog('onMount: authenticated, calling fetchMessages(true)');
+      dmSyncStatus.set('syncing');
       fetchMessages(true).catch((e) => dmError('onMount: fetchMessages(true) failed', e));
     }
 
@@ -164,20 +225,35 @@
     // Drive historical sync: backend emits sync_slice_finished after each 2-day window; we must call fetch_messages(init: false) to get the next window (DM_FLOW §3.1, §11).
     const unlistenSyncSlice = listen('sync_slice_finished', () => {
       dmLog('sync_slice_finished → fetchMessages(false)');
+      dmSyncStatus.set('syncing');
       fetchMessages(false).catch((e) => {
         dmError('sync_slice_finished: fetchMessages(false) failed', e);
       });
     });
 
+    const unlistenSyncProgress = listen('sync_progress', () => {
+      dmSyncStatus.update((s) => (s === 'idle' ? 'syncing' : s));
+    });
+
     const unlistenSyncFinished = listen('sync_finished', () => {
       dmLog('sync_finished (historical sync complete)');
+      dmSyncStatus.set('finished');
+      setTimeout(() => dmSyncStatus.set('idle'), 2500);
+    });
+
+    const unlistenTyping = listen<{ conversation_id: string; typers: string[] }>('typing-update', (e) => {
+      const { conversation_id, typers } = e.payload;
+      if (!conversation_id.startsWith('npub1')) return;
+      typingByChat.update((by) => ({ ...by, [conversation_id]: typers ?? [] }));
     });
 
     return () => {
       unlistenNew.then((fn) => fn());
       unlistenUpdate.then((fn) => fn());
       unlistenSyncSlice.then((fn) => fn());
+      unlistenSyncProgress.then((fn) => fn());
       unlistenSyncFinished.then((fn) => fn());
+      unlistenTyping.then((fn) => fn());
     };
   });
 </script>
@@ -188,19 +264,39 @@
   </header>
   <main class="container">
     <Navbar />
-    {#if $activeView === 'profile'}
-      <Profile />
-    {:else if $activeTopNavTab === 'dms'}
-      <MessengerNavbar />
-      {#if $composingNewChat}
-        <MessengerChatView />
-      {:else if $activeDmId}
-        <div class="dm-thread">
+    <div class="content-wrap">
+      {#if $activeTopNavTab === 'dms' && $dmSyncStatus !== 'idle'}
+        <p class="dm-sync-banner dm-sync-{$dmSyncStatus}" role="status">
+          {$dmSyncStatus === 'syncing' ? 'Updating messages…' : 'Up to date'}
+        </p>
+      {/if}
+      {#if $activeView === 'profile'}
+        <Profile />
+      {:else if $activeTopNavTab === 'dms'}
+        <div class="dm-area">
+          <MessengerNavbar />
+          <div class="dm-main">
+            {#if $composingNewChat}
+              <MessengerChatView />
+            {:else if $activeDmId}
+              <div class="dm-thread">
           <div class="dm-thread-header">
             <h3 class="dm-thread-title">Conversation</h3>
             <span class="dm-thread-npub">{truncateNpub($activeDmId)}</span>
           </div>
           <div class="dm-thread-messages" bind:this={dmMessagesContainer}>
+            {#if canLoadOlder}
+              <div class="dm-thread-load-older">
+                <button
+                  type="button"
+                  class="load-older-btn"
+                  on:click={loadOlder}
+                  disabled={loadingOlder}
+                >
+                  {loadingOlder ? 'Loading…' : 'Load older messages'}
+                </button>
+              </div>
+            {/if}
             {#if mergedDmMessages.length > 0}
               {#each mergedDmMessages as msg (msg.id)}
                 <Message {...toMessageProps(msg)} />
@@ -209,20 +305,30 @@
               <p class="dm-thread-placeholder">No messages yet</p>
             {/if}
           </div>
+          {#if ($typingByChat[$activeDmId]?.length ?? 0) > 0}
+            <p class="dm-thread-typing" role="status">Typing…</p>
+          {/if}
           {#if $dmSendError}
             <p class="dm-thread-error" role="alert">{$dmSendError}</p>
           {/if}
-          <MessageInput channelName={truncateNpub($activeDmId)} onSend={handleDmSend} />
+          <MessageInput
+            channelName={truncateNpub($activeDmId)}
+            onSend={handleDmSend}
+            onTyping={handleDmTyping}
+          />
+              </div>
+            {:else}
+              <div class="dm-empty">
+                <p>Select a conversation or start a new chat</p>
+              </div>
+            {/if}
+          </div>
         </div>
       {:else}
-        <div class="dm-empty">
-          <p>Select a conversation or start a new chat</p>
-        </div>
+        <SquadNavbar />
+        <ChatView />
       {/if}
-    {:else}
-      <SquadNavbar />
-      <ChatView />
-    {/if}
+    </div>
   </main>
 </div>
 
@@ -240,10 +346,37 @@
   .page .container {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: row;
+  }
+
+  .content-wrap {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dm-area {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: row;
+  }
+
+  .dm-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .dm-thread {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -269,14 +402,48 @@
 
   .dm-thread-messages {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 24px;
+  }
+
+  .dm-thread-load-older {
+    margin-bottom: 16px;
+  }
+
+  .load-older-btn {
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    color: #b5bac1;
+    background: #383a40;
+    border: 1px solid #1e1f22;
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .load-older-btn:hover:not(:disabled) {
+    color: #f2f3f5;
+    background: #4e5058;
+  }
+
+  .load-older-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .dm-thread-placeholder {
     font-size: 0.875rem;
     color: #6d6f78;
     margin: 0;
+  }
+
+  .dm-thread-typing {
+    font-size: 0.8125rem;
+    color: #949ba4;
+    margin: 0;
+    padding: 4px 24px 8px;
+    font-style: italic;
   }
 
   .dm-thread-error {
@@ -288,8 +455,29 @@
     border-top: 1px solid #1e1f22;
   }
 
+  .dm-sync-banner {
+    margin: 0;
+    padding: 6px 24px;
+    font-size: 0.8125rem;
+    flex-shrink: 0;
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .dm-sync-syncing {
+    color: #b5bac1;
+    background-color: #2b2d31;
+  }
+
+  .dm-sync-finished {
+    color: #949ba4;
+    background-color: #24804620;
+  }
+
   .dm-empty {
     flex: 1;
+    min-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -2,7 +2,10 @@ import { writable, derived } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
 import { fetchNostrProfile, loadNostrProfile, startNotifs, type NostrProfile } from '../lib/api/nostr';
 import { dmLog } from '../lib/utils/dm-debug';
-import { dmList, type DmEntry } from './app';
+import { dmList, activeDmId, type DmEntry } from './app';
+
+const LAST_DM_NPUB_KEY = 'pacto_last_dm_npub';
+let lastOpenChatRestored = false;
 
 // Store all loaded profiles, keyed by npub
 export const profiles = writable<Record<string, NostrProfile>>({});
@@ -65,6 +68,16 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
         dmEntries.sort((a, b) => (orderByLastAt.get(b.npub) ?? 0) - (orderByLastAt.get(a.npub) ?? 0));
         dmList.set(dmEntries);
         dmLog('init_finished: dmList set (sorted by last activity)', dmEntries.length, 'DMs');
+
+        // Restore last open chat if still in list (DM_FLOW §8.2)
+        if (!lastOpenChatRestored && typeof localStorage !== 'undefined') {
+          lastOpenChatRestored = true;
+          const lastNpub = localStorage.getItem(LAST_DM_NPUB_KEY)?.trim();
+          if (lastNpub && dmEntries.some((e) => e.npub === lastNpub)) {
+            dmLog('init_finished: restore last open chat', lastNpub.slice(0, 20) + '…');
+            activeDmId.set(lastNpub);
+          }
+        }
       }
 
       // Start live subscriptions so relays push new DMs/group messages (per MESSAGING_OVERVIEW §9)
@@ -88,6 +101,29 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
     });
   } catch (error) {
     console.error('Failed to register profile_update event listener:', error);
+  }
+})();
+
+// Listen for nickname changes (DM_FLOW §6.1)
+(async () => {
+  try {
+    await listen('profile_nick_changed', (event: any) => {
+      const payload = event.payload as { profile_id?: string; value?: string };
+      const { profile_id, value } = payload;
+      if (!profile_id || value === undefined) return;
+      dmLog('profile_nick_changed', { npub: profile_id.slice(0, 20) + '…', nickname: value });
+      profiles.update((p) => {
+        const existing = p[profile_id];
+        if (!existing) return p;
+        return { ...p, [profile_id]: { ...existing, nickname: value } };
+      });
+      // Keep DM list display name in sync (sidebar shows name from dmList)
+      dmList.update((list) =>
+        list.map((e) => (e.npub === profile_id ? { ...e, name: value } : e))
+      );
+    });
+  } catch (error) {
+    console.error('Failed to register profile_nick_changed event listener:', error);
   }
 })();
 
