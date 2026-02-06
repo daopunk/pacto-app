@@ -30,27 +30,41 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
         dmLog('init_finished: profiles store set', Object.keys(profilesMap).length);
       }
 
-      // Populate DM list from chats (DMs = id starts with npub1 or chat_type DirectMessage)
+      // Populate DM list from chats (DMs = id starts with npub1 or chat_type DirectMessage).
+      // Sort by last activity (DM_FLOW §5.1): newest first.
       if (payload.chats && Array.isArray(payload.chats)) {
         const profilesMap = payload.profiles
           ? Object.fromEntries(payload.profiles.map((p: NostrProfile) => [p.id, p]))
           : {};
-        const dmEntries: DmEntry[] = payload.chats
-          .filter(
-            (c: { id: string; chat_type?: string }) =>
-              typeof c.id === 'string' &&
-              (c.id.startsWith('npub1') || c.chat_type === 'DirectMessage')
-          )
-          .map((c: { id: string }) => {
-            const profile = profilesMap[c.id];
-            return {
-              npub: c.id,
-              name: profile?.display_name || profile?.name,
-              avatar: profile?.avatar_cached || profile?.avatar,
-            } as DmEntry;
-          });
+        type ChatPayload = {
+          id: string;
+          chat_type?: string;
+          messages?: Array<{ at: number }>;
+          created_at?: number;
+        };
+        const dmChats = (payload.chats as ChatPayload[]).filter(
+          (c) =>
+            typeof c.id === 'string' &&
+            (c.id.startsWith('npub1') || c.chat_type === 'DirectMessage')
+        );
+        const dmEntries: DmEntry[] = dmChats.map((c) => {
+          const profile = profilesMap[c.id];
+          return {
+            npub: c.id,
+            name: profile?.display_name || profile?.name,
+            avatar: profile?.avatar_cached || profile?.avatar,
+          } as DmEntry;
+        });
+        // Last activity: last message .at, or created_at, or 0
+        const lastAt = (c: ChatPayload) => {
+          const ms = c.messages;
+          if (ms && ms.length > 0) return ms[ms.length - 1].at ?? 0;
+          return c.created_at ?? 0;
+        };
+        const orderByLastAt = new Map(dmChats.map((c) => [c.id, lastAt(c)]));
+        dmEntries.sort((a, b) => (orderByLastAt.get(b.npub) ?? 0) - (orderByLastAt.get(a.npub) ?? 0));
         dmList.set(dmEntries);
-        dmLog('init_finished: dmList set', dmEntries.length, 'DMs');
+        dmLog('init_finished: dmList set (sorted by last activity)', dmEntries.length, 'DMs');
       }
 
       // Start live subscriptions so relays push new DMs/group messages (per MESSAGING_OVERVIEW §9)

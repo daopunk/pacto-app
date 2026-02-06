@@ -129,10 +129,12 @@
         );
         return { ...byNpub, [chat_id]: [...withoutOpt, m] };
       });
-      // Add new DM to list if not already present (e.g. first message from a new contact)
+      // Add new DM to list if not already present; if present, move to top (last activity order, DM_FLOW §5.1)
       dmList.update((list) => {
-        if (list.some((e) => e.npub === chat_id)) return list;
-        return [...list, { npub: chat_id }];
+        const entry = list.find((e) => e.npub === chat_id);
+        const newEntry = entry ?? { npub: chat_id };
+        const rest = list.filter((e) => e.npub !== chat_id);
+        return [newEntry, ...rest];
       });
     });
 

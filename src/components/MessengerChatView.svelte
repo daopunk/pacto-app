@@ -3,6 +3,7 @@
   import { sendDmMessage } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
+  import { isValidNpub } from '../lib/utils/npub';
 
   let npub = '';
   let messageText = '';
@@ -13,12 +14,18 @@
     const trimmedContent = messageText.trim();
     if (!trimmedNpub || !trimmedContent) return;
 
+    if (!isValidNpub(trimmedNpub)) {
+      $dmSendError = 'Please enter a valid npub (must start with npub1).';
+      return;
+    }
+
+    $dmSendError = null;
+
     dmLog('MessengerChatView handleSend (new chat)', {
       npub: trimmedNpub.slice(0, 24) + '…',
       contentLen: trimmedContent.length,
     });
 
-    $dmSendError = null;
     sending = true;
 
     // Optimistic UI: switch to the conversation immediately so the sender sees the thread
@@ -68,7 +75,7 @@
     $dmSendError = null;
   }
 
-  $: canSend = npub.trim().length > 0 && messageText.trim().length > 0 && !sending;
+  $: canSend = isValidNpub(npub.trim()) && messageText.trim().length > 0 && !sending;
 </script>
 
 <div class="messenger-chat-view">
@@ -87,7 +94,12 @@
       bind:value={npub}
       disabled={sending}
       autocomplete="off"
+      aria-invalid={npub.trim().length > 0 && !isValidNpub(npub.trim())}
+      aria-describedby={npub.trim().length > 0 && !isValidNpub(npub.trim()) ? 'npub-hint' : undefined}
     />
+    {#if npub.trim().length > 0 && !isValidNpub(npub.trim())}
+      <p id="npub-hint" class="hint" role="status">Must start with npub1 and be at least 57 characters.</p>
+    {/if}
 
     <label class="label" for="message-input">Message</label>
     <textarea
@@ -177,6 +189,12 @@
   .input::placeholder,
   .textarea::placeholder {
     color: #6d6f78;
+  }
+
+  .hint {
+    font-size: 0.8125rem;
+    color: #b5bac1;
+    margin: -8px 0 0;
   }
 
   .textarea {
