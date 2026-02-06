@@ -2,6 +2,7 @@
   import { activeDmId, composingNewChat, dmList, backendDmMessages, dmSendError } from '../stores/app';
   import { sendDmMessage } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
+  import { dmLog, dmError } from '../lib/utils/dm-debug';
 
   let npub = '';
   let messageText = '';
@@ -11,6 +12,11 @@
     const trimmedNpub = npub.trim();
     const trimmedContent = messageText.trim();
     if (!trimmedNpub || !trimmedContent) return;
+
+    dmLog('MessengerChatView handleSend (new chat)', {
+      npub: trimmedNpub.slice(0, 24) + '…',
+      contentLen: trimmedContent.length,
+    });
 
     $dmSendError = null;
     sending = true;
@@ -28,6 +34,7 @@
       if (list.some((e) => e.npub === trimmedNpub)) return list;
       return [...list, { npub: trimmedNpub }];
     });
+    dmLog('MessengerChatView: added to dmList, optimistic message');
 
     // Add optimistic message so the sender sees their message immediately
     const optimisticId = `opt-${Date.now()}`;
@@ -41,13 +48,14 @@
 
     try {
       const ok = await sendDmMessage(trimmedNpub, contentToSend);
+      dmLog('MessengerChatView sendDmMessage result', { ok });
       if (!ok) {
         $dmSendError = 'Could not deliver to relays. Message may appear as pending or failed.';
       }
     } catch (e: unknown) {
       const raw = getInvokeErrorMessage(e, 'Failed to send message');
       $dmSendError = friendlyMessage(raw, 'dm_send');
-      if (import.meta.env.DEV) console.error('[DM send error]', e);
+      dmError('MessengerChatView send error', e);
     } finally {
       sending = false;
     }

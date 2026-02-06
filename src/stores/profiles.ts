@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
 import { fetchNostrProfile, loadNostrProfile, startNotifs, type NostrProfile } from '../lib/api/nostr';
+import { dmLog } from '../lib/utils/dm-debug';
 import { dmList, type DmEntry } from './app';
 
 // Store all loaded profiles, keyed by npub
@@ -14,6 +15,10 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
   try {
     await listen('init_finished', (event: any) => {
       const payload = event.payload;
+      dmLog('init_finished received', {
+        profilesCount: payload?.profiles?.length ?? 0,
+        chatsCount: payload?.chats?.length ?? 0,
+      });
       if (!payload) return;
 
       if (payload.profiles) {
@@ -22,6 +27,7 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
           profilesMap[profile.id] = profile;
         }
         profiles.set(profilesMap);
+        dmLog('init_finished: profiles store set', Object.keys(profilesMap).length);
       }
 
       // Populate DM list from chats (DMs = id starts with npub1 or chat_type DirectMessage)
@@ -44,9 +50,11 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
             } as DmEntry;
           });
         dmList.set(dmEntries);
+        dmLog('init_finished: dmList set', dmEntries.length, 'DMs');
       }
 
       // Start live subscriptions so relays push new DMs/group messages (per MESSAGING_OVERVIEW §9)
+      dmLog('init_finished: calling startNotifs()');
       startNotifs().catch((e) => console.error('notifs failed:', e));
     });
   } catch (error) {
@@ -60,6 +68,7 @@ export const profileLoadingStates = writable<Record<string, boolean>>({});
     await listen('profile_update', (event: any) => {
       const profile = event.payload as NostrProfile;
       if (profile?.id) {
+        dmLog('profile_update', { npub: profile.id.slice(0, 20) + '…', name: profile.display_name || profile.name });
         profiles.update(p => ({ ...p, [profile.id]: profile }));
       }
     });

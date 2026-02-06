@@ -12,6 +12,7 @@
   import MessageInput from '../components/MessageInput.svelte';
   import { getDmMessages, sendDmMessage, queueProfileSync, fetchMessages } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
+  import { dmLog, dmError } from '../lib/utils/dm-debug';
   import { isAuthenticated } from '../stores/auth';
   import {
     activeSquadId,
@@ -51,15 +52,19 @@
 
   // Load backend messages when active DM changes; queue profile sync (per reference flow).
   $: if ($activeDmId && $activeTopNavTab === 'dms') {
+    dmLog('open conversation', { npub: $activeDmId.slice(0, 20) + '…', tab: 'dms' });
     queueProfileSync($activeDmId).catch(() => {});
     getDmMessages($activeDmId, 100, 0)
       .then((msgs) => {
+        dmLog('open conversation: messages loaded', { npub: $activeDmId!.slice(0, 20) + '…', count: msgs.length });
         backendDmMessages.update((byNpub) => ({
           ...byNpub,
           [$activeDmId!]: msgs as DmMessage[],
         }));
       })
-      .catch(() => {});
+      .catch((err) => {
+        dmError('open conversation: getDmMessages failed', err);
+      });
   }
 
   function toMessageProps(msg: DmMessage) {
@@ -74,9 +79,11 @@
   async function handleDmSend(content: string) {
     const id = $activeDmId;
     if (!id) return;
+    dmLog('handleDmSend', { receiver: id.slice(0, 20) + '…', contentLen: content.length });
     $dmSendError = null;
     try {
       const ok = await sendDmMessage(id, content);
+      dmLog('handleDmSend result', { ok });
       if (!ok) {
         $dmSendError = friendlyMessage(
           'Could not deliver to relays. Message may appear as pending or failed.',
@@ -86,7 +93,7 @@
     } catch (e: unknown) {
       const raw = getInvokeErrorMessage(e, 'Failed to send message');
       $dmSendError = friendlyMessage(raw, 'dm_send');
-      if (import.meta.env.DEV) console.error('[DM send error]', e);
+      dmError('handleDmSend error', e);
     }
   }
 
@@ -96,11 +103,13 @@
 
     // Pull DMs from Nostr relays when app loads (if already authenticated)
     if ($isAuthenticated) {
-      fetchMessages(true).catch(() => {});
+      dmLog('onMount: authenticated, calling fetchMessages(true)');
+      fetchMessages(true).catch((e) => dmError('onMount: fetchMessages(true) failed', e));
     }
 
     const unlistenNew = listen<{ message: DmMessage; chat_id: string }>('message_new', (event) => {
       const { message, chat_id } = event.payload;
+      dmLog('message_new', { chat_id: chat_id.slice(0, 20) + '…', messageId: message.id?.slice(0, 12), mine: message.mine });
       if (!chat_id.startsWith('npub1')) return;
       const m: DmMessage = {
         id: message.id,
@@ -131,6 +140,7 @@
       'message_update',
       (event) => {
         const { old_id, message, chat_id } = event.payload;
+        dmLog('message_update', { chat_id: chat_id.slice(0, 20) + '…', old_id: old_id?.slice(0, 12), new_id: message.id?.slice(0, 12) });
         if (!chat_id.startsWith('npub1')) return;
         const m: DmMessage = {
           id: message.id,
@@ -149,9 +159,23 @@
       }
     );
 
+    // Drive historical sync: backend emits sync_slice_finished after each 2-day window; we must call fetch_messages(init: false) to get the next window (DM_FLOW §3.1, §11).
+    const unlistenSyncSlice = listen('sync_slice_finished', () => {
+      dmLog('sync_slice_finished → fetchMessages(false)');
+      fetchMessages(false).catch((e) => {
+        dmError('sync_slice_finished: fetchMessages(false) failed', e);
+      });
+    });
+
+    const unlistenSyncFinished = listen('sync_finished', () => {
+      dmLog('sync_finished (historical sync complete)');
+    });
+
     return () => {
       unlistenNew.then((fn) => fn());
       unlistenUpdate.then((fn) => fn());
+      unlistenSyncSlice.then((fn) => fn());
+      unlistenSyncFinished.then((fn) => fn());
     };
   });
 </script>
