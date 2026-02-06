@@ -10,10 +10,12 @@
   import MessengerChatView from '../components/MessengerChatView.svelte';
   import Message from '../components/Message.svelte';
   import MessageInput from '../components/MessageInput.svelte';
-  import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping } from '../lib/api/nostr';
+  import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping, setNickname } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
+  import { getProfileAvatarSrc, getProfileDisplayName } from '../lib/utils/profile';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
-  import { isAuthenticated } from '../stores/auth';
+  import { isAuthenticated, currentUser } from '../stores/auth';
+  import { profiles } from '../stores/profiles';
   import {
     activeSquadId,
     activeChannelId,
@@ -38,16 +40,29 @@
   let prevDmId: string | null = null;
   let loadingOlder = false;
 
-  // Clear send error when user switches to a different DM
+  // Nickname edit for current DM contact (PFP Plan §8)
+  let showNicknameEdit = false;
+  let nicknameEditValue = '';
+  let nicknameSaving = false;
+  let nicknameError: string | null = null;
+
+  // Clear send error and nickname edit when user switches to a different DM
   $: if (prevDmId !== $activeDmId) {
     prevDmId = $activeDmId;
     if (prevDmId != null) $dmSendError = null;
+    showNicknameEdit = false;
+    nicknameError = null;
   }
 
   function truncateNpub(n: string): string {
     if (n.length <= 16) return n;
     return n.slice(0, 8) + '…' + n.slice(-4);
   }
+
+  // Contact for current DM (PFP Plan §4 – conversation header)
+  $: contactProfile = $activeDmId ? $profiles[$activeDmId] : null;
+  $: contactAvatarSrc = getProfileAvatarSrc(contactProfile);
+  $: contactDisplayName = contactProfile ? getProfileDisplayName(contactProfile) : ($activeDmId ? truncateNpub($activeDmId) : 'Unknown');
 
   // Backend messages for active DM, sorted by at (oldest first). Backend emits message_new on send.
   $: mergedDmMessages = (() => {
@@ -116,12 +131,24 @@
     !loadingOlder &&
     (($messageCountByChat[$activeDmId] ?? 0) > ($backendDmMessages[$activeDmId]?.length ?? 0));
 
+  // PFP Plan §5: message bubbles show sender avatar and display name from profiles
   function toMessageProps(msg: DmMessage) {
+    const currentUserNpub = $currentUser?.npub;
+    const currentUserProfile = currentUserNpub ? $profiles[currentUserNpub] : null;
+    if (msg.mine) {
+      return {
+        authorName: 'You',
+        content: msg.content,
+        timestamp: new Date(msg.at).toISOString(),
+        avatar: getProfileAvatarSrc(currentUserProfile) ?? '',
+      };
+    }
+    const senderProfile = msg.npub ? $profiles[msg.npub] : null;
     return {
-      authorName: msg.mine ? 'You' : (msg.npub ? truncateNpub(msg.npub) : 'Unknown'),
+      authorName: getProfileDisplayName(senderProfile),
       content: msg.content,
       timestamp: new Date(msg.at).toISOString(),
-      avatar: '',
+      avatar: getProfileAvatarSrc(senderProfile) ?? '',
     };
   }
 
@@ -154,6 +181,34 @@
       const raw = getInvokeErrorMessage(e, 'Failed to send message');
       $dmSendError = friendlyMessage(raw, 'dm_send');
       dmError('handleDmSend error', e);
+    }
+  }
+
+  function openNicknameEdit() {
+    nicknameEditValue = contactProfile?.nickname ?? '';
+    nicknameError = null;
+    showNicknameEdit = true;
+  }
+
+  function cancelNicknameEdit() {
+    showNicknameEdit = false;
+    nicknameError = null;
+  }
+
+  async function saveNickname() {
+    const npub = $activeDmId;
+    if (!npub || nicknameSaving) return;
+    nicknameError = null;
+    nicknameSaving = true;
+    try {
+      await setNickname(npub, nicknameEditValue.trim());
+      showNicknameEdit = false;
+      // profile_nick_changed will update store and UI
+    } catch (e: unknown) {
+      nicknameError = getInvokeErrorMessage(e, 'Failed to set nickname');
+      dmError('saveNickname error', e);
+    } finally {
+      nicknameSaving = false;
     }
   }
 
@@ -281,8 +336,43 @@
             {:else if $activeDmId}
               <div class="dm-thread">
           <div class="dm-thread-header">
-            <h3 class="dm-thread-title">Conversation</h3>
-            <span class="dm-thread-npub">{truncateNpub($activeDmId)}</span>
+            <div class="dm-thread-header-avatar">
+              {#if contactAvatarSrc}
+                <img src={contactAvatarSrc} alt="" class="dm-thread-header-avatar-img" />
+              {:else}
+                <span class="dm-thread-header-avatar-placeholder">{contactDisplayName.charAt(0).toUpperCase()}</span>
+              {/if}
+            </div>
+            <div class="dm-thread-header-info">
+              {#if showNicknameEdit}
+                <div class="dm-thread-nickname-edit">
+                  <input
+                    type="text"
+                    class="dm-thread-nickname-input"
+                    placeholder="Nickname"
+                    bind:value={nicknameEditValue}
+                    on:keydown={(e) => e.key === 'Escape' && cancelNicknameEdit()}
+                  />
+                  <button type="button" class="dm-thread-nickname-btn dm-thread-nickname-save" on:click={saveNickname} disabled={nicknameSaving}>
+                    {nicknameSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button type="button" class="dm-thread-nickname-btn dm-thread-nickname-cancel" on:click={cancelNicknameEdit} disabled={nicknameSaving}>
+                    Cancel
+                  </button>
+                </div>
+                {#if nicknameError}
+                  <p class="dm-thread-nickname-error" role="alert">{nicknameError}</p>
+                {/if}
+              {:else}
+                <div class="dm-thread-header-title-row">
+                  <h3 class="dm-thread-title">{contactDisplayName}</h3>
+                  <button type="button" class="dm-thread-set-nickname" on:click={openNicknameEdit} title="Set nickname for this contact">
+                    Set nickname
+                  </button>
+                </div>
+                <span class="dm-thread-npub">{truncateNpub($activeDmId)}</span>
+              {/if}
+            </div>
           </div>
           <div class="dm-thread-messages" bind:this={dmMessagesContainer}>
             {#if canLoadOlder}
@@ -384,8 +474,42 @@
   }
 
   .dm-thread-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 16px 24px;
     border-bottom: 1px solid #1e1f22;
+  }
+
+  .dm-thread-header-avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #383a40;
+  }
+
+  .dm-thread-header-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .dm-thread-header-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.125rem;
+    background-color: #5865f2;
+  }
+
+  .dm-thread-header-info {
+    min-width: 0;
   }
 
   .dm-thread-title {
@@ -393,11 +517,100 @@
     font-weight: 600;
     color: #f2f3f5;
     margin: 0 0 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .dm-thread-npub {
     font-size: 0.8125rem;
     color: #b5bac1;
+  }
+
+  .dm-thread-header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .dm-thread-set-nickname {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    color: #949ba4;
+    background: transparent;
+    border: 1px solid #404249;
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .dm-thread-set-nickname:hover {
+    color: #f2f3f5;
+    border-color: #5865f2;
+  }
+
+  .dm-thread-nickname-edit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .dm-thread-nickname-input {
+    flex: 1;
+    min-width: 120px;
+    padding: 6px 10px;
+    font-size: 0.9375rem;
+    color: #f2f3f5;
+    background: #1e1f22;
+    border: 1px solid #404249;
+    border-radius: 4px;
+    outline: none;
+  }
+
+  .dm-thread-nickname-input:focus {
+    border-color: #5865f2;
+  }
+
+  .dm-thread-nickname-btn {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+    border: none;
+  }
+
+  .dm-thread-nickname-save {
+    background: #5865f2;
+    color: #fff;
+  }
+
+  .dm-thread-nickname-save:hover:not(:disabled) {
+    background: #4752c4;
+  }
+
+  .dm-thread-nickname-cancel {
+    background: transparent;
+    color: #949ba4;
+    border: 1px solid #404249;
+  }
+
+  .dm-thread-nickname-cancel:hover:not(:disabled) {
+    color: #f2f3f5;
+  }
+
+  .dm-thread-nickname-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .dm-thread-nickname-error {
+    margin: 4px 0 0 0;
+    font-size: 0.75rem;
+    color: #f23f42;
   }
 
   .dm-thread-messages {
