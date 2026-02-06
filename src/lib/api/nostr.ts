@@ -91,6 +91,17 @@ export async function startNotifs(): Promise<boolean> {
 }
 
 /**
+ * Get total message count for a DM chat (backend: get_chat_message_count).
+ * Used for pagination / "load older" (DM_FLOW §4.3, §5.2).
+ */
+export async function getChatMessageCount(chatId: string): Promise<number> {
+  dmLog('get_chat_message_count', { chatId: chatId.slice(0, 20) + '…' });
+  const count = (await invoke('get_chat_message_count', { chatId })) as number;
+  dmLog('get_chat_message_count result', { count });
+  return count;
+}
+
+/**
  * Get paginated messages for a DM chat (backend: get_message_views).
  * chat_id = npub for DMs; reads from backend DB (filled by fetch_messages from relays).
  */

@@ -10,7 +10,7 @@
   import MessengerChatView from '../components/MessengerChatView.svelte';
   import Message from '../components/Message.svelte';
   import MessageInput from '../components/MessageInput.svelte';
-  import { getDmMessages, sendDmMessage, queueProfileSync, fetchMessages } from '../lib/api/nostr';
+  import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
   import { isAuthenticated } from '../stores/auth';
@@ -22,13 +22,19 @@
     activeDmId,
     composingNewChat,
     backendDmMessages,
+    messageCountByChat,
+    loadedOffsetByChat,
     dmList,
     dmSendError,
     type DmMessage,
   } from '../stores/app';
 
+  const PAGE_SIZE = 100;
+  const LOAD_OLDER_PAGE_SIZE = 50;
+
   let dmMessagesContainer: HTMLDivElement;
   let prevDmId: string | null = null;
+  let loadingOlder = false;
 
   // Clear send error when user switches to a different DM
   $: if (prevDmId !== $activeDmId) {
@@ -50,22 +56,60 @@
     return list;
   })();
 
-  // Load backend messages when active DM changes; queue profile sync (per reference flow).
+  // Load backend messages when active DM changes; queue profile sync, get total count (DM_FLOW §5.2).
   $: if ($activeDmId && $activeTopNavTab === 'dms') {
-    dmLog('open conversation', { npub: $activeDmId.slice(0, 20) + '…', tab: 'dms' });
-    queueProfileSync($activeDmId).catch(() => {});
-    getDmMessages($activeDmId, 100, 0)
+    const npub = $activeDmId;
+    dmLog('open conversation', { npub: npub.slice(0, 20) + '…', tab: 'dms' });
+    queueProfileSync(npub).catch(() => {});
+    getChatMessageCount(npub)
+      .then((count) => {
+        messageCountByChat.update((byChat) => ({ ...byChat, [npub]: count }));
+      })
+      .catch((err) => {
+        dmError('open conversation: getChatMessageCount failed', err);
+      });
+    getDmMessages(npub, PAGE_SIZE, 0)
       .then((msgs) => {
-        dmLog('open conversation: messages loaded', { npub: $activeDmId!.slice(0, 20) + '…', count: msgs.length });
+        dmLog('open conversation: messages loaded', { npub: npub.slice(0, 20) + '…', count: msgs.length });
         backendDmMessages.update((byNpub) => ({
           ...byNpub,
-          [$activeDmId!]: msgs as DmMessage[],
+          [npub]: msgs as DmMessage[],
         }));
+        loadedOffsetByChat.update((by) => ({ ...by, [npub]: PAGE_SIZE }));
       })
       .catch((err) => {
         dmError('open conversation: getDmMessages failed', err);
       });
   }
+
+  async function loadOlder() {
+    const npub = $activeDmId;
+    if (!npub || loadingOlder) return;
+    const currentOffset = $loadedOffsetByChat[npub] ?? PAGE_SIZE;
+    loadingOlder = true;
+    dmLog('loadOlder', { npub: npub.slice(0, 20) + '…', offset: currentOffset });
+    try {
+      const older = await getDmMessages(npub, LOAD_OLDER_PAGE_SIZE, currentOffset);
+      backendDmMessages.update((byNpub) => {
+        const list = byNpub[npub] ?? [];
+        const ids = new Set(list.map((m) => m.id));
+        const newMsgs = (older as DmMessage[]).filter((m) => !ids.has(m.id));
+        if (newMsgs.length === 0) return byNpub;
+        dmLog('loadOlder: prepending', { count: newMsgs.length });
+        return { ...byNpub, [npub]: [...newMsgs, ...list] };
+      });
+      loadedOffsetByChat.update((by) => ({ ...by, [npub]: currentOffset + LOAD_OLDER_PAGE_SIZE }));
+    } catch (err) {
+      dmError('loadOlder failed', err);
+    } finally {
+      loadingOlder = false;
+    }
+  }
+
+  $: canLoadOlder =
+    $activeDmId &&
+    !loadingOlder &&
+    (($messageCountByChat[$activeDmId] ?? 0) > ($backendDmMessages[$activeDmId]?.length ?? 0));
 
   function toMessageProps(msg: DmMessage) {
     return {
@@ -201,6 +245,18 @@
             <span class="dm-thread-npub">{truncateNpub($activeDmId)}</span>
           </div>
           <div class="dm-thread-messages" bind:this={dmMessagesContainer}>
+            {#if canLoadOlder}
+              <div class="dm-thread-load-older">
+                <button
+                  type="button"
+                  class="load-older-btn"
+                  on:click={loadOlder}
+                  disabled={loadingOlder}
+                >
+                  {loadingOlder ? 'Loading…' : 'Load older messages'}
+                </button>
+              </div>
+            {/if}
             {#if mergedDmMessages.length > 0}
               {#each mergedDmMessages as msg (msg.id)}
                 <Message {...toMessageProps(msg)} />
@@ -271,6 +327,31 @@
     flex: 1;
     overflow-y: auto;
     padding: 24px;
+  }
+
+  .dm-thread-load-older {
+    margin-bottom: 16px;
+  }
+
+  .load-older-btn {
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    color: #b5bac1;
+    background: #383a40;
+    border: 1px solid #1e1f22;
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .load-older-btn:hover:not(:disabled) {
+    color: #f2f3f5;
+    background: #4e5058;
+  }
+
+  .load-older-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .dm-thread-placeholder {
