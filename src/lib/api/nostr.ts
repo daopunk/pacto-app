@@ -138,6 +138,26 @@ export async function queueProfileSync(
 }
 
 /**
+ * Notify the other party that we are typing (backend: start_typing). DM_FLOW §6.1 optional.
+ */
+export async function startTyping(receiver: string): Promise<boolean> {
+  dmLog('start_typing', { receiver: receiver.slice(0, 20) + '…' });
+  const ok = (await invoke('start_typing', { receiver })) as boolean;
+  return ok;
+}
+
+/**
+ * Mark a conversation as read up to a message (backend: mark_as_read).
+ * DM_FLOW §5.2 optional. Pass last message id when opening or scrolling to bottom.
+ */
+export async function markAsRead(chatId: string, messageId: string | null): Promise<boolean> {
+  dmLog('mark_as_read', { chatId: chatId.slice(0, 20) + '…', messageId: messageId?.slice(0, 12) ?? null });
+  const ok = (await invoke('mark_as_read', { chatId, messageId })) as boolean;
+  dmLog('mark_as_read result', ok);
+  return ok;
+}
+
+/**
  * Send a DM to an npub (NIP-17 gift wrap). Calls backend message command.
  */
 export async function sendDmMessage(

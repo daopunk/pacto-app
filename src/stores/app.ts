@@ -57,6 +57,13 @@ export const messageCountByChat = writable<Record<string, number>>({});
 // Offset already loaded per chat for "load older" (get_message_views offset). After first page (e.g. 100), next load uses this.
 export const loadedOffsetByChat = writable<Record<string, number>>({});
 
+// DM historical sync status (DM_FLOW §3.1 optional UI). 'finished' shows "Up to date" briefly then resets to 'idle'.
+export type SyncStatus = 'idle' | 'syncing' | 'finished';
+export const dmSyncStatus = writable<SyncStatus>('idle');
+
+// Typing indicators per chat (npub → list of npubs currently typing). DM_FLOW §6.1.
+export const typingByChat = writable<Record<string, string[]>>({});
+
 // Squads store - will be populated from Nostr relay data
 export const squads = writable<any[]>([]);
 
