@@ -420,7 +420,7 @@
                   {@const value = t as Theme}
                   <label class="theme-option">
                     <input type="radio" name="theme" value={value} checked={$theme === value} on:change={() => setTheme(value)} />
-                    <span class="theme-option-label">{value === 'default' ? 'Dark' : value === 'light' ? 'Light' : 'Colorful'}</span>
+                    <span class="theme-option-label">{value === 'default' ? 'Dark' : value === 'light' ? 'Light' : 'Midnight'}</span>
                   </label>
                 {/each}
               </div>
