@@ -238,21 +238,40 @@
   function toMessageProps(msg: DmMessage) {
     const currentUserNpub = $currentUser?.npub;
     const currentUserProfile = currentUserNpub ? $profiles[currentUserNpub] : null;
-    if (msg.mine) {
-      return {
-        authorName: 'You',
-        content: msg.content,
-        timestamp: new Date(msg.at).toISOString(),
-        avatar: getProfileAvatarSrc(currentUserProfile) ?? '',
-      };
-    }
-    const senderProfile = msg.npub ? $profiles[msg.npub] : null;
-    return {
-      authorName: getProfileDisplayName(senderProfile),
+    const base = {
+      id: msg.id,
+      authorName: '',
       content: msg.content,
       timestamp: new Date(msg.at).toISOString(),
-      avatar: getProfileAvatarSrc(senderProfile) ?? '',
+      avatar: '',
+      replyToId: msg.replied_to && msg.replied_to.length > 0 ? msg.replied_to : undefined,
+      replyAuthorName: undefined as string | undefined,
+      replyPreview: undefined as string | undefined,
     };
+    if (msg.mine) {
+      base.authorName = 'You';
+      base.avatar = getProfileAvatarSrc(currentUserProfile) ?? '';
+    } else {
+      const senderProfile = msg.npub ? $profiles[msg.npub] : null;
+      base.authorName = getProfileDisplayName(senderProfile);
+      base.avatar = getProfileAvatarSrc(senderProfile) ?? '';
+    }
+    if (base.replyToId) {
+      const replyNpub = msg.replied_to_npub ?? undefined;
+      base.replyAuthorName =
+        replyNpub && currentUserNpub && replyNpub === currentUserNpub
+          ? 'You'
+          : replyNpub
+            ? getProfileDisplayName($profiles[replyNpub] ?? null)
+            : 'Unknown';
+      base.replyPreview =
+        msg.replied_to_has_attachment === true
+          ? 'Attachment'
+          : msg.replied_to_content != null && msg.replied_to_content.length > 0
+            ? msg.replied_to_content.slice(0, 80).trim() + (msg.replied_to_content.length > 80 ? '…' : '')
+            : 'Message';
+    }
+    return base;
   }
 
   async function handleAcceptSquadInvite(msg: DmMessage, groupId: string) {
@@ -444,6 +463,10 @@
         npub: message.npub,
         pending: message.pending,
         failed: message.failed,
+        replied_to: (message as { replied_to?: string }).replied_to,
+        replied_to_content: (message as { replied_to_content?: string | null }).replied_to_content,
+        replied_to_npub: (message as { replied_to_npub?: string | null }).replied_to_npub,
+        replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
       };
       backendDmMessages.update((byNpub) => {
         const list = byNpub[chat_id] ?? [];
@@ -493,6 +516,10 @@
           npub: message.npub,
           pending: message.pending,
           failed: message.failed,
+          replied_to: (message as { replied_to?: string }).replied_to,
+          replied_to_content: (message as { replied_to_content?: string | null }).replied_to_content,
+          replied_to_npub: (message as { replied_to_npub?: string | null }).replied_to_npub,
+          replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
         };
         backendDmMessages.update((byNpub) => {
           const list = byNpub[chat_id] ?? [];
@@ -554,6 +581,10 @@
         npub: message.npub,
         pending: message.pending,
         failed: message.failed,
+        replied_to: (message as { replied_to?: string }).replied_to,
+        replied_to_content: (message as { replied_to_content?: string | null }).replied_to_content,
+        replied_to_npub: (message as { replied_to_npub?: string | null }).replied_to_npub,
+        replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
       };
       backendGroupMessages.update((byGroup) => {
         const list = byGroup[group_id] ?? [];
