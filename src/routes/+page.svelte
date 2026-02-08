@@ -40,6 +40,8 @@
     pendingList,
     pinnedList,
     lastOpenedDmByTab,
+    lastOpenedSquadId,
+    lastOpenedChannelId,
     dmChatsByNpub,
     pinnedDmNpubs,
     dmSendError,
@@ -99,6 +101,15 @@
       ...byTab,
       [$activeDmTab]: $activeDmId,
     }));
+  }
+
+  // Remember last opened squad/channel (so switching to Squads view restores it)
+  $: if ($activeTopNavTab === 'squads' && $activeSquadId) {
+    lastOpenedSquadId.set($activeSquadId);
+    if ($activeChannelId) lastOpenedChannelId.set($activeChannelId);
+  }
+  $: if ($activeTopNavTab === 'squads' && $activeChannelId && !$activeChannelId.startsWith('creating-')) {
+    lastOpenedChannelId.set($activeChannelId);
   }
 
   // Nickname edit for current DM contact
@@ -287,7 +298,7 @@
   let dmTypingTimeout: ReturnType<typeof setTimeout> | null = null;
   /** Timeouts that clear "Typing" after no updates (backend doesn't emit when typing expires). */
   const typingClearTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
-  const TYPING_EXPIRY_SEC = 30;
+  const TYPING_EXPIRY_SEC = 15;
 
   function handleDmTyping() {
     const npub = $activeDmId;
@@ -373,6 +384,22 @@
     prevTopNavTab = 'squads';
     syncMlsGroupsNow(null).catch(() => {});
     clearUngroupedChannels();
+    // Restore last opened squad/channel (like DMs)
+    const lastSquadId = $lastOpenedSquadId;
+    const lastChannelId = $lastOpenedChannelId;
+    const squad = lastSquadId ? $squads.find((s) => s.id === lastSquadId) : null;
+    if (squad) {
+      activeSquadId.set(squad.id);
+      const channel =
+        lastChannelId && squad.channels.some((c) => c.groupId === lastChannelId)
+          ? squad.channels.find((c) => c.groupId === lastChannelId)
+          : squad.channels[0];
+      activeChannelId.set(channel?.groupId ?? null);
+    } else if ($squads.length > 0 && !$activeSquadId) {
+      const first = $squads[0];
+      activeSquadId.set(first.id);
+      activeChannelId.set(first.channels.length > 0 ? first.channels[0].groupId : null);
+    }
   } else if ($activeTopNavTab !== 'squads') {
     prevTopNavTab = $activeTopNavTab;
   }

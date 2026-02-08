@@ -8,6 +8,12 @@
   import { getProfileAvatarSrc, getProfileBannerSrc } from '../lib/utils/profile';
   import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
   import { theme, setTheme, type Theme } from '../stores/theme';
+  import { activeView } from '../stores/app';
+  import backIcon from '../icons/chevron-double-left.svg';
+
+  function goBack() {
+    $activeView = 'hub';
+  }
 
   // Get the logged-in user's npub from auth store
   $: userNpub = $currentUser?.npub || '';
@@ -296,7 +302,12 @@
 
 <div class="profile-view">
   <div class="profile-container">
-    <h1>Profile</h1>
+    <div class="profile-header">
+      <button type="button" class="profile-back" on:click={goBack} aria-label="Back to DMs or Squads">
+        <img src={backIcon} alt="" class="profile-back-icon" />
+        <span>Back</span>
+      </button>
+    </div>
     
     {#if loading}
       <div class="loading-state">
@@ -563,11 +574,52 @@
     width: 100%;
   }
 
+  .profile-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 32px;
+  }
+
   h1 {
     color: var(--text-primary);
     font-size: 2rem;
     font-weight: 600;
     margin: 0 0 32px 0;
+  }
+
+  .profile-back {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+    outline: none;
+    flex-shrink: 0;
+  }
+
+  .profile-back:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
+  }
+
+  .profile-back:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .profile-back-icon {
+    width: 18px;
+    height: 18px;
+    display: block;
   }
 
   .theme-section {
