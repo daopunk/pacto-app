@@ -297,20 +297,6 @@
 <div class="profile-view">
   <div class="profile-container">
     <h1>Profile</h1>
-
-    <section class="theme-section" aria-labelledby="theme-heading">
-      <h2 id="theme-heading" class="theme-section-title">Appearance</h2>
-      <span class="theme-label">Theme</span>
-      <div class="theme-options" role="radiogroup" aria-label="App theme">
-        {#each ['default', 'light', 'colorful'] as t}
-          {@const value = t as Theme}
-          <label class="theme-option">
-            <input type="radio" name="theme" value={value} checked={$theme === value} on:change={() => setTheme(value)} />
-            <span class="theme-option-label">{value === 'default' ? 'Dark' : value === 'light' ? 'Light' : 'Colorful'}</span>
-          </label>
-        {/each}
-      </div>
-    </section>
     
     {#if loading}
       <div class="loading-state">
@@ -422,9 +408,23 @@
             <!-- Debug Info -->
             <div class="debug-info">
               <p class="meta">ID: {profile.id}</p>
-              <p class="meta">Last Updated: {new Date(profile.last_updated * 1000).toLocaleString()}</p>
               <p class="meta">Muted: {profile.muted ? 'Yes' : 'No'} | Bot: {profile.bot ? 'Yes' : 'No'}</p>
             </div>
+
+            <!-- Appearance -->
+            <section class="theme-section" aria-labelledby="theme-heading">
+              <h2 id="theme-heading" class="theme-section-title">Appearance</h2>
+              <span class="theme-label">Theme</span>
+              <div class="theme-options" role="radiogroup" aria-label="App theme">
+                {#each ['default', 'light', 'colorful'] as t}
+                  {@const value = t as Theme}
+                  <label class="theme-option">
+                    <input type="radio" name="theme" value={value} checked={$theme === value} on:change={() => setTheme(value)} />
+                    <span class="theme-option-label">{value === 'default' ? 'Dark' : value === 'light' ? 'Light' : 'Colorful'}</span>
+                  </label>
+                {/each}
+              </div>
+            </section>
 
             <!-- Actions -->
             <div class="profile-actions">

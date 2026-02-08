@@ -285,6 +285,10 @@
   }
 
   let dmTypingTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** Timeouts that clear "Typing" after no updates (backend doesn't emit when typing expires). */
+  const typingClearTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+  const TYPING_EXPIRY_SEC = 30;
+
   function handleDmTyping() {
     const npub = $activeDmId;
     if (!npub) return;
@@ -424,6 +428,16 @@
         };
         return { ...map, [chat_id]: next };
       });
+      // Sender sent a message — clear "Typing" for this chat and cancel expiry timeout
+      const clearTimeoutId = typingClearTimeouts.get(chat_id);
+      if (clearTimeoutId) {
+        clearTimeout(clearTimeoutId);
+        typingClearTimeouts.delete(chat_id);
+      }
+      typingByChat.update((by) => {
+        if (!by[chat_id]?.length) return by;
+        return { ...by, [chat_id]: [] };
+      });
     });
 
     const unlistenUpdate = listen<{ old_id: string; message: DmMessage; chat_id: string }>(
@@ -471,7 +485,24 @@
     const unlistenTyping = listen<{ conversation_id: string; typers: string[] }>('typing-update', (e) => {
       const { conversation_id, typers } = e.payload;
       if (!conversation_id.startsWith('npub1')) return;
-      typingByChat.update((by) => ({ ...by, [conversation_id]: typers ?? [] }));
+      const list = typers ?? [];
+      typingByChat.update((by) => ({ ...by, [conversation_id]: list }));
+
+      // Clear "Typing" after TYPING_EXPIRY_SEC if we don't get another update (backend doesn't re-emit on expiry)
+      const existing = typingClearTimeouts.get(conversation_id);
+      if (existing) clearTimeout(existing);
+      typingClearTimeouts.delete(conversation_id);
+      if (list.length > 0) {
+        const t = setTimeout(() => {
+          typingClearTimeouts.delete(conversation_id);
+          typingByChat.update((by) => {
+            const next = { ...by };
+            if (next[conversation_id]?.length) next[conversation_id] = [];
+            return next;
+          });
+        }, TYPING_EXPIRY_SEC * 1000);
+        typingClearTimeouts.set(conversation_id, t);
+      }
     });
 
     const unlistenMlsNew = listen<{ group_id: string; message: DmMessage }>('mls_message_new', (event) => {
