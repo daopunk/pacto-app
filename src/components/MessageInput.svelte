@@ -21,6 +21,8 @@
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleSubmit(event);
+    } else if (event.key === 'Enter' && event.shiftKey) {
+      // Allow default: insert newline in textarea
     } else {
       onTyping?.();
     }
@@ -34,16 +36,15 @@
 <div class="message-input-container" class:disabled>
   <form on:submit={handleSubmit}>
     <div class="input-wrapper">
-      <input
-        type="text"
+      <textarea
         bind:value={messageText}
         on:keydown={handleKeydown}
         on:input={handleInput}
         placeholder="Message #{channelName}"
         class="message-input"
-        autocomplete="off"
+        rows="1"
         {disabled}
-      />
+      ></textarea>
       <button 
         type="submit" 
         class="send-button" 
@@ -89,6 +90,9 @@
 
   .message-input {
     flex: 1;
+    min-width: 0;
+    min-height: 1.4em;
+    max-height: 120px;
     background: transparent;
     border: none;
     outline: none;
@@ -96,6 +100,9 @@
     font-size: 0.9375rem;
     padding: 12px 0;
     font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+    overflow-y: auto;
   }
 
   .message-input::placeholder {

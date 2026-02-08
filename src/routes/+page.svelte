@@ -340,13 +340,25 @@
     showNicknameEdit = true;
   }
 
-  function togglePinDm() {
+  function pinDm() {
     const npub = $activeDmId;
     if (!npub) return;
     pinnedDmNpubs.update((s) => {
+      if (s.has(npub)) return s;
       const next = new Set(s);
-      if (next.has(npub)) next.delete(npub);
-      else next.add(npub);
+      next.add(npub);
+      return next;
+    });
+    dmThreadMenuOpen = false;
+  }
+
+  function unpinDm() {
+    const npub = $activeDmId;
+    if (!npub) return;
+    pinnedDmNpubs.update((s) => {
+      if (!s.has(npub)) return s;
+      const next = new Set(s);
+      next.delete(npub);
       return next;
     });
     dmThreadMenuOpen = false;
@@ -659,7 +671,7 @@
               {:else}
                 <div class="dm-thread-header-title-row">
                   <h3 class="dm-thread-title">{contactDisplayName}</h3>
-                  {#if $activeDmTab === 'friends'}
+                  {#if $activeDmTab === 'friends' || $activeDmTab === 'pinned'}
                     <div class="dm-thread-header-actions">
                       <button
                         type="button"
@@ -676,9 +688,15 @@
                           <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={openNicknameEdit}>
                             Set Nickname
                           </button>
-                          <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={togglePinDm}>
-                            {$pinnedDmNpubs.has($activeDmId) ? 'Unpin DM' : 'Pin DM'}
-                          </button>
+                          {#if $pinnedDmNpubs.has($activeDmId)}
+                            <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={unpinDm}>
+                              Unpin DM
+                            </button>
+                          {:else}
+                            <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={pinDm}>
+                              Pin DM
+                            </button>
+                          {/if}
                         </div>
                       {/if}
                     </div>
