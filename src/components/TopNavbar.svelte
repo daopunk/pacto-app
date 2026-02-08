@@ -33,8 +33,8 @@
     height: 40px;
     min-height: 40px;
     width: 100%;
-    background-color: #2b2d31;
-    border-bottom: 1px solid #1e1f22;
+    background-color: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-subtle);
     display: flex;
     align-items: stretch;
     flex-shrink: 0;
@@ -48,7 +48,7 @@
     padding: 0 12px;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #b5bac1;
+    color: var(--text-secondary);
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
@@ -58,18 +58,18 @@
   }
 
   .tab:hover {
-    color: #f2f3f5;
+    color: var(--text-primary);
     background-color: rgba(255, 255, 255, 0.04);
   }
 
   .tab:focus-visible {
-    outline: 2px solid #5865f2;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
   .tab.active {
-    color: #f2f3f5;
-    border-bottom-color: #5865f2;
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
     background-color: rgba(255, 255, 255, 0.02);
   }
 </style>

@@ -812,7 +812,7 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
-    background-color: #313338;
+    background-color: var(--border-subtle);
   }
 
   .dm-thread-header {
@@ -820,7 +820,7 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    border-bottom: 1px solid #1e1f22;
+    border-bottom: 1px solid var(--bg-elevated);
   }
 
   .dm-thread-header-avatar {
@@ -829,7 +829,7 @@
     height: 40px;
     border-radius: 50%;
     overflow: hidden;
-    background-color: #383a40;
+    background-color: var(--bg-hover);
   }
 
   .dm-thread-header-avatar-img {
@@ -847,7 +847,7 @@
     color: #fff;
     font-weight: 600;
     font-size: 1.125rem;
-    background-color: #5865f2;
+    background-color: var(--accent);
   }
 
   .dm-thread-header-info {
@@ -857,7 +857,7 @@
   .dm-thread-title {
     font-size: 1rem;
     font-weight: 600;
-    color: #f2f3f5;
+    color: var(--text-primary);
     margin: 0 0 2px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -866,7 +866,7 @@
 
   .dm-thread-npub {
     font-size: 0.8125rem;
-    color: #b5bac1;
+    color: var(--text-secondary);
   }
 
   .dm-thread-header-title-row {
@@ -884,19 +884,19 @@
   .dm-thread-dropdown-trigger {
     padding: 4px 6px;
     background: transparent;
-    border: 1px solid #404249;
+    border: 1px solid var(--border);
     border-radius: 4px;
     cursor: pointer;
     outline: none;
-    color: #949ba4;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
   .dm-thread-dropdown-trigger:hover {
-    color: #f2f3f5;
-    border-color: #5865f2;
+    color: var(--text-primary);
+    border-color: var(--accent);
   }
 
   .dm-thread-chevron {
@@ -912,8 +912,8 @@
     right: 0;
     margin-top: 4px;
     min-width: 140px;
-    background: #2b2d31;
-    border: 1px solid #404249;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     z-index: 50;
@@ -926,14 +926,14 @@
     padding: 8px 12px;
     border: none;
     background: none;
-    color: #dbdee1;
+    color: var(--text-secondary);
     font-size: 0.875rem;
     text-align: left;
     cursor: pointer;
   }
 
   .dm-thread-dropdown-item:hover {
-    background: #35373c;
+    background: var(--bg-hover);
   }
 
   .dm-thread-nickname-edit {
@@ -948,15 +948,15 @@
     min-width: 120px;
     padding: 6px 10px;
     font-size: 0.9375rem;
-    color: #f2f3f5;
-    background: #1e1f22;
-    border: 1px solid #404249;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     border-radius: 4px;
     outline: none;
   }
 
   .dm-thread-nickname-input:focus {
-    border-color: #5865f2;
+    border-color: var(--accent);
   }
 
   .dm-thread-nickname-btn {
@@ -969,22 +969,22 @@
   }
 
   .dm-thread-nickname-save {
-    background: #5865f2;
+    background: var(--accent);
     color: #fff;
   }
 
   .dm-thread-nickname-save:hover:not(:disabled) {
-    background: #4752c4;
+    background: var(--accent-hover);
   }
 
   .dm-thread-nickname-cancel {
     background: transparent;
-    color: #949ba4;
-    border: 1px solid #404249;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
   }
 
   .dm-thread-nickname-cancel:hover:not(:disabled) {
-    color: #f2f3f5;
+    color: var(--text-primary);
   }
 
   .dm-thread-nickname-btn:disabled {
@@ -995,7 +995,7 @@
   .dm-thread-nickname-error {
     margin: 4px 0 0 0;
     font-size: 0.75rem;
-    color: #f23f42;
+    color: var(--danger);
   }
 
   .dm-thread-messages {
@@ -1012,17 +1012,17 @@
   .load-older-btn {
     padding: 8px 16px;
     font-size: 0.875rem;
-    color: #b5bac1;
-    background: #383a40;
-    border: 1px solid #1e1f22;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
+    border: 1px solid var(--bg-elevated);
     border-radius: 4px;
     cursor: pointer;
     outline: none;
   }
 
   .load-older-btn:hover:not(:disabled) {
-    color: #f2f3f5;
-    background: #4e5058;
+    color: var(--text-primary);
+    background: var(--border);
   }
 
   .load-older-btn:disabled {
@@ -1032,15 +1032,15 @@
 
   .dm-thread-placeholder {
     font-size: 0.875rem;
-    color: #6d6f78;
+    color: var(--text-muted);
     margin: 0;
   }
 
   .squad-invite-card {
     margin: 8px 16px;
     padding: 12px 16px;
-    background: #2b2d31;
-    border: 1px solid #404249;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     border-radius: 8px;
     max-width: 420px;
   }
@@ -1048,24 +1048,24 @@
   .squad-invite-text {
     margin: 0 0 12px;
     font-size: 0.9375rem;
-    color: #dbdee1;
+    color: var(--text-secondary);
     line-height: 1.4;
   }
 
   .squad-invite-text strong {
-    color: #f2f3f5;
+    color: var(--text-primary);
   }
 
   .squad-invite-accepted {
     margin: 0;
     font-size: 0.8125rem;
-    color: #57f287;
+    color: var(--success);
   }
 
   .squad-invite-declined {
     margin: 0;
     font-size: 0.8125rem;
-    color: #949ba4;
+    color: var(--text-muted);
   }
 
   .squad-invite-actions {
@@ -1087,26 +1087,26 @@
   }
 
   .squad-invite-btn-accept {
-    background: #5865f2;
+    background: var(--accent);
     color: #fff;
   }
 
   .squad-invite-btn-accept:hover:not(:disabled) {
-    background: #4752c4;
+    background: var(--accent-hover);
   }
 
   .squad-invite-btn-decline {
-    background: #4e5058;
-    color: #dbdee1;
+    background: var(--border);
+    color: var(--text-secondary);
   }
 
   .squad-invite-btn-decline:hover:not(:disabled) {
-    background: #5d6069;
+    background: var(--bg-hover);
   }
 
   .dm-thread-typing {
     font-size: 0.8125rem;
-    color: #949ba4;
+    color: var(--text-muted);
     margin: 0;
     padding: 4px 24px 8px;
     font-style: italic;
@@ -1114,11 +1114,11 @@
 
   .dm-thread-error {
     font-size: 0.875rem;
-    color: #ed4245;
+    color: var(--danger);
     margin: 0;
     padding: 8px 24px;
     background-color: rgba(237, 66, 69, 0.1);
-    border-top: 1px solid #1e1f22;
+    border-top: 1px solid var(--bg-elevated);
   }
 
   .dm-sync-banner {
@@ -1132,12 +1132,12 @@
   }
 
   .dm-sync-syncing {
-    color: #b5bac1;
-    background-color: #2b2d31;
+    color: var(--text-secondary);
+    background-color: var(--bg-elevated);
   }
 
   .dm-sync-finished {
-    color: #949ba4;
+    color: var(--text-muted);
     background-color: #24804620;
   }
 
@@ -1147,8 +1147,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #313338;
-    color: #6d6f78;
+    background-color: var(--border-subtle);
+    color: var(--text-muted);
     font-size: 0.9375rem;
   }
 
@@ -1163,8 +1163,8 @@
   }
 
   .add-to-squad-modal {
-    background: #2b2d31;
-    border: 1px solid #404249;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 20px;
     min-width: 280px;
@@ -1174,13 +1174,13 @@
   .add-to-squad-modal h2 {
     margin: 0 0 8px;
     font-size: 1.125rem;
-    color: #f2f3f5;
+    color: var(--text-primary);
   }
 
   .add-to-squad-modal-text {
     margin: 0 0 16px;
     font-size: 0.875rem;
-    color: #949ba4;
+    color: var(--text-muted);
   }
 
   .add-to-squad-modal-list {
@@ -1194,35 +1194,35 @@
     padding: 8px 12px;
     text-align: left;
     font-size: 0.9375rem;
-    color: #dbdee1;
-    background: #383a40;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
     border: none;
     border-radius: 6px;
     cursor: pointer;
   }
 
   .add-to-squad-modal-option:hover {
-    background: #4e5058;
+    background: var(--border);
   }
 
   .add-to-squad-modal-empty {
     margin: 0 0 16px;
     font-size: 0.875rem;
-    color: #949ba4;
+    color: var(--text-muted);
   }
 
   .add-to-squad-modal-skip {
     padding: 6px 14px;
     font-size: 0.875rem;
     background: transparent;
-    border: 1px solid #4e5058;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    color: #949ba4;
+    color: var(--text-muted);
     cursor: pointer;
   }
 
   .add-to-squad-modal-skip:hover {
-    background: #35373c;
-    color: #dbdee1;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
   }
 </style>
