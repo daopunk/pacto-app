@@ -6,7 +6,7 @@
   import requestsIcon from '../icons/requests.svg';
   import pendingIcon from '../icons/pending.svg';
   import pinIcon from '../icons/pin.svg';
-  import { squads, activeSquadId, activeChannelId, activeView, activeTopNavTab, activeDmTab, composingNewChat, dmList, type TopNavTab, type DmTab, type Squad, type Channel } from '../stores/app';
+  import { squads, activeSquadId, activeChannelId, activeView, activeTopNavTab, activeDmTab, composingNewChat, dmList, pinnedList, type TopNavTab, type DmTab, type Squad, type Channel } from '../stores/app';
   import { currentUser } from '../stores/auth';
   import { createGroupChat } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
@@ -125,9 +125,13 @@
   }
 
   $: canCreateSquad = organizeSquadName.trim().length > 0 && organizeSquadMembers.length > 0;
+
+  /* Organize Squad: members = Pinned + Friends (so squad creation can use both) */
+  $: organizeMemberList = [...$pinnedList, ...$dmList];
 </script>
 
 <div class="navbar">
+  {#if $activeView !== 'profile'}
   <div class="tab-list">
     {#if $activeTopNavTab === 'dms'}
       <div 
@@ -181,6 +185,10 @@
       <!-- Networks: placeholder for future tabs -->
     {/if}
   </div>
+  {/if}
+  {#if $activeView === 'profile'}
+  <div class="navbar-spacer" aria-hidden="true"></div>
+  {/if}
   <div class="tab-list bottom">
     <div
       on:click={$activeTopNavTab === 'dms' ? startNewChat : handleAddAction}
@@ -240,7 +248,7 @@
         />
         <span class="organize-label">Members for announcements (select at least one)</span>
         <div class="organize-members">
-          {#each $dmList as entry (entry.npub)}
+          {#each organizeMemberList as entry (entry.npub)}
             <label class="organize-member-row">
               <input
                 type="checkbox"
@@ -251,7 +259,7 @@
             </label>
           {/each}
         </div>
-        {#if $dmList.length === 0}
+        {#if organizeMemberList.length === 0}
           <p class="organize-members-empty">Add friends in DMs first to create a squad with them.</p>
         {/if}
         {#if organizeSquadError}
@@ -292,6 +300,11 @@
 
   .tab-list.bottom {
     padding-bottom: 8px;
+  }
+
+  .navbar-spacer {
+    flex: 1;
+    min-height: 0;
   }
 
   /* Organize Squad modal */
