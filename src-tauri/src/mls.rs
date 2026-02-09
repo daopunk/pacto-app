@@ -1016,13 +1016,13 @@ impl MlsService {
                         .build(nostr_sdk::PublicKey::from_hex("000000000000000000000000000000000000000000000000000000000000dead").unwrap());
                     
                     if let Err(e) = engine.create_message(&check_gid, dummy_rumor) {
-                      eprintln!("[MLS] Engine missing group: {}", e);
+                       eprintln!("[MLS] Engine missing group: {}", e);
                         
-                      if let Some(handle) = TAURI_APP.get() {
-                          handle.emit("mls_group_needs_rejoin", serde_json::json!({
-                              "group_id": gid_for_fetch,
-                              "reason": "Group not found in MLS engine state"
-                          })).ok();
+                       if let Some(handle) = TAURI_APP.get() {
+                            handle.emit("mls_group_needs_rejoin", serde_json::json!({
+                                "group_id": gid_for_fetch,
+                                "reason": "Group not found in MLS engine state"
+                            })).ok();
                         }
                     }
                 }
