@@ -338,13 +338,56 @@ export function formatSquadInviteMessage(payload: SquadInvitePayload): string {
   return JSON.stringify(payload);
 }
 
+/** Payload for "new channel in existing squad" DM (not a new squad invite). */
+export interface ChannelInSquadPayload {
+  type: 'channel_in_squad';
+  squadName: string;
+  announcementsGroupId: string;
+  channelGroupId: string;
+  channelName: string;
+}
+
+const CHANNEL_IN_SQUAD_TYPE = 'channel_in_squad';
+
+export function parseChannelInSquadMessage(content: string): ChannelInSquadPayload | null {
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    if (parsed && typeof parsed === 'object' && (parsed as { type?: string }).type === CHANNEL_IN_SQUAD_TYPE) {
+      const p = parsed as { squadName?: string; announcementsGroupId?: string; channelGroupId?: string; channelName?: string };
+      if (
+        typeof p.squadName === 'string' &&
+        typeof p.announcementsGroupId === 'string' &&
+        typeof p.channelGroupId === 'string' &&
+        typeof p.channelName === 'string'
+      ) {
+        return {
+          type: CHANNEL_IN_SQUAD_TYPE,
+          squadName: p.squadName,
+          announcementsGroupId: p.announcementsGroupId,
+          channelGroupId: p.channelGroupId,
+          channelName: p.channelName,
+        };
+      }
+    }
+  } catch {
+    // not JSON or invalid shape
+  }
+  return null;
+}
+
+export function formatChannelInSquadMessage(payload: ChannelInSquadPayload): string {
+  return JSON.stringify(payload);
+}
+
 /**
  * List pending MLS welcomes (invites). Backend: list_pending_mls_welcomes.
  */
 export async function listPendingMlsWelcomes(): Promise<PendingMlsWelcome[]> {
   dmLog('list_pending_mls_welcomes');
+  console.log('[Squad/Invite] listPendingMlsWelcomes: calling backend…');
   const list = (await invoke('list_pending_mls_welcomes')) as PendingMlsWelcome[];
   dmLog('list_pending_mls_welcomes result', { count: list.length });
+  console.log('[Squad/Invite] listPendingMlsWelcomes: backend returned count=', list.length, list.length > 0 ? 'first=' + JSON.stringify({ nostr_group_id: list[0].nostr_group_id?.slice(0, 16), group_name: list[0].group_name }) : '');
   return list;
 }
 

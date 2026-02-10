@@ -11,7 +11,9 @@
   import MessengerChatView from '../components/MessengerChatView.svelte';
   import Message from '../components/Message.svelte';
   import MessageInput from '../components/MessageInput.svelte';
-  import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping, setNickname, listPendingMlsWelcomes, acceptMlsWelcome, parseSquadInviteMessage, syncMlsGroupsNow } from '../lib/api/nostr';
+  import SquadInviteCard from '../components/SquadInviteCard.svelte';
+  import ChannelInSquadCard from '../components/ChannelInSquadCard.svelte';
+  import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping, setNickname, listPendingMlsWelcomes, acceptMlsWelcome, parseSquadInviteMessage, parseChannelInSquadMessage, syncMlsGroupsNow } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { getProfileAvatarSrc, getProfileDisplayName } from '../lib/utils/profile';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
@@ -55,6 +57,9 @@
 
   /** Group IDs we just accepted as squad invites — skip "Add to squad" modal for these. */
   let acceptedSquadInviteGroupIds = new Set<string>();
+
+  /** When user accepts a "channel in squad" invite we store mapping so mls_welcome_accepted can add channel to the right squad. */
+  let channelInSquadPendingAccept = new Map<string, { announcementsGroupId: string; channelName: string }>();
 
   let pendingAddToSquadGroupId: string | null = null;
   function addAcceptedChannelToSquad(squadId: string) {
@@ -142,6 +147,8 @@
     if (!npub) return [];
     const list = [...($backendDmMessages[npub] ?? [])];
     list.sort((a, b) => a.at - b.at);
+    const squadInviteCount = list.filter((m) => parseSquadInviteMessage(m.content ?? '') !== null).length;
+    if (list.length > 0 || npub) console.log('[Squad/Invite] mergedDmMessages for', npub?.slice(0, 24) + '…', 'count=', list.length, 'squadInviteMsgs=', squadInviteCount);
     return list;
   })();
 
@@ -233,6 +240,9 @@
   let acceptedSquadInviteIds: Set<string> = new Set();
   let declinedSquadInviteIds: Set<string> = new Set();
   let acceptingSquadInviteId: string | null = null;
+  let acceptedChannelInSquadMessageIds: Set<string> = new Set();
+  let declinedChannelInSquadMessageIds: Set<string> = new Set();
+  let acceptingChannelInSquadId: string | null = null;
 
   // Message bubbles show sender avatar and display name from profiles
   function toMessageProps(msg: DmMessage) {
@@ -286,9 +296,10 @@
         dmError('Accept squad invite: no pending welcome for group', groupId);
         return;
       }
+      // Mark before accept so mls_welcome_accepted listener skips "Add to squad" modal (channel is already this squad)
+      acceptedSquadInviteGroupIds.add(groupId);
       await acceptMlsWelcome(welcome.id);
       acceptedSquadInviteIds = new Set(acceptedSquadInviteIds).add(msg.id);
-      acceptedSquadInviteGroupIds.add(groupId);
       const now = Date.now();
       const announcementsChannel: Channel = {
         id: groupId,
@@ -311,6 +322,32 @@
       dmError('Accept squad invite failed', e);
     } finally {
       acceptingSquadInviteId = null;
+    }
+  }
+
+  async function handleAcceptChannelInSquad(msg: DmMessage, payload: { channelGroupId: string; announcementsGroupId: string; channelName: string }) {
+    if (acceptingChannelInSquadId) return;
+    acceptingChannelInSquadId = msg.id;
+    try {
+      const welcomes = await listPendingMlsWelcomes();
+      const welcome = welcomes.find((w) => w.nostr_group_id === payload.channelGroupId);
+      if (!welcome) {
+        dmError('Accept channel in squad: no pending welcome for channel', payload.channelGroupId);
+        return;
+      }
+      channelInSquadPendingAccept.set(payload.channelGroupId, {
+        announcementsGroupId: payload.announcementsGroupId,
+        channelName: payload.channelName,
+      });
+      acceptedSquadInviteGroupIds.add(payload.channelGroupId);
+      await acceptMlsWelcome(welcome.id);
+      acceptedChannelInSquadMessageIds = new Set(acceptedChannelInSquadMessageIds).add(msg.id);
+    } catch (e) {
+      dmError('Accept channel in squad failed', e);
+      channelInSquadPendingAccept.delete(payload.channelGroupId);
+      acceptedSquadInviteGroupIds.delete(payload.channelGroupId);
+    } finally {
+      acceptingChannelInSquadId = null;
     }
   }
 
@@ -454,6 +491,8 @@
     const unlistenNew = listen<{ message: DmMessage; chat_id: string }>('message_new', (event) => {
       const { message, chat_id } = event.payload;
       dmLog('message_new', { chat_id: chat_id.slice(0, 20) + '…', messageId: message.id?.slice(0, 12), mine: message.mine });
+      const isSquadInvite = parseSquadInviteMessage(message.content ?? '') !== null;
+      console.log('[Squad/Invite] message_new: chat_id=', chat_id?.slice(0, 24) + '…', 'mine=', message.mine, 'isSquadInvite=', isSquadInvite, 'contentPreview=', (message.content ?? '').slice(0, 60) + (message.content && message.content.length > 60 ? '…' : ''));
       if (!chat_id.startsWith('npub1')) return;
       const m: DmMessage = {
         id: message.id,
@@ -480,6 +519,7 @@
       // Update Friends/Requests/Pending: OR in message flags so we never lose a true (chat can move to Friends when they reply)
       dmChatsByNpub.update((map) => {
         const cur = map[chat_id];
+        const hadChat = chat_id in map;
         const next = {
           npub: chat_id,
           name: cur?.name,
@@ -488,6 +528,7 @@
           hasFromThem: (cur?.hasFromThem ?? false) || !m.mine,
           lastAt: Math.max(cur?.lastAt ?? 0, m.at),
         };
+        if (isSquadInvite && !hadChat) console.log('[Squad/Invite] message_new: added new chat to dmChatsByNpub for inviter', chat_id?.slice(0, 24) + '…');
         return { ...map, [chat_id]: next };
       });
       // Sender sent a message — clear "Typing" for this chat and cancel expiry timeout
@@ -597,19 +638,45 @@
     });
 
     async function refreshPendingWelcomes() {
+      console.log('[Squad/Invite] refreshPendingWelcomes: calling listPendingMlsWelcomes…');
       const list = await listPendingMlsWelcomes();
       pendingMlsWelcomes.set(list);
+      console.log('[Squad/Invite] refreshPendingWelcomes: count=', list.length, 'welcomes=', list.map((w) => ({ groupId: w.nostr_group_id?.slice(0, 16) + '…', name: w.group_name, wrapperId: w.wrapper_event_id?.slice(0, 16) + '…' })));
     }
 
     refreshPendingWelcomes().catch((e) => dmError('refreshPendingWelcomes', e));
 
     const unlistenInviteReceived = listen('mls_invite_received', () => {
+      console.log('[Squad/Invite] mls_invite_received event: refreshing pending welcomes');
       refreshPendingWelcomes().catch((e) => dmError('mls_invite_received refresh', e));
     });
 
     const unlistenWelcomeAccepted = listen<{ group_id: string }>('mls_welcome_accepted', (event) => {
       const group_id = event.payload.group_id;
       refreshPendingWelcomes().catch((e) => dmError('mls_welcome_accepted refresh', e));
+      // Channel-in-squad: add this channel to the existing squad (must run before acceptedSquadInviteGroupIds)
+      const channelInSquadInfo = channelInSquadPendingAccept.get(group_id);
+      if (channelInSquadInfo) {
+        channelInSquadPendingAccept.delete(group_id);
+        acceptedSquadInviteGroupIds.delete(group_id);
+        const list = get(squads);
+        const squad = list.find((s) => {
+          const ann = s.channels?.slice().sort((a, b) => a.order - b.order)[0];
+          return ann?.groupId === channelInSquadInfo.announcementsGroupId;
+        });
+        if (squad) {
+          const newChannel: Channel = {
+            id: group_id,
+            name: channelInSquadInfo.channelName,
+            groupId: group_id,
+            order: squad.channels.length,
+          };
+          squads.update((l) =>
+            l.map((s) => (s.id !== squad.id ? s : { ...s, channels: [...s.channels, newChannel] }))
+          );
+        }
+        return;
+      }
       if (acceptedSquadInviteGroupIds.has(group_id)) {
         acceptedSquadInviteGroupIds.delete(group_id);
         return;
@@ -752,44 +819,41 @@
             {/if}
             {#if mergedDmMessages.length > 0}
               {#each mergedDmMessages as msg (msg.id)}
-                {@const invitePayload = parseSquadInviteMessage(msg.content)}
-                {#if invitePayload}
+                {@const channelInSquadPayload = parseChannelInSquadMessage(msg.content ?? '')}
+                {@const invitePayload = parseSquadInviteMessage(msg.content ?? '')}
+                {#if channelInSquadPayload}
+                  {@const inviterNpub = msg.mine ? $activeDmId : msg.npub}
+                  {@const inviterProfile = inviterNpub ? $profiles[inviterNpub] : null}
                   {@const inviterName = msg.mine ? (getProfileDisplayName($profiles[$activeDmId]) || $activeDmId?.slice(0, 12) + '…') : (msg.npub ? (getProfileDisplayName($profiles[msg.npub]) || msg.npub.slice(0, 12) + '…') : 'Someone')}
-                  <div class="squad-invite-card">
-                    <p class="squad-invite-text">
-                      {#if msg.mine}
-                        You invited {inviterName} to <strong>{invitePayload.squadName}</strong>.
-                      {:else}
-                        {inviterName} invited you to <strong>{invitePayload.squadName}</strong>.
-                      {/if}
-                    </p>
-                    {#if msg.mine}
-                      <!-- Inviter: no actions -->
-                    {:else if acceptedSquadInviteIds.has(msg.id)}
-                      <p class="squad-invite-accepted">Accepted</p>
-                    {:else if declinedSquadInviteIds.has(msg.id)}
-                      <p class="squad-invite-declined">Declined</p>
-                    {:else}
-                      <div class="squad-invite-actions">
-                        <button
-                          type="button"
-                          class="squad-invite-btn squad-invite-btn-accept"
-                          disabled={acceptingSquadInviteId === msg.id}
-                          on:click={() => handleAcceptSquadInvite(msg, invitePayload.groupId)}
-                        >
-                          {acceptingSquadInviteId === msg.id ? 'Accepting…' : 'Accept'}
-                        </button>
-                        <button
-                          type="button"
-                          class="squad-invite-btn squad-invite-btn-decline"
-                          disabled={acceptingSquadInviteId === msg.id}
-                          on:click={() => { declinedSquadInviteIds = new Set(declinedSquadInviteIds).add(msg.id); }}
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    {/if}
-                  </div>
+                  {@const inviterAvatarSrc = inviterProfile ? getProfileAvatarSrc(inviterProfile) : null}
+                  {@const channelInSquadStatus = acceptedChannelInSquadMessageIds.has(msg.id) ? 'accepted' : declinedChannelInSquadMessageIds.has(msg.id) ? 'declined' : 'pending'}
+                  <ChannelInSquadCard
+                    squadName={channelInSquadPayload.squadName}
+                    channelName={channelInSquadPayload.channelName}
+                    isMine={msg.mine}
+                    inviterName={inviterName}
+                    inviterAvatarSrc={inviterAvatarSrc}
+                    status={channelInSquadStatus}
+                    accepting={acceptingChannelInSquadId === msg.id}
+                    onAccept={() => handleAcceptChannelInSquad(msg, { channelGroupId: channelInSquadPayload.channelGroupId, announcementsGroupId: channelInSquadPayload.announcementsGroupId, channelName: channelInSquadPayload.channelName })}
+                    onDecline={() => { declinedChannelInSquadMessageIds = new Set(declinedChannelInSquadMessageIds).add(msg.id); }}
+                  />
+                {:else if invitePayload}
+                  {@const inviterNpub = msg.mine ? $activeDmId : msg.npub}
+                  {@const inviterProfile = inviterNpub ? $profiles[inviterNpub] : null}
+                  {@const inviterName = msg.mine ? (getProfileDisplayName($profiles[$activeDmId]) || $activeDmId?.slice(0, 12) + '…') : (msg.npub ? (getProfileDisplayName($profiles[msg.npub]) || msg.npub.slice(0, 12) + '…') : 'Someone')}
+                  {@const inviterAvatarSrc = inviterProfile ? getProfileAvatarSrc(inviterProfile) : null}
+                  {@const inviteStatus = acceptedSquadInviteIds.has(msg.id) ? 'accepted' : declinedSquadInviteIds.has(msg.id) ? 'declined' : 'pending'}
+                  <SquadInviteCard
+                    squadName={invitePayload.squadName}
+                    isMine={msg.mine}
+                    inviterName={inviterName}
+                    inviterAvatarSrc={inviterAvatarSrc}
+                    status={inviteStatus}
+                    accepting={acceptingSquadInviteId === msg.id}
+                    onAccept={() => handleAcceptSquadInvite(msg, invitePayload.groupId)}
+                    onDecline={() => { declinedSquadInviteIds = new Set(declinedSquadInviteIds).add(msg.id); }}
+                  />
                 {:else}
                   <Message {...toMessageProps(msg)} />
                 {/if}
@@ -1141,74 +1205,6 @@
     font-size: 0.875rem;
     color: var(--text-muted);
     margin: 0;
-  }
-
-  .squad-invite-card {
-    margin: 8px 16px;
-    padding: 12px 16px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    max-width: 420px;
-  }
-
-  .squad-invite-text {
-    margin: 0 0 12px;
-    font-size: 0.9375rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-  }
-
-  .squad-invite-text strong {
-    color: var(--text-primary);
-  }
-
-  .squad-invite-accepted {
-    margin: 0;
-    font-size: 0.8125rem;
-    color: var(--success);
-  }
-
-  .squad-invite-declined {
-    margin: 0;
-    font-size: 0.8125rem;
-    color: var(--text-muted);
-  }
-
-  .squad-invite-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .squad-invite-btn {
-    padding: 6px 14px;
-    font-size: 0.8125rem;
-    border-radius: 6px;
-    cursor: pointer;
-    border: none;
-  }
-
-  .squad-invite-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  .squad-invite-btn-accept {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .squad-invite-btn-accept:hover:not(:disabled) {
-    background: var(--accent-hover);
-  }
-
-  .squad-invite-btn-decline {
-    background: var(--border);
-    color: var(--text-secondary);
-  }
-
-  .squad-invite-btn-decline:hover:not(:disabled) {
-    background: var(--bg-hover);
   }
 
   .dm-thread-typing {
