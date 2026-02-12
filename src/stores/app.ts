@@ -1,5 +1,25 @@
 import { writable, derived, get } from 'svelte/store';
 import type { PendingMlsWelcome } from '../lib/api/nostr';
+import {
+  initInviteDecisionPersistence,
+  getInviteDecisionLoadEntries,
+  acceptedSquadInviteIds,
+  declinedSquadInviteIds,
+  acceptedNetworkInviteIds,
+  declinedNetworkInviteIds,
+  acceptedChannelInviteMessageIds,
+  declinedChannelInviteMessageIds,
+} from './invite-decisions';
+
+// Re-export invite decision stores for consumers (e.g. +page, clear-account-state)
+export {
+  acceptedSquadInviteIds,
+  declinedSquadInviteIds,
+  acceptedNetworkInviteIds,
+  declinedNetworkInviteIds,
+  acceptedChannelInviteMessageIds,
+  declinedChannelInviteMessageIds,
+};
 
 /** Current npub for persistence: scoped localStorage keys use this. Set on login, cleared on logout. */
 export const currentNpubForPersistence = writable<string | null>(null);
@@ -76,9 +96,11 @@ export const dmList = derived(
   ([$m, $pinned]) =>
     toDmEntries($m, (c) => c.hasFromMe && c.hasFromThem && !$pinned.has(c.npub))
 );
+// Requests: they messaged us, we haven't replied. Includes invite-only DMs (squad/network/channel-in-squad) from non-friends.
 export const requestsList = derived(dmChatsByNpub, ($m) =>
   toDmEntries($m, (c) => !c.hasFromMe && c.hasFromThem)
 );
+// Pending: we messaged them, they haven't replied. Includes conversations where we sent an invite and they haven't replied.
 export const pendingList = derived(dmChatsByNpub, ($m) =>
   toDmEntries($m, (c) => c.hasFromMe && !c.hasFromThem)
 );
@@ -117,6 +139,9 @@ export function addPendingDm(npub: string): void {
 
 // Selected DM conversation (other user's npub)
 export const activeDmId = writable<string | null>(null);
+
+// Invite decision persistence wired from invite-decisions.ts
+initInviteDecisionPersistence(persistenceKey);
 
 // Last opened chat per tab (Friends / Requests / Pending / Pinned) so switching tabs shows that chat if still in section
 export const lastOpenedDmByTab = writable<Record<DmTab, string | null>>({
@@ -165,12 +190,16 @@ export const dmSyncStatus = writable<SyncStatus>('idle');
 export const typingByChat = writable<Record<string, string[]>>({});
 
 // --- MLS / Squads ---
-// Channel = one MLS group. id === groupId for simplicity (backend uses group_id everywhere).
+// Channel = one MLS group. Identified by groupId only (backend uses group_id everywhere).
 export interface Channel {
-  id: string;
   name: string;
   groupId: string;
   order: number;
+}
+
+/** Normalize a channel from storage (drops legacy `id` if present). */
+function normalizeChannel(ch: { name: string; groupId: string; order: number }): Channel {
+  return { name: ch.name, groupId: ch.groupId, order: ch.order };
 }
 
 // Squad = frontend-only container (name, icon, ordered channels). Persisted to localStorage.
@@ -179,6 +208,18 @@ export interface Squad {
   name: string;
   iconUrl?: string;
   channels: Channel[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Network = same shape as Squad but formed from multiple squads; memberSquads used for heading sub-title.
+export interface Network {
+  id: string;
+  name: string;
+  iconUrl?: string;
+  channels: Channel[];
+  /** Squads that form this network (id + name at creation). Used for network heading sub-heading. */
+  memberSquads: { id: string; name: string }[];
   createdAt: number;
   updatedAt: number;
 }
@@ -198,6 +239,21 @@ squads.subscribe((value) => {
   }
 });
 
+const PACTO_NETWORKS_PREFIX = 'pacto_networks';
+
+export const networks = writable<Network[]>([]);
+
+networks.subscribe((value) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(PACTO_NETWORKS_PREFIX);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore quota or serialization errors
+  }
+});
+
 // Backend-backed group messages (get_message_views(groupId) + mls_message_new). Keyed by group_id. Reuse DmMessage shape.
 export const backendGroupMessages = writable<Record<string, DmMessage[]>>({});
 
@@ -207,7 +263,7 @@ export const pendingMlsWelcomes = writable<PendingMlsWelcome[]>([]);
 
 export const ungroupedChannels = writable<Channel[]>([]);
 
-// Legacy: channelMessages was keyed by channel id for local-only mock. Replaced by backendGroupMessages keyed by groupId.
+// Legacy: channelMessages was keyed by groupId for local-only mock. Replaced by backendGroupMessages keyed by groupId.
 export const channelMessages = writable<Record<string, any[]>>({});
 
 // Persist last open DM for restore on next app open (npub-scoped)
@@ -242,6 +298,29 @@ lastOpenedChannelId.subscribe((id) => {
   else localStorage.removeItem(key);
 });
 
+// Last opened network/channel for restore when switching to Networks view (npub-scoped)
+const LAST_NETWORK_ID_PREFIX = 'pacto_last_network_id';
+const LAST_NETWORK_CHANNEL_ID_PREFIX = 'pacto_last_network_channel_id';
+
+export const activeNetworkId = writable<string | null>(null);
+export const lastOpenedNetworkId = writable<string | null>(null);
+export const lastOpenedNetworkChannelId = writable<string | null>(null);
+
+lastOpenedNetworkId.subscribe((id) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(LAST_NETWORK_ID_PREFIX);
+  if (!key) return;
+  if (id) localStorage.setItem(key, id);
+  else localStorage.removeItem(key);
+});
+lastOpenedNetworkChannelId.subscribe((id) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(LAST_NETWORK_CHANNEL_ID_PREFIX);
+  if (!key) return;
+  if (id) localStorage.setItem(key, id);
+  else localStorage.removeItem(key);
+});
+
 /** Load account-specific state from localStorage for the given npub. Call after login/create/import/unlock. */
 export function loadAccountState(npub: string): void {
   setCurrentNpubForPersistence(npub);
@@ -251,7 +330,10 @@ export function loadAccountState(npub: string): void {
     const rawSquads = localStorage.getItem(squadsKey);
     if (rawSquads) {
       const parsed = JSON.parse(rawSquads) as unknown;
-      squads.set(Array.isArray(parsed) ? (parsed as Squad[]) : []);
+      const list = Array.isArray(parsed) ? (parsed as Squad[]) : [];
+      squads.set(
+        list.map((s) => ({ ...s, channels: s.channels.map(normalizeChannel) }))
+      );
     }
     const pinnedKey = `${PINNED_DM_NPUBS_PREFIX}_${npub}`;
     const rawPinned = localStorage.getItem(pinnedKey);
@@ -266,6 +348,27 @@ export function loadAccountState(npub: string): void {
     if (lastSquad) lastOpenedSquadId.set(lastSquad);
     const lastChannel = localStorage.getItem(`${LAST_CHANNEL_ID_PREFIX}_${npub}`);
     if (lastChannel) lastOpenedChannelId.set(lastChannel);
+    const rawNetworks = localStorage.getItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
+    if (rawNetworks) {
+      const parsed = JSON.parse(rawNetworks) as unknown;
+      const list = Array.isArray(parsed) ? (parsed as Network[]) : [];
+      networks.set(
+        list.map((n) => ({ ...n, channels: n.channels.map(normalizeChannel) }))
+      );
+    }
+    const lastNetwork = localStorage.getItem(`${LAST_NETWORK_ID_PREFIX}_${npub}`);
+    if (lastNetwork) lastOpenedNetworkId.set(lastNetwork);
+    const lastNetworkChannel = localStorage.getItem(`${LAST_NETWORK_CHANNEL_ID_PREFIX}_${npub}`);
+    if (lastNetworkChannel) lastOpenedNetworkChannelId.set(lastNetworkChannel);
+    for (const [key, setStore] of getInviteDecisionLoadEntries(npub)) {
+      try {
+        const raw = localStorage.getItem(key);
+        const arr = raw ? (JSON.parse(raw) as unknown) : [];
+        setStore(Array.isArray(arr) ? (arr as string[]).filter((x) => typeof x === 'string') : []);
+      } catch {
+        setStore([]);
+      }
+    }
   } catch {
     // ignore parse errors
   }

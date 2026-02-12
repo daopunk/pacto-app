@@ -1,10 +1,15 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
   import Message from './Message.svelte';
   import MessageInput from './MessageInput.svelte';
+  import Modal from './Modal.svelte';
   import {
     activeChannelId,
     squads,
     activeSquadId,
+    activeTopNavTab,
+    activeNetworkId,
+    networks,
     ungroupedChannels,
     dmList,
     requestsList,
@@ -25,12 +30,25 @@
 
   const LOAD_OLDER_PAGE_SIZE = 50;
 
-  $: activeSquad = $squads.find((c) => c.id === $activeSquadId);
-  $: activeChannel =
-    activeSquad?.channels.find((ch) => ch.id === $activeChannelId || ch.groupId === $activeChannelId) ??
-    $ungroupedChannels.find((ch) => ch.groupId === $activeChannelId);
+  $: activeSquad = $activeTopNavTab === 'squads' ? $squads.find((c) => c.id === $activeSquadId) : null;
+  $: activeNetwork = $activeTopNavTab === 'networks' && $activeNetworkId ? $networks.find((n) => n.id === $activeNetworkId) : null;
+  $: activeChannel = (() => {
+    if ($activeTopNavTab === 'networks' && activeNetwork && $activeChannelId) {
+      const sorted = [...activeNetwork.channels].sort((a, b) => a.order - b.order);
+      return sorted.find((ch) => ch.groupId === $activeChannelId) ?? null;
+    }
+    if ($activeTopNavTab === 'squads') {
+      return (
+        activeSquad?.channels.find((ch) => ch.groupId === $activeChannelId) ??
+        $ungroupedChannels.find((ch) => ch.groupId === $activeChannelId)
+      ) ?? null;
+    }
+    return null;
+  })();
   $: channelName = activeChannel?.name || 'channel';
-  $: isAnnouncementsChannel = activeSquad?.channels[0]?.groupId === $activeChannelId;
+  $: isAnnouncementsChannel = activeSquad
+    ? activeSquad.channels[0]?.groupId === $activeChannelId
+    : (activeNetwork ? [...activeNetwork.channels].sort((a, b) => a.order - b.order)[0]?.groupId === $activeChannelId : false);
   $: isChannelCreating = (activeChannel?.groupId?.startsWith('creating-') ?? false);
 
   let channelMenuOpen = false;
@@ -173,6 +191,8 @@
       }
       await leaveMlsGroup(groupId);
       const inSquad = activeSquad?.channels.some((ch) => ch.groupId === groupId);
+      const netList = get(networks);
+      const networkContaining = netList.find((n) => n.channels.some((ch) => ch.groupId === groupId));
       if (inSquad && activeSquad) {
         squads.update((list) =>
           list.map((s) =>
@@ -184,6 +204,18 @@
         const still = $squads.find((s) => s.id === activeSquad.id);
         activeChannelId.set(still?.channels[0]?.groupId ?? null);
         if (still?.channels.length === 0) activeSquadId.set(null);
+      } else if (networkContaining) {
+        networks.update((list) =>
+          list.map((n) =>
+            n.id !== networkContaining.id
+              ? n
+              : { ...n, channels: n.channels.filter((ch) => ch.groupId !== groupId) }
+          )
+        );
+        const still = get(networks).find((n) => n.id === networkContaining.id);
+        const remaining = still?.channels.slice().sort((a, b) => a.order - b.order) ?? [];
+        activeChannelId.set(remaining[0]?.groupId ?? null);
+        if (remaining.length === 0) activeNetworkId.set(null);
       } else {
         ungroupedChannels.update((ch) => ch.filter((c) => c.groupId !== groupId));
         activeChannelId.set(null);
@@ -370,62 +402,58 @@
 
     <!-- Leave channel confirm -->
     {#if showLeaveChannelConfirm}
-      <div class="channel-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="leave-channel-title">
-        <div class="channel-modal channel-modal-confirm">
-          <h2 id="leave-channel-title">Leave channel?</h2>
-          <p class="channel-leave-explainer">Channels are private groups and you will need to be re-invited to re-enter this channel.</p>
-          <div class="channel-modal-actions">
-            <button type="button" class="channel-modal-close" on:click={() => (showLeaveChannelConfirm = false)}>Cancel</button>
-            <button
-              type="button"
-              class="channel-modal-primary channel-modal-danger"
-              disabled={leavingChannel}
-              on:click={handleLeaveChannel}
-            >
-              {leavingChannel ? 'Leaving…' : 'Leave channel'}
-            </button>
-          </div>
+      <Modal titleId="leave-channel-title" onClose={() => (showLeaveChannelConfirm = false)}>
+        <h2 id="leave-channel-title">Leave channel?</h2>
+        <p class="channel-leave-explainer">Channels are private groups and you will need to be re-invited to re-enter this channel.</p>
+        <div class="channel-modal-actions">
+          <button type="button" class="channel-modal-close" on:click={() => (showLeaveChannelConfirm = false)}>Cancel</button>
+          <button
+            type="button"
+            class="channel-modal-primary channel-modal-danger"
+            disabled={leavingChannel}
+            on:click={handleLeaveChannel}
+          >
+            {leavingChannel ? 'Leaving…' : 'Leave channel'}
+          </button>
         </div>
-      </div>
+      </Modal>
     {/if}
 
     <!-- Invite to channel modal -->
     {#if showInviteToChannelModal}
-      <div class="channel-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="invite-channel-modal-title">
-        <div class="channel-modal">
-          <h2 id="invite-channel-modal-title">Invite to channel</h2>
-          {#if loadingInviteCandidates}
-            <p class="channel-modal-loading">Loading…</p>
-          {:else if inviteToChannelCandidates.length === 0}
-            <p class="channel-modal-empty">No one to invite. For squad channels, add members to the squad first.</p>
-          {:else}
-            <div class="channel-invite-list">
-              {#each inviteToChannelCandidates as npub (npub)}
-                <label class="channel-invite-row">
-                  <input type="radio" name="inviteToChannel" bind:group={selectedInviteNpub} value={npub} />
-                  <span>{getProfileDisplayName($profiles[npub]) || npub.slice(0, 16) + '…'}</span>
-                </label>
-              {/each}
-            </div>
-          {/if}
-          {#if inviteToChannelError}
-            <p class="channel-modal-error" role="alert">{inviteToChannelError}</p>
-          {/if}
-          <div class="channel-modal-actions">
-            <button type="button" class="channel-modal-close" on:click={() => (showInviteToChannelModal = false)} disabled={invitingToChannel}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="channel-modal-primary"
-              disabled={!selectedInviteNpub || invitingToChannel}
-              on:click={handleInviteToChannel}
-            >
-              {invitingToChannel ? 'Inviting…' : 'Invite'}
-            </button>
+      <Modal titleId="invite-channel-modal-title" onClose={() => (showInviteToChannelModal = false)}>
+        <h2 id="invite-channel-modal-title">Invite to channel</h2>
+        {#if loadingInviteCandidates}
+          <p class="channel-modal-loading">Loading…</p>
+        {:else if inviteToChannelCandidates.length === 0}
+          <p class="channel-modal-empty">No one to invite. For squad channels, add members to the squad first.</p>
+        {:else}
+          <div class="channel-invite-list">
+            {#each inviteToChannelCandidates as npub (npub)}
+              <label class="channel-invite-row">
+                <input type="radio" name="inviteToChannel" bind:group={selectedInviteNpub} value={npub} />
+                <span>{getProfileDisplayName($profiles[npub]) || npub.slice(0, 16) + '…'}</span>
+              </label>
+            {/each}
           </div>
+        {/if}
+        {#if inviteToChannelError}
+          <p class="channel-modal-error" role="alert">{inviteToChannelError}</p>
+        {/if}
+        <div class="channel-modal-actions">
+          <button type="button" class="channel-modal-close" on:click={() => (showInviteToChannelModal = false)} disabled={invitingToChannel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="channel-modal-primary"
+            disabled={!selectedInviteNpub || invitingToChannel}
+            on:click={handleInviteToChannel}
+          >
+            {invitingToChannel ? 'Inviting…' : 'Invite'}
+          </button>
         </div>
-      </div>
+      </Modal>
     {/if}
     </div>
     <!-- Right-hand members panel (Discord-style) -->
@@ -587,33 +615,7 @@
     color: var(--danger);
   }
 
-  .channel-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-
-  .channel-modal {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 20px;
-    min-width: 280px;
-    max-width: 90vw;
-    max-height: 80vh;
-    overflow: auto;
-  }
-
-  .channel-modal h2 {
-    margin: 0 0 16px;
-    font-size: 1.125rem;
-    color: var(--text-primary);
-  }
-
+  /* Modal content (leave / invite) - overlay and content box in Modal.svelte */
   .channel-modal-loading,
   .channel-modal-empty {
     margin: 0 0 16px;

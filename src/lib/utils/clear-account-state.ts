@@ -6,6 +6,7 @@
 
 import {
   squads,
+  networks,
   pinnedDmNpubs,
   dmChatsByNpub,
   activeDmId,
@@ -14,6 +15,15 @@ import {
   lastOpenedChannelId,
   activeSquadId,
   activeChannelId,
+  activeNetworkId,
+  lastOpenedNetworkId,
+  lastOpenedNetworkChannelId,
+  acceptedSquadInviteIds,
+  declinedSquadInviteIds,
+  acceptedNetworkInviteIds,
+  declinedNetworkInviteIds,
+  acceptedChannelInviteMessageIds,
+  declinedChannelInviteMessageIds,
   backendGroupMessages,
   groupSendError,
   pendingMlsWelcomes,
@@ -31,29 +41,38 @@ import {
   dmSendError,
   setCurrentNpubForPersistence,
 } from '../../stores/app';
+import { INVITE_DECISION_SCOPED_PREFIXES } from '../../stores/invite-decisions';
 import { theme } from '../../stores/theme';
 import { recentEmojisStore } from '../../stores/emojis';
 
 /** Legacy (non-scoped) keys to remove for backwards compatibility. */
 const LEGACY_LOCAL_STORAGE_KEYS = [
   'pacto_squads',
+  'pacto_networks',
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',
+  'pacto_last_network_id',
+  'pacto_last_network_channel_id',
   'pacto_pinned_dm_npubs',
+  ...INVITE_DECISION_SCOPED_PREFIXES,
   'pacto_theme',
   'recentEmojis',
   'favoriteEmojis',
   '__pacto_init_finished_unlisten',
 ] as const;
 
-/** Npub-scoped key prefixes (suffix is _<npub>). */
+/** Npub-scoped key prefixes (suffix is _<npub>). Invite decision keys from invite-decisions module. */
 const SCOPED_KEY_PREFIXES = [
   'pacto_squads',
+  'pacto_networks',
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',
+  'pacto_last_network_id',
+  'pacto_last_network_channel_id',
   'pacto_pinned_dm_npubs',
+  ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;
 
 function clearAccountLocalStorage(npub?: string): void {
@@ -99,6 +118,16 @@ export function clearAccountState(npub?: string): void {
   lastOpenedChannelId.set(null);
   activeSquadId.set(null);
   activeChannelId.set(null);
+  networks.set([]);
+  activeNetworkId.set(null);
+  lastOpenedNetworkId.set(null);
+  lastOpenedNetworkChannelId.set(null);
+  acceptedSquadInviteIds.set([]);
+  declinedSquadInviteIds.set([]);
+  acceptedNetworkInviteIds.set([]);
+  declinedNetworkInviteIds.set([]);
+  acceptedChannelInviteMessageIds.set([]);
+  declinedChannelInviteMessageIds.set([]);
   backendGroupMessages.set({});
   groupSendError.set(null);
   pendingMlsWelcomes.set([]);
