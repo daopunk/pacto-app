@@ -11,7 +11,10 @@
   import chevronDownIcon from '../icons/chevron-down.svg';
 
   $: activeSquad = $squads.find(c => c.id === $activeSquadId);
-  $: channels = activeSquad?.channels || [];
+  // Deduplicate by groupId so keyed {#each} never sees duplicate keys (backend can return same channel twice)
+  $: channels = activeSquad?.channels
+    ? [...new Map(activeSquad.channels.map((c) => [c.groupId, c])).values()].sort((a, b) => a.order - b.order)
+    : [];
 
   $: if (typeof console !== 'undefined' && console.log) {
     console.log('[Squads] state', { squadCount: $squads.length, activeSquadId: $activeSquadId, activeChannelId: $activeChannelId, squads: $squads.map((s) => ({ id: s.id, name: s.name, channels: s.channels.length })) });
