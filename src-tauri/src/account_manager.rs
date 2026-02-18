@@ -320,7 +320,7 @@ pub fn set_current_account(npub: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Clear the current account (e.g. on logout). Call close_db_connection first.
+/// Clear the current account (e.g. on logout)
 pub fn clear_current_account() -> Result<(), String> {
     *CURRENT_ACCOUNT.write()
         .map_err(|e| format!("Failed to write current account: {}", e))? = None;

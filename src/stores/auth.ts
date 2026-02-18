@@ -220,7 +220,7 @@ export async function unlockWithPin(pin: string): Promise<void> {
 
 /**
  * Logout current user: clear all account-specific frontend state, then call
- * backend logout (clears current account; backend no longer restarts to avoid white screen).
+ * backend logout (deletes current account profile dir and restarts the app).
  */
 export async function logout(): Promise<void> {
   authLoading.set(true);
