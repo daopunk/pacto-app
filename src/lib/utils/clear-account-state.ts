@@ -13,11 +13,13 @@ import {
   lastOpenedDmByTab,
   lastOpenedSquadId,
   lastOpenedChannelId,
+  lastChannelBySquadId,
   activeSquadId,
   activeChannelId,
   activeNetworkId,
   lastOpenedNetworkId,
   lastOpenedNetworkChannelId,
+  lastChannelByNetworkId,
   acceptedSquadInviteIds,
   declinedSquadInviteIds,
   acceptedNetworkInviteIds,
@@ -27,12 +29,19 @@ import {
   backendGroupMessages,
   groupSendError,
   pendingMlsWelcomes,
+  squadsCreatingAnnouncements,
+  networksCreatingAnnouncements,
+  squadCreateErrorBySquadId,
+  networkCreateErrorByNetworkId,
+  squadPendingCreateMembers,
+  networkPendingCreateMembers,
   ungroupedChannels,
   channelMessages,
   composingNewChat,
   activeTopNavTab,
   activeDmTab,
   activeView,
+  showMembersPanel,
   backendDmMessages,
   messageCountByChat,
   loadedOffsetByChat,
@@ -69,8 +78,10 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',
+  'pacto_last_channel_by_squad',
   'pacto_last_network_id',
   'pacto_last_network_channel_id',
+  'pacto_last_channel_by_network',
   'pacto_pinned_dm_npubs',
   ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;
@@ -116,12 +127,14 @@ export function clearAccountState(npub?: string): void {
   });
   lastOpenedSquadId.set(null);
   lastOpenedChannelId.set(null);
+  lastChannelBySquadId.set({});
   activeSquadId.set(null);
   activeChannelId.set(null);
   networks.set([]);
   activeNetworkId.set(null);
   lastOpenedNetworkId.set(null);
   lastOpenedNetworkChannelId.set(null);
+  lastChannelByNetworkId.set({});
   acceptedSquadInviteIds.set([]);
   declinedSquadInviteIds.set([]);
   acceptedNetworkInviteIds.set([]);
@@ -131,12 +144,19 @@ export function clearAccountState(npub?: string): void {
   backendGroupMessages.set({});
   groupSendError.set(null);
   pendingMlsWelcomes.set([]);
+  squadsCreatingAnnouncements.set(new Set());
+  networksCreatingAnnouncements.set(new Set());
+  squadCreateErrorBySquadId.set({});
+  networkCreateErrorByNetworkId.set({});
+  squadPendingCreateMembers.set({});
+  networkPendingCreateMembers.set({});
   ungroupedChannels.set([]);
   channelMessages.set({});
   composingNewChat.set(false);
   activeTopNavTab.set('squads');
   activeDmTab.set('friends');
   activeView.set('hub');
+  showMembersPanel.set(false);
 
   backendDmMessages.set({});
   messageCountByChat.set({});

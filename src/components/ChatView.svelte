@@ -18,6 +18,11 @@
     messageCountByChat,
     loadedOffsetByChat,
     groupSendError,
+    showMembersPanel,
+    squadsCreatingAnnouncements,
+    squadCreateErrorBySquadId,
+    networksCreatingAnnouncements,
+    networkCreateErrorByNetworkId,
     type DmMessage,
   } from '../stores/app';
   import { sendDmMessage, getDmMessages, leaveMlsGroup, getMlsGroupMembers, inviteMemberToGroup } from '../lib/api/nostr';
@@ -50,9 +55,12 @@
     ? activeSquad.channels[0]?.groupId === $activeChannelId
     : (activeNetwork ? [...activeNetwork.channels].sort((a, b) => a.order - b.order)[0]?.groupId === $activeChannelId : false);
   $: isChannelCreating = (activeChannel?.groupId?.startsWith('creating-') ?? false);
+  $: squadSettingUp = $activeTopNavTab === 'squads' && activeSquad && activeSquad.channels.length === 0 && $squadsCreatingAnnouncements.has(activeSquad.id);
+  $: squadSettingUpError = (squadSettingUp && activeSquad && $squadCreateErrorBySquadId[activeSquad.id]) ?? '';
+  $: networkSettingUp = $activeTopNavTab === 'networks' && activeNetwork && activeNetwork.channels.length === 0 && $networksCreatingAnnouncements.has(activeNetwork.id);
+  $: networkSettingUpError = (networkSettingUp && activeNetwork && $networkCreateErrorByNetworkId[activeNetwork.id]) ?? '';
 
   let channelMenuOpen = false;
-  let showMembersModal = false; /* panel state (right-hand bar); name kept for HMR/cache compat */
   let showLeaveChannelConfirm = false;
   let showInviteToChannelModal = false;
   let channelMembers: string[] = [];
@@ -115,16 +123,30 @@
   $: if (prevChannelId !== $activeChannelId) {
     prevChannelId = $activeChannelId;
     groupSendError.set(null);
-    showMembersModal = false;
   }
 
+  // When members panel is open and user navigates to another squad/network/channel, refresh the list
+  let prevChannelIdForMembers: string | null = null;
+  $: if ($showMembersPanel && $activeChannelId && prevChannelIdForMembers !== $activeChannelId) {
+    prevChannelIdForMembers = $activeChannelId;
+    loadChannelMembers();
+  }
+  $: if (!$showMembersPanel) prevChannelIdForMembers = null;
+
   let loadingOlder = false;
+  function scrollMessagesToBottom() {
+    const el = messagesContainer;
+    if (el && document.contains(el)) el.scrollTop = el.scrollHeight;
+  }
+
   async function handleSendMessage(content: string) {
     const groupId = $activeChannelId;
     if (!groupId) return;
     groupSendError.set(null);
     try {
       await sendDmMessage(groupId, content, '');
+      setTimeout(scrollMessagesToBottom, 0);
+      setTimeout(scrollMessagesToBottom, 200);
     } catch (e: unknown) {
       const raw = getInvokeErrorMessage(e, 'Failed to send message');
       groupSendError.set(friendlyMessage(raw, 'dm_send'));
@@ -229,7 +251,8 @@
   }
 
   function openMembersPanel() {
-    showMembersModal = true;
+    showMembersPanel.set(true);
+    prevChannelIdForMembers = $activeChannelId;
     channelMembers = [];
     closeChannelMenu();
     loadChannelMembers();
@@ -299,17 +322,27 @@
   }
 
   let messagesContainer: HTMLDivElement | null = null;
+  let scrollPrevChannelId: string | null = null;
+  let lastScrolledToBottomChannelId: string | null = null;
   $: if (currentMessages.length && messagesContainer) {
     const el = messagesContainer;
+    const channelId = $activeChannelId;
+    const channelJustChanged = channelId !== scrollPrevChannelId;
+    const firstTimeWithMessages = channelId !== lastScrolledToBottomChannelId;
     setTimeout(() => {
       if (!el || !document.contains(el)) return;
       const isNearBottom =
         el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-      if (isNearBottom) {
+      if (channelJustChanged || firstTimeWithMessages) {
+        el.scrollTop = el.scrollHeight;
+        scrollPrevChannelId = channelId;
+        lastScrolledToBottomChannelId = channelId;
+      } else if (isNearBottom) {
         el.scrollTop = el.scrollHeight;
       }
     }, 0);
   }
+  $: if ($activeChannelId !== scrollPrevChannelId && !currentMessages.length) scrollPrevChannelId = $activeChannelId;
 </script>
 
 <svelte:window
@@ -319,7 +352,23 @@
   }}
 />
 <div class="chat-view">
-  {#if activeChannel}
+  {#if squadSettingUp}
+    <div class="squad-setting-up-state" role="status" aria-live="polite">
+      <div class="squad-setting-up-spinner"></div>
+      <p class="squad-setting-up-text">Setting up this space…</p>
+      {#if squadSettingUpError}
+        <p class="squad-setting-up-error" role="alert">{squadSettingUpError}</p>
+      {/if}
+    </div>
+  {:else if networkSettingUp}
+    <div class="squad-setting-up-state" role="status" aria-live="polite">
+      <div class="squad-setting-up-spinner"></div>
+      <p class="squad-setting-up-text">Setting up this space…</p>
+      {#if networkSettingUpError}
+        <p class="squad-setting-up-error" role="alert">{networkSettingUpError}</p>
+      {/if}
+    </div>
+  {:else if activeChannel}
     <div class="chat-view-main">
     <div class="channel-header">
       <div class="channel-info">
@@ -457,11 +506,11 @@
     {/if}
     </div>
     <!-- Right-hand members panel (Discord-style) -->
-    {#if showMembersModal}
+    {#if $showMembersPanel}
       <aside class="members-panel" aria-label="Channel members">
         <div class="members-panel-header">
           <h3 class="members-panel-title">Members</h3>
-          <button type="button" class="members-panel-close" aria-label="Close" on:click={() => (showMembersModal = false)}>×</button>
+          <button type="button" class="members-panel-close" aria-label="Close" on:click={() => showMembersPanel.set(false)}>×</button>
         </div>
         <div class="members-panel-list">
           {#if loadingMembers}
@@ -854,6 +903,42 @@
     font-size: 0.875rem;
     color: var(--danger);
     margin: 0 16px 8px;
+  }
+
+  .squad-setting-up-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .squad-setting-up-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border-subtle);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: chat-view-spin 0.9s linear infinite;
+  }
+
+  @keyframes chat-view-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .squad-setting-up-text {
+    margin: 0;
+  }
+
+  .squad-setting-up-error {
+    margin: 0;
+    color: var(--danger);
+    font-size: 0.8125rem;
+    text-align: center;
+    max-width: 280px;
   }
 
   .empty-state {

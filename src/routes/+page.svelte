@@ -11,6 +11,7 @@
   import MessengerChatView from '../components/MessengerChatView.svelte';
   import DmThread from '../components/DmThread.svelte';
   import NetworkNavbar from '../components/NetworkNavbar.svelte';
+  import Toast from '../components/Toast.svelte';
   import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping, setNickname, listPendingMlsWelcomes, acceptMlsWelcome, parseSquadInviteMessage, parseChannelInSquadMessage, parseChannelInNetworkMessage, parseNetworkInviteMessage, syncMlsGroupsNow } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
@@ -40,6 +41,8 @@
     lastOpenedDmByTab,
     lastOpenedSquadId,
     lastOpenedChannelId,
+    lastChannelBySquadId,
+    lastChannelByNetworkId,
     networks,
     activeNetworkId,
     lastOpenedNetworkId,
@@ -53,13 +56,22 @@
     dmChatsByNpub,
     pinnedDmNpubs,
     dmSendError,
+    updateChannelNameIfPlaceholder,
     type DmMessage,
     type DmTab,
     type Channel,
     type Network,
   } from '../stores/app';
+  import { pendingReadyToast, showToast } from '../stores/toast';
+  import { portal } from '../lib/utils/portal';
 
   const PAGE_SIZE = 100;
+
+  // Show "X is ready!" toast from root so it appears regardless of active view (DMs / Squads / Networks)
+  $: if ($pendingReadyToast) {
+    showToast($pendingReadyToast.text, $pendingReadyToast.goTo);
+    pendingReadyToast.set(null);
+  }
   const LOAD_OLDER_PAGE_SIZE = 50;
 
   /** Group IDs we just accepted as squad invites — skip "Add to squad" modal for these. */
@@ -139,22 +151,83 @@
     }));
   }
 
-  // Remember last opened squad/channel (so switching to Squads view restores it)
+  const SQUAD_CHANNEL_DEBUG = false; // [SquadChannel] set true to trace squad channel persistence
+  // Remember last opened squad/channel (so switching to Squads view restores it) and per-squad last channel.
+  // Only write channel when it belongs to this squad (avoid overwriting with network channel when we've just switched to Squads and activeChannelId is still the network channel).
   $: if ($activeTopNavTab === 'squads' && $activeSquadId) {
-    lastOpenedSquadId.set($activeSquadId);
-    if ($activeChannelId) lastOpenedChannelId.set($activeChannelId);
-  }
-  $: if ($activeTopNavTab === 'squads' && $activeChannelId && !$activeChannelId.startsWith('creating-')) {
-    lastOpenedChannelId.set($activeChannelId);
+    const sid = $activeSquadId;
+    lastOpenedSquadId.set(sid);
+    const cid = $activeChannelId;
+    if (cid && !cid.startsWith('creating-')) {
+      const squad = $squads.find((s) => s.id === sid);
+      const cidBelongsToSquad = squad?.channels.some((c) => c.groupId === cid) ?? false;
+      if (cidBelongsToSquad) {
+        lastOpenedChannelId.set(cid);
+        lastChannelBySquadId.update((m) => {
+          const next = { ...m, [sid]: cid };
+          if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page on-squads persist', { sid: sid.slice(0, 12), cid: cid.slice(0, 20) });
+          return next;
+        });
+      } else if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page on-squads skip persist (cid not in squad)', { sid: sid.slice(0, 12), cid: cid.slice(0, 20) });
+    }
   }
 
-  // Persist last-opened network/channel when user selects in Networks tab (also set in NetworkNavbar)
+  // Persist last-opened network/channel and per-network last channel when user selects in Networks tab (only network stores).
+  // Only write channel when it belongs to this network (avoid overwriting with squad channel when we've just switched to Networks and activeChannelId is still a squad channel).
   $: if ($activeTopNavTab === 'networks' && $activeNetworkId) {
-    lastOpenedNetworkId.set($activeNetworkId);
-    if ($activeChannelId) lastOpenedNetworkChannelId.set($activeChannelId);
+    const nid = $activeNetworkId;
+    lastOpenedNetworkId.set(nid);
+    const networkCid = $activeChannelId;
+    if (networkCid && !networkCid.startsWith('creating-')) {
+      const net = $networks.find((n) => n.id === nid);
+      const cidBelongsToNetwork = net?.channels.some((c) => c.groupId === networkCid) ?? false;
+      if (cidBelongsToNetwork) {
+        if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page on-networks persist (network only)', { nid: nid?.slice(0, 12), networkCid: networkCid?.slice(0, 20) });
+        lastOpenedNetworkChannelId.set(networkCid);
+        lastChannelByNetworkId.update((m) => ({ ...m, [nid]: networkCid }));
+      }
+    }
   }
-  $: if ($activeTopNavTab === 'networks' && $activeChannelId && !$activeChannelId.startsWith('creating-')) {
-    lastOpenedNetworkChannelId.set($activeChannelId);
+
+  // Never leave channel empty when a squad is selected: restore last channel for this squad or default to first (announcements)
+  $: if ($activeTopNavTab === 'squads' && $activeSquadId && $squads.length > 0) {
+    const sid = $activeSquadId;
+    const squad = $squads.find((s) => s.id === sid);
+    if (squad) {
+      const sorted = [...squad.channels].sort((a, b) => a.order - b.order);
+      const firstCh = sorted[0];
+      const lastForSquad = $lastChannelBySquadId[sid];
+      const activeInSquad = $activeChannelId && sorted.some((c) => c.groupId === $activeChannelId);
+      const lastInSquad = lastForSquad && sorted.some((c) => c.groupId === lastForSquad);
+      const validChannel =
+        activeInSquad ? $activeChannelId
+          : lastInSquad ? lastForSquad
+            : firstCh?.groupId ?? null;
+      if (validChannel && $activeChannelId !== validChannel) {
+        if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page never-empty correct', { sid: sid.slice(0, 12), from: $activeChannelId?.slice(0, 20), to: validChannel?.slice(0, 20), reason: activeInSquad ? 'active' : lastInSquad ? 'lastForSquad' : 'firstCh', lastForSquad: lastForSquad?.slice(0, 20) });
+        activeChannelId.set(validChannel);
+      }
+    }
+  }
+
+  // Never leave channel empty when a network is selected: restore last channel for this network or default to first (announcements)
+  $: if ($activeTopNavTab === 'networks' && $activeNetworkId && $networks.length > 0) {
+    const nid = $activeNetworkId;
+    const net = $networks.find((n) => n.id === nid);
+    if (net) {
+      const sorted = [...net.channels].sort((a, b) => a.order - b.order);
+      const firstCh = sorted[0];
+      const lastForNet = $lastChannelByNetworkId[nid];
+      const validChannel =
+        $activeChannelId && sorted.some((c) => c.groupId === $activeChannelId)
+          ? $activeChannelId
+          : (lastForNet && sorted.some((c) => c.groupId === lastForNet)
+            ? lastForNet
+            : firstCh?.groupId ?? null);
+      if (validChannel && $activeChannelId !== validChannel) {
+        activeChannelId.set(validChannel);
+      }
+    }
   }
 
   // Nickname edit for current DM contact
@@ -457,38 +530,46 @@
     prevTopNavTab = 'squads';
     syncMlsGroupsNow(null).catch(() => {});
     clearUngroupedChannels();
-    // Restore last opened squad/channel (like DMs)
+    // Restore last opened squad/channel: use per-squad last channel only (so Networks tab can't overwrite it), else first (announcements)
     const lastSquadId = $lastOpenedSquadId;
-    const lastChannelId = $lastOpenedChannelId;
     const squad = lastSquadId ? $squads.find((s) => s.id === lastSquadId) : null;
+    const mapSnapshot = { ...$lastChannelBySquadId };
+    if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page restore-to-squads', { lastSquadId: lastSquadId?.slice(0, 12), squadId: squad?.id?.slice(0, 12), lastChannelBySquadId: mapSnapshot, lastForSquad: squad ? mapSnapshot[squad.id]?.slice(0, 20) : undefined });
     if (squad) {
+      const sorted = [...squad.channels].sort((a, b) => a.order - b.order);
+      const firstCh = sorted[0];
+      const lastForSquad = $lastChannelBySquadId[squad.id];
+      const lastValid = lastForSquad && sorted.some((c) => c.groupId === lastForSquad);
+      const ch = lastValid ? sorted.find((c) => c.groupId === lastForSquad) : firstCh;
+      const setChannelId = ch?.groupId ?? firstCh?.groupId ?? null;
+      if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page restore-to-squads set', { squadId: squad.id.slice(0, 12), lastForSquad: lastForSquad?.slice(0, 20), lastValid, setChannelId: setChannelId?.slice(0, 20), firstChId: firstCh?.groupId?.slice(0, 20) });
       activeSquadId.set(squad.id);
-      const channel =
-        lastChannelId && squad.channels.some((c) => c.groupId === lastChannelId)
-          ? squad.channels.find((c) => c.groupId === lastChannelId)
-          : squad.channels[0];
-      activeChannelId.set(channel?.groupId ?? null);
+      activeChannelId.set(setChannelId);
     } else if ($squads.length > 0 && !$activeSquadId) {
       const first = $squads[0];
+      const sorted = [...first.channels].sort((a, b) => a.order - b.order);
       activeSquadId.set(first.id);
-      activeChannelId.set(first.channels.length > 0 ? first.channels[0].groupId : null);
+      activeChannelId.set(sorted[0]?.groupId ?? null);
     }
   } else if ($activeTopNavTab === 'networks' && prevTopNavTab !== 'networks') {
     prevTopNavTab = 'networks';
-    // Restore last-opened network/channel when switching to Networks tab
+    // Restore last-opened network/channel: prefer per-network last channel, then global last, then first (announcements)
     const lastNetId = $lastOpenedNetworkId;
-    const lastChanId = $lastOpenedNetworkChannelId;
     const net = lastNetId ? $networks.find((n) => n.id === lastNetId) : null;
     if (net) {
       activeNetworkId.set(net.id);
       const sorted = [...net.channels].sort((a, b) => a.order - b.order);
+      const firstCh = sorted[0];
+      const lastChanId = $lastOpenedNetworkChannelId;
+      const lastForNet = $lastChannelByNetworkId[net.id];
       const ch =
         lastChanId && sorted.some((c) => c.groupId === lastChanId)
           ? sorted.find((c) => c.groupId === lastChanId)
-          : sorted[0];
-      activeChannelId.set(ch?.groupId ?? sorted[0]?.groupId ?? null);
+          : lastForNet && sorted.some((c) => c.groupId === lastForNet)
+            ? sorted.find((c) => c.groupId === lastForNet)
+            : firstCh;
+      activeChannelId.set(ch?.groupId ?? firstCh?.groupId ?? null);
     } else if ($networks.length > 0) {
-      // No valid last-opened, or last-opened was removed: ensure valid selection
       const currentNet = $activeNetworkId ? $networks.find((n) => n.id === $activeNetworkId) : null;
       if (!currentNet) {
         const first = $networks[0];
@@ -498,6 +579,27 @@
       }
     }
   } else if ($activeTopNavTab !== 'squads') {
+    // Persist squad channel when leaving Squads tab so it restores correctly when returning
+    if (prevTopNavTab === 'squads' && $activeSquadId) {
+      const sid = $activeSquadId;
+      const cid = $activeChannelId;
+      if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page leave-squads reactive', { prevTopNavTab, activeTopNavTab: $activeTopNavTab, sid: sid?.slice(0, 12), cid: cid?.slice(0, 20) });
+      if (cid && !cid.startsWith('creating-')) {
+        lastOpenedSquadId.set(sid);
+        lastOpenedChannelId.set(cid);
+        lastChannelBySquadId.update((m) => ({ ...m, [sid]: cid }));
+      }
+    }
+    // Persist network channel when leaving Networks tab so it restores correctly when returning
+    if (prevTopNavTab === 'networks' && $activeNetworkId) {
+      const nid = $activeNetworkId;
+      const cid = $activeChannelId;
+      if (cid && !cid.startsWith('creating-')) {
+        lastOpenedNetworkId.set(nid);
+        lastOpenedNetworkChannelId.set(cid);
+        lastChannelByNetworkId.update((m) => ({ ...m, [nid]: cid }));
+      }
+    }
     prevTopNavTab = $activeTopNavTab;
   }
 
@@ -644,8 +746,8 @@
       }
     });
 
-    const unlistenMlsNew = listen<{ group_id: string; message: DmMessage }>('mls_message_new', (event) => {
-      const { group_id, message } = event.payload;
+    const unlistenMlsNew = listen<{ group_id: string; message: DmMessage; group_name?: string }>('mls_message_new', (event) => {
+      const { group_id, message, group_name } = event.payload;
       const m: DmMessage = {
         id: message.id,
         content: message.content,
@@ -667,6 +769,7 @@
         );
         return { ...byGroup, [group_id]: [...withoutOpt, m] };
       });
+      if (group_name) updateChannelNameIfPlaceholder(group_id, group_name);
     });
 
     async function refreshPendingWelcomes() {
@@ -828,6 +931,9 @@
       {/if}
     </div>
   </main>
+  <div class="toast-portal-wrapper" use:portal>
+    <Toast />
+  </div>
 </div>
 
 <style>
@@ -921,4 +1027,8 @@
     font-size: 0.9375rem;
   }
 
+  /* Portal wrapper must not block hover on the rest of the app (Navbar tabs, etc.) */
+  :global(.toast-portal-wrapper) {
+    pointer-events: none;
+  }
 </style>

@@ -45,6 +45,9 @@ export const activeChannelId = writable<string | null>(null);
 export type ViewType = 'hub' | 'profile';
 export const activeView = writable<ViewType>('hub');
 
+// Members panel (right-hand bar in squad/network channel view): keep open across tab switches until user closes
+export const showMembersPanel = writable<boolean>(false);
+
 // DMs: which sub-tab (Friends, Requests, Pending, Pinned)
 export type DmTab = 'friends' | 'requests' | 'pending' | 'pinned';
 export const activeDmTab = writable<DmTab>('friends');
@@ -254,12 +257,92 @@ networks.subscribe((value) => {
   }
 });
 
+/** Returns true if the channel display name looks like a placeholder (e.g. truncated groupId). */
+export function isPlaceholderChannelName(groupId: string, name: string): boolean {
+  if (!name || name.length < 10) return false;
+  const placeholder = groupId.slice(0, 12) + '…';
+  return name === placeholder || name === groupId.slice(0, 12);
+}
+
+/**
+ * If a channel with this groupId has a placeholder name (e.g. hash), update it to newName
+ * in squads, networks, and ungroupedChannels. Only updates when current name is placeholder-like.
+ */
+export function updateChannelNameIfPlaceholder(groupId: string, newName: string): void {
+  if (!newName || typeof newName !== 'string') return;
+  const name = newName.trim();
+  if (!name) return;
+
+  squads.update((list) =>
+    list.map((s) => ({
+      ...s,
+      channels: s.channels.map((ch) =>
+        ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)
+          ? { ...ch, name }
+          : ch
+      ),
+    }))
+  );
+  networks.update((list) =>
+    list.map((n) => ({
+      ...n,
+      channels: n.channels.map((ch) =>
+        ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)
+          ? { ...ch, name }
+          : ch
+      ),
+    }))
+  );
+  ungroupedChannels.update((list) =>
+    list.map((ch) =>
+      ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)
+        ? { ...ch, name }
+        : ch
+    )
+  );
+}
+
 // Backend-backed group messages (get_message_views(groupId) + mls_message_new). Keyed by group_id. Reuse DmMessage shape.
 export const backendGroupMessages = writable<Record<string, DmMessage[]>>({});
 
 export const groupSendError = writable<string | null>(null);
 
 export const pendingMlsWelcomes = writable<PendingMlsWelcome[]>([]);
+
+/** Squad ids that are optimistically created and still creating their announcements channel. Cleared on success/failure or logout. */
+export const squadsCreatingAnnouncements = writable<Set<string>>(new Set());
+/** Network ids that are optimistically created and still creating their announcements channel. Cleared on success/failure or logout. */
+export const networksCreatingAnnouncements = writable<Set<string>>(new Set());
+
+export function addSquadCreatingAnnouncements(id: string): void {
+  squadsCreatingAnnouncements.update((s) => new Set(s).add(id));
+}
+export function removeSquadCreatingAnnouncements(id: string): void {
+  squadsCreatingAnnouncements.update((s) => {
+    const next = new Set(s);
+    next.delete(id);
+    return next;
+  });
+}
+export function addNetworkCreatingAnnouncements(id: string): void {
+  networksCreatingAnnouncements.update((s) => new Set(s).add(id));
+}
+export function removeNetworkCreatingAnnouncements(id: string): void {
+  networksCreatingAnnouncements.update((s) => {
+    const next = new Set(s);
+    next.delete(id);
+    return next;
+  });
+}
+
+/** Error message per squad id when optimistic squad creation (announcements) failed. Cleared on retry/success or logout. */
+export const squadCreateErrorBySquadId = writable<Record<string, string>>({});
+/** Error message per network id when optimistic network creation (announcements) failed. Cleared on retry/success or logout. */
+export const networkCreateErrorByNetworkId = writable<Record<string, string>>({});
+/** Member npubs for squads still creating announcements; used for retry. Cleared on success or logout. */
+export const squadPendingCreateMembers = writable<Record<string, string[]>>({});
+/** Member npubs for networks still creating announcements; used for retry. Cleared on success or logout. */
+export const networkPendingCreateMembers = writable<Record<string, string[]>>({});
 
 export const ungroupedChannels = writable<Channel[]>([]);
 
@@ -279,9 +362,12 @@ activeDmId.subscribe((id) => {
 // Last opened squad/channel for restore when switching to Squads view (npub-scoped)
 const LAST_SQUAD_ID_PREFIX = 'pacto_last_squad_id';
 const LAST_CHANNEL_ID_PREFIX = 'pacto_last_channel_id';
+// Per-squad last channel (squadId -> channelId) so returning to a squad restores its channel
+const LAST_CHANNEL_BY_SQUAD_PREFIX = 'pacto_last_channel_by_squad';
 
 export const lastOpenedSquadId = writable<string | null>(null);
 export const lastOpenedChannelId = writable<string | null>(null);
+export const lastChannelBySquadId = writable<Record<string, string>>({});
 
 lastOpenedSquadId.subscribe((id) => {
   if (typeof localStorage === 'undefined') return;
@@ -297,14 +383,27 @@ lastOpenedChannelId.subscribe((id) => {
   if (id) localStorage.setItem(key, id);
   else localStorage.removeItem(key);
 });
+lastChannelBySquadId.subscribe((map) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(LAST_CHANNEL_BY_SQUAD_PREFIX);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    // ignore quota
+  }
+});
 
 // Last opened network/channel for restore when switching to Networks view (npub-scoped)
 const LAST_NETWORK_ID_PREFIX = 'pacto_last_network_id';
 const LAST_NETWORK_CHANNEL_ID_PREFIX = 'pacto_last_network_channel_id';
+// Per-network last channel (networkId -> channelId) so returning to a network restores its channel
+const LAST_CHANNEL_BY_NETWORK_PREFIX = 'pacto_last_channel_by_network';
 
 export const activeNetworkId = writable<string | null>(null);
 export const lastOpenedNetworkId = writable<string | null>(null);
 export const lastOpenedNetworkChannelId = writable<string | null>(null);
+export const lastChannelByNetworkId = writable<Record<string, string>>({});
 
 lastOpenedNetworkId.subscribe((id) => {
   if (typeof localStorage === 'undefined') return;
@@ -319,6 +418,16 @@ lastOpenedNetworkChannelId.subscribe((id) => {
   if (!key) return;
   if (id) localStorage.setItem(key, id);
   else localStorage.removeItem(key);
+});
+lastChannelByNetworkId.subscribe((map) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(LAST_CHANNEL_BY_NETWORK_PREFIX);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    // ignore quota
+  }
 });
 
 /** Load account-specific state from localStorage for the given npub. Call after login/create/import/unlock. */
@@ -348,6 +457,15 @@ export function loadAccountState(npub: string): void {
     if (lastSquad) lastOpenedSquadId.set(lastSquad);
     const lastChannel = localStorage.getItem(`${LAST_CHANNEL_ID_PREFIX}_${npub}`);
     if (lastChannel) lastOpenedChannelId.set(lastChannel);
+    const rawBySquad = localStorage.getItem(`${LAST_CHANNEL_BY_SQUAD_PREFIX}_${npub}`);
+    if (rawBySquad) {
+      try {
+        const parsed = JSON.parse(rawBySquad) as unknown;
+        lastChannelBySquadId.set(typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {});
+      } catch {
+        lastChannelBySquadId.set({});
+      }
+    }
     const rawNetworks = localStorage.getItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
     if (rawNetworks) {
       const parsed = JSON.parse(rawNetworks) as unknown;
@@ -360,6 +478,15 @@ export function loadAccountState(npub: string): void {
     if (lastNetwork) lastOpenedNetworkId.set(lastNetwork);
     const lastNetworkChannel = localStorage.getItem(`${LAST_NETWORK_CHANNEL_ID_PREFIX}_${npub}`);
     if (lastNetworkChannel) lastOpenedNetworkChannelId.set(lastNetworkChannel);
+    const rawByNetwork = localStorage.getItem(`${LAST_CHANNEL_BY_NETWORK_PREFIX}_${npub}`);
+    if (rawByNetwork) {
+      try {
+        const parsed = JSON.parse(rawByNetwork) as unknown;
+        lastChannelByNetworkId.set(typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {});
+      } catch {
+        lastChannelByNetworkId.set({});
+      }
+    }
     for (const [key, setStore] of getInviteDecisionLoadEntries(npub)) {
       try {
         const raw = localStorage.getItem(key);

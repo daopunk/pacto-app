@@ -9,9 +9,14 @@
     activeView,
     lastOpenedNetworkId,
     lastOpenedNetworkChannelId,
+    lastChannelByNetworkId,
     dmList,
     requestsList,
     pendingList,
+    networksCreatingAnnouncements,
+    networkCreateErrorByNetworkId,
+    networkPendingCreateMembers,
+    removeNetworkCreatingAnnouncements,
     type Channel as ChannelType,
   } from '../stores/app';
   import {
@@ -24,6 +29,7 @@
   } from '../lib/api/nostr';
   import chevronDownIcon from '../icons/chevron-down.svg';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
+  import { pendingReadyToast } from '../stores/toast';
   import { getProfileDisplayName } from '../lib/utils/profile';
   import { profiles } from '../stores/profiles';
   import { currentUser } from '../stores/auth';
@@ -31,20 +37,72 @@
   $: activeNetwork = $networks.find((n) => n.id === $activeNetworkId);
   $: channels = activeNetwork?.channels ?? [];
   $: sortedChannels = [...channels].sort((a, b) => a.order - b.order);
+  $: networkCreating = activeNetwork && activeNetwork.channels.length === 0 && $networksCreatingAnnouncements.has(activeNetwork.id);
+  $: networkCreateError = activeNetwork ? $networkCreateErrorByNetworkId[activeNetwork.id] ?? '' : '';
+  $: canRetryNetworkCreate = activeNetwork && networkCreateError && ($networkPendingCreateMembers[activeNetwork.id]?.length ?? 0) > 0;
+
+  let retryingNetworkCreate = false;
+  async function handleRetryNetworkCreate() {
+    const net = activeNetwork;
+    if (!net || !networkCreateError || retryingNetworkCreate) return;
+    const allMemberNpubs = $networkPendingCreateMembers[net.id];
+    if (!allMemberNpubs?.length) return;
+    retryingNetworkCreate = true;
+    try {
+      const groupId = await createGroupChat('announcements', allMemberNpubs);
+      const announcementsChannel: ChannelType = { name: 'announcements', groupId, order: 0 };
+      networks.update((list) =>
+        list.map((n) => (n.id !== net.id ? n : { ...n, channels: [announcementsChannel], updatedAt: Date.now() }))
+      );
+      removeNetworkCreatingAnnouncements(net.id);
+      networkCreateErrorByNetworkId.update((m) => {
+        const next = { ...m };
+        delete next[net.id];
+        return next;
+      });
+      networkPendingCreateMembers.update((m) => {
+        const next = { ...m };
+        delete next[net.id];
+        return next;
+      });
+      if (get(activeNetworkId) === net.id) {
+        activeChannelId.set(groupId);
+        lastOpenedNetworkChannelId.set(groupId);
+      }
+      const payload = formatNetworkInviteMessage({
+        type: 'network_invite',
+        networkName: net.name,
+        groupId,
+        memberSquads: net.memberSquads ?? [],
+      });
+      for (const npub of allMemberNpubs) {
+        try {
+          await sendDmMessage(npub, payload);
+        } catch (e) {
+          console.warn('[NetworkNavbar] retry send network invite DM failed for', npub.slice(0, 20) + '…', e);
+        }
+      }
+      pendingReadyToast.set({ text: `${net.name} is ready!`, goTo: { type: 'network', name: net.name, id: net.id, channelId: groupId } });
+    } catch (e) {
+      networkCreateErrorByNetworkId.update((m) => ({ ...m, [net.id]: friendlyMessage(getInvokeErrorMessage(e)) }));
+    } finally {
+      retryingNetworkCreate = false;
+    }
+  }
+
   $: memberSquadsLabel =
     activeNetwork?.memberSquads?.length
       ? activeNetwork.memberSquads.map((s) => s.name).join(', ')
       : '';
 
-  function getNetworkAnnouncementsChannel(net: typeof activeNetwork) {
-    if (!net?.channels?.length) return undefined;
-    return [...net.channels].sort((a, b) => a.order - b.order)[0];
+  /** Every network has an #announcements channel (created with name 'announcements'). */
+  function getNetworkAnnouncementsChannel(net: NonNullable<typeof activeNetwork>) {
+    return net.channels.find((c) => c.name === 'announcements') ?? [...net.channels].sort((a, b) => a.order - b.order)[0];
   }
 
   let networkMenuOpen = false;
   let showInviteToNetworkModal = false;
   let inviteToNetworkCandidates: string[] = [];
-  let inviteToNetworkHasNoChannel = false;
   let loadingInviteToNetwork = false;
   let selectedInviteNpubs: string[] = [];
   let inviteByNpub = '';
@@ -55,7 +113,6 @@
   function openInviteToNetworkModal() {
     networkMenuOpen = false;
     showInviteToNetworkModal = true;
-    inviteToNetworkHasNoChannel = false;
     selectedInviteNpubs = [];
     inviteByNpub = '';
     inviteToNetworkError = '';
@@ -70,13 +127,8 @@
 
   async function loadInviteToNetworkCandidates() {
     const net = $networks.find((n) => n.id === $activeNetworkId);
+    if (!net) return;
     const announcementsChannel = getNetworkAnnouncementsChannel(net);
-    if (!announcementsChannel) {
-      inviteToNetworkHasNoChannel = true;
-      inviteToNetworkCandidates = [];
-      return;
-    }
-    inviteToNetworkHasNoChannel = false;
     loadingInviteToNetwork = true;
     try {
       const result = await getMlsGroupMembers(announcementsChannel.groupId);
@@ -100,13 +152,13 @@
 
   async function handleInviteToNetwork() {
     const net = $networks.find((n) => n.id === $activeNetworkId);
+    if (!net) return;
     const announcementsChannel = getNetworkAnnouncementsChannel(net);
     const extraNpub = inviteByNpub.trim();
     const npubsToInvite = [
       ...selectedInviteNpubs,
       ...(extraNpub && extraNpub.startsWith('npub1') ? [extraNpub] : []),
     ];
-    if (!announcementsChannel || !net) return;
     if (npubsToInvite.length === 0) {
       inviteToNetworkError = extraNpub
         ? 'Please enter a valid npub (starts with npub1) or pick from the list.'
@@ -330,7 +382,10 @@
     activeChannelId.set(channelGroupId);
     activeView.set('hub');
     lastOpenedNetworkChannelId.set(channelGroupId);
-    if ($activeNetworkId) lastOpenedNetworkId.set($activeNetworkId);
+    if ($activeNetworkId) {
+      lastOpenedNetworkId.set($activeNetworkId);
+      lastChannelByNetworkId.update((m) => ({ ...m, [$activeNetworkId]: channelGroupId }));
+    }
   }
 
 </script>
@@ -378,29 +433,53 @@
       </div>
     {/if}
     <div class="channels-container">
-      <div class="channel-list">
-        {#each sortedChannels as channel (channel.groupId)}
-          <div
-            on:click={() => selectChannel(channel.groupId)}
-            on:keydown={(e) => e.key === 'Enter' && selectChannel(channel.groupId)}
-            role="button"
-            tabindex="0"
+      {#if networkCreating}
+        <div class="network-setting-up" role="status" aria-live="polite">
+          {#if networkCreateError}
+            <p class="setting-up-error" role="alert" id="network-create-error">{networkCreateError}</p>
+            {#if canRetryNetworkCreate}
+              <button
+                type="button"
+                class="setting-up-retry-btn"
+                disabled={retryingNetworkCreate}
+                on:click={handleRetryNetworkCreate}
+                aria-describedby="network-create-error"
+              >
+                {retryingNetworkCreate ? 'Retrying…' : 'Retry'}
+              </button>
+            {/if}
+          {:else}
+            <div class="setting-up-spinner" aria-hidden="true"></div>
+            <p class="setting-up-text">Setting up…</p>
+          {/if}
+        </div>
+      {:else}
+        <div class="channel-list">
+          {#each sortedChannels as channel (channel.groupId)}
+            <div
+              on:click={() => selectChannel(channel.groupId)}
+              on:keydown={(e) => e.key === 'Enter' && selectChannel(channel.groupId)}
+              role="button"
+              tabindex="0"
+            >
+              <Channel
+                name={channel.name}
+                type="text"
+                active={$activeView === 'hub' && $activeChannelId === channel.groupId}
+              />
+            </div>
+          {/each}
+        </div>
+        {#if sortedChannels.length > 0}
+          <button
+            type="button"
+            class="create-channel-btn"
+            on:click={openCreateChannelModal}
           >
-            <Channel
-              name={channel.name}
-              type="text"
-              active={$activeView === 'hub' && $activeChannelId === channel.groupId}
-            />
-          </div>
-        {/each}
-      </div>
-      <button
-        type="button"
-        class="create-channel-btn"
-        on:click={openCreateChannelModal}
-      >
-        + Create channel
-      </button>
+            + Create channel
+          </button>
+        {/if}
+      {/if}
     </div>
   {:else}
     <div class="empty-state">
@@ -510,8 +589,6 @@
       <p class="create-channel-subtitle">Invite friends to {activeNetwork?.name ?? 'this Network'}.</p>
       {#if loadingInviteToNetwork}
         <p class="create-channel-loading">Loading…</p>
-      {:else if inviteToNetworkHasNoChannel}
-        <p class="create-channel-empty-friends">This Network has no channel yet. Create a channel first (use + Create channel), or create Networks from squads so they get an announcements channel.</p>
       {:else if inviteToNetworkCandidates.length === 0}
         <p class="create-channel-empty-friends">No one to invite right now. Start a DM with someone first, or they may already be in this Network.</p>
       {:else}
@@ -528,16 +605,14 @@
           {/each}
         </div>
       {/if}
-      {#if !inviteToNetworkHasNoChannel}
-        <p class="create-channel-invite-by-npub-label">Or invite by npub:</p>
-        <input
-          type="text"
-          class="create-channel-invite-npub-input"
-          placeholder="npub1…"
-          bind:value={inviteByNpub}
-          disabled={invitingToNetwork}
-        />
-      {/if}
+      <p class="create-channel-invite-by-npub-label">Or invite by npub:</p>
+      <input
+        type="text"
+        class="create-channel-invite-npub-input"
+        placeholder="npub1…"
+        bind:value={inviteByNpub}
+        disabled={invitingToNetwork}
+      />
       {#if inviteToNetworkError}
         <p class="create-channel-error" role="alert">{inviteToNetworkError}</p>
       {/if}
@@ -549,7 +624,7 @@
           type="button"
           class="create-channel-btn-create"
           on:click={handleInviteToNetwork}
-          disabled={inviteToNetworkHasNoChannel || (selectedInviteNpubs.length === 0 && !inviteByNpub.trim()) || invitingToNetwork}
+          disabled={(selectedInviteNpubs.length === 0 && !inviteByNpub.trim()) || invitingToNetwork}
         >
           {invitingToNetwork ? 'Inviting…' : 'Invite'}
         </button>
@@ -729,6 +804,61 @@
   .channel-list > div {
     cursor: pointer;
     border-radius: 4px;
+  }
+
+  .network-setting-up {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px 16px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .setting-up-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border-subtle);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: network-setting-up-spin 0.9s linear infinite;
+  }
+
+  @keyframes network-setting-up-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .setting-up-text {
+    margin: 0;
+  }
+
+  .setting-up-error {
+    margin: 0;
+    color: var(--danger);
+    font-size: 0.8125rem;
+    text-align: center;
+  }
+
+  .setting-up-retry-btn {
+    margin-top: 4px;
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .setting-up-retry-btn:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+
+  .setting-up-retry-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
   }
 
   .empty-state {

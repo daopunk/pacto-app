@@ -2,23 +2,80 @@
   import { get } from 'svelte/store';
   import Channel from './Channel.svelte';
   import ResizableSidebar from './ResizableSidebar.svelte';
-  import { squads, activeSquadId, activeChannelId, activeView, dmList, requestsList, pendingList, type Channel as ChannelType } from '../stores/app';
+  import { squads, activeSquadId, activeChannelId, activeView, lastChannelBySquadId, dmList, requestsList, pendingList, squadsCreatingAnnouncements, squadCreateErrorBySquadId, squadPendingCreateMembers, removeSquadCreatingAnnouncements, type Channel as ChannelType } from '../stores/app';
   import { createGroupChat, getMlsGroupMembers, inviteMemberToGroup, sendDmMessage, formatSquadInviteMessage, formatChannelInSquadMessage, leaveMlsGroup } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
+  import { pendingReadyToast } from '../stores/toast';
   import { getProfileDisplayName } from '../lib/utils/profile';
   import { profiles } from '../stores/profiles';
   import { currentUser } from '../stores/auth';
   import chevronDownIcon from '../icons/chevron-down.svg';
 
   $: activeSquad = $squads.find(c => c.id === $activeSquadId);
-  $: channels = activeSquad?.channels || [];
+  // Deduplicate by groupId so keyed {#each} never sees duplicate keys (backend can return same channel twice)
+  $: channels = activeSquad?.channels
+    ? [...new Map(activeSquad.channels.map((c) => [c.groupId, c])).values()].sort((a, b) => a.order - b.order)
+    : [];
+  $: squadCreating = activeSquad && activeSquad.channels.length === 0 && $squadsCreatingAnnouncements.has(activeSquad.id);
+  $: squadCreateError = activeSquad ? $squadCreateErrorBySquadId[activeSquad.id] ?? '' : '';
+  $: canRetrySquadCreate = activeSquad && squadCreateError && ($squadPendingCreateMembers[activeSquad.id]?.length ?? 0) > 0;
+
+  let retryingSquadCreate = false;
+  async function handleRetrySquadCreate() {
+    const squad = activeSquad;
+    if (!squad || !squadCreateError || retryingSquadCreate) return;
+    const memberIds = $squadPendingCreateMembers[squad.id];
+    if (!memberIds?.length) return;
+    retryingSquadCreate = true;
+    try {
+      const groupId = await createGroupChat('announcements', memberIds);
+      const announcementsChannel: ChannelType = { name: 'announcements', groupId, order: 0 };
+      squads.update((list) =>
+        list.map((s) => (s.id !== squad.id ? s : { ...s, channels: [announcementsChannel], updatedAt: Date.now() }))
+      );
+      removeSquadCreatingAnnouncements(squad.id);
+      squadCreateErrorBySquadId.update((m) => {
+        const next = { ...m };
+        delete next[squad.id];
+        return next;
+      });
+      squadPendingCreateMembers.update((m) => {
+        const next = { ...m };
+        delete next[squad.id];
+        return next;
+      });
+      if (get(activeSquadId) === squad.id) activeChannelId.set(groupId);
+      lastChannelBySquadId.update((m) => ({ ...m, [squad.id]: groupId }));
+      const payload = formatSquadInviteMessage({ type: 'squad_invite', squadName: squad.name, groupId });
+      for (const npub of memberIds) {
+        try {
+          await sendDmMessage(npub, payload);
+        } catch (e) {
+          console.warn('[SquadNavbar] retry send squad invite DM failed for', npub.slice(0, 20) + '…', e);
+        }
+      }
+      pendingReadyToast.set({ text: `${squad.name} is ready!`, goTo: { type: 'squad', name: squad.name, id: squad.id, channelId: groupId } });
+    } catch (e) {
+      squadCreateErrorBySquadId.update((m) => ({ ...m, [squad.id]: friendlyMessage(getInvokeErrorMessage(e)) }));
+    } finally {
+      retryingSquadCreate = false;
+    }
+  }
 
   $: if (typeof console !== 'undefined' && console.log) {
     console.log('[Squads] state', { squadCount: $squads.length, activeSquadId: $activeSquadId, activeChannelId: $activeChannelId, squads: $squads.map((s) => ({ id: s.id, name: s.name, channels: s.channels.length })) });
   }
 
+  const SQUAD_CHANNEL_DEBUG = false; // [SquadChannel] set true to trace channel selection
   function selectChannel(channelId: string) {
     $activeChannelId = channelId;
+    if ($activeSquadId) {
+      lastChannelBySquadId.update((m) => {
+        const next = { ...m, [$activeSquadId!]: channelId };
+        if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] SquadNavbar selectChannel', { squadId: $activeSquadId!.slice(0, 12), channelId: channelId.slice(0, 20) });
+        return next;
+      });
+    }
     $activeView = 'hub';
   }
 
@@ -39,19 +96,15 @@
     loadCreateChannelMembers();
   }
 
-  /** First channel by order = announcements channel for this squad. */
-  function getAnnouncementsChannel(s: typeof activeSquad) {
-    if (!s?.channels?.length) return undefined;
-    return [...s.channels].sort((a, b) => a.order - b.order)[0];
+  /** Every squad has an #announcements channel (created with name 'announcements'). */
+  function getAnnouncementsChannel(squad: NonNullable<typeof activeSquad>) {
+    return squad.channels.find((c) => c.name === 'announcements') ?? [...squad.channels].sort((a, b) => a.order - b.order)[0];
   }
 
   async function loadCreateChannelMembers() {
     const squad = $squads.find((s) => s.id === $activeSquadId);
+    if (!squad) return;
     const announcementsChannel = getAnnouncementsChannel(squad);
-    if (!announcementsChannel) {
-      createChannelMemberList = [];
-      return;
-    }
     loadingCreateChannelMembers = true;
     try {
       const result = await getMlsGroupMembers(announcementsChannel.groupId);
@@ -142,20 +195,18 @@
         // Send channel_in_squad DM (not squad_invite) so receiver adds this channel to existing squad
         const announcementsChannel = getAnnouncementsChannel(squad);
         const squadName = squad.name;
-        if (announcementsChannel) {
-          const payload = formatChannelInSquadMessage({
-            type: 'channel_in_squad',
-            squadName,
-            announcementsGroupId: announcementsChannel.groupId,
-            channelGroupId: groupId,
-            channelName: name,
-          });
-          for (const npub of selectedNpubs) {
-            try {
-              await sendDmMessage(npub, payload);
-            } catch (e) {
-              console.warn('[SquadNavbar] send channel_in_squad DM failed for', npub.slice(0, 20) + '…', e);
-            }
+        const payload = formatChannelInSquadMessage({
+          type: 'channel_in_squad',
+          squadName,
+          announcementsGroupId: announcementsChannel.groupId,
+          channelGroupId: groupId,
+          channelName: name,
+        });
+        for (const npub of selectedNpubs) {
+          try {
+            await sendDmMessage(npub, payload);
+          } catch (e) {
+            console.warn('[SquadNavbar] send channel_in_squad DM failed for', npub.slice(0, 20) + '…', e);
           }
         }
       } catch (e) {
@@ -188,7 +239,6 @@
   let exitSquadError = '';
   let showInviteToSquadModal = false;
   let inviteToSquadCandidates: string[] = [];
-  let inviteToSquadHasNoChannel = false;
   let loadingInviteToSquad = false;
   let selectedInviteNpubs: string[] = [];
   let inviteByNpub = '';
@@ -232,7 +282,6 @@
     squadMenuOpen = false;
     console.log('[Squads] openInviteToSquadModal', { activeSquadId: $activeSquadId, activeSquadName: $squads.find((s) => s.id === $activeSquadId)?.name });
     showInviteToSquadModal = true;
-    inviteToSquadHasNoChannel = false;
     selectedInviteNpubs = [];
     inviteByNpub = '';
     inviteToSquadError = '';
@@ -247,15 +296,9 @@
 
   async function loadInviteToSquadCandidates() {
     const squad = $squads.find((s) => s.id === $activeSquadId);
+    if (!squad) return;
     const announcementsChannel = getAnnouncementsChannel(squad);
-    console.log('[Squads] loadInviteToSquadCandidates', { squadId: $activeSquadId, squadName: squad?.name, channelCount: squad?.channels?.length ?? 0, hasAnnouncements: !!announcementsChannel, announcementsGroupId: announcementsChannel?.groupId?.slice(0, 16) });
-    if (!announcementsChannel) {
-      console.log('[Squads] No announcements channel, candidates = []');
-      inviteToSquadHasNoChannel = true;
-      inviteToSquadCandidates = [];
-      return;
-    }
-    inviteToSquadHasNoChannel = false;
+    console.log('[Squads] loadInviteToSquadCandidates', { squadId: $activeSquadId, squadName: squad.name, announcementsGroupId: announcementsChannel.groupId.slice(0, 16) });
     loadingInviteToSquad = true;
     try {
       const result = await getMlsGroupMembers(announcementsChannel.groupId);
@@ -284,13 +327,13 @@
   let inviteToSquadErrorBanner = '';
   async function handleInviteToSquad() {
     const squad = $squads.find((s) => s.id === $activeSquadId);
+    if (!squad) return;
     const announcementsChannel = getAnnouncementsChannel(squad);
     const extraNpub = inviteByNpub.trim();
     const npubsToInvite = [
       ...selectedInviteNpubs,
       ...(extraNpub && extraNpub.startsWith('npub1') ? [extraNpub] : []),
     ];
-    if (!announcementsChannel || !squad) return;
     if (npubsToInvite.length === 0) {
       inviteToSquadError = extraNpub ? 'Please enter a valid npub (starts with npub1) or pick from the list.' : 'Select at least one person or enter an npub.';
       return;
@@ -379,29 +422,53 @@
     {/if}
 
     <div class="channels-container">
-      <div class="channel-list">
-        {#each channels as channel (channel.groupId)}
-          <div
-            on:click={() => selectChannel(channel.groupId)}
-            on:keydown={(e) => e.key === 'Enter' && selectChannel(channel.groupId)}
-            role="button"
-            tabindex="0"
+      {#if squadCreating}
+        <div class="squad-setting-up" role="status" aria-live="polite">
+          {#if squadCreateError}
+            <p class="setting-up-error" role="alert" id="squad-create-error">{squadCreateError}</p>
+            {#if canRetrySquadCreate}
+              <button
+                type="button"
+                class="setting-up-retry-btn"
+                disabled={retryingSquadCreate}
+                on:click={handleRetrySquadCreate}
+                aria-describedby="squad-create-error"
+              >
+                {retryingSquadCreate ? 'Retrying…' : 'Retry'}
+              </button>
+            {/if}
+          {:else}
+            <div class="setting-up-spinner" aria-hidden="true"></div>
+            <p class="setting-up-text">Setting up…</p>
+          {/if}
+        </div>
+      {:else}
+        <div class="channel-list">
+          {#each channels as channel (channel.groupId)}
+            <div
+              on:click={() => selectChannel(channel.groupId)}
+              on:keydown={(e) => e.key === 'Enter' && selectChannel(channel.groupId)}
+              role="button"
+              tabindex="0"
+            >
+              <Channel
+                name={channel.name}
+                type="text"
+                active={$activeView === 'hub' && $activeChannelId === channel.groupId}
+              />
+            </div>
+          {/each}
+        </div>
+        {#if channels.length > 0}
+          <button
+            type="button"
+            class="create-channel-btn"
+            on:click={openCreateChannelModal}
           >
-            <Channel
-              name={channel.name}
-              type="text"
-              active={$activeView === 'hub' && $activeChannelId === channel.groupId}
-            />
-          </div>
-        {/each}
-      </div>
-      <button
-        type="button"
-        class="create-channel-btn"
-        on:click={openCreateChannelModal}
-      >
-        + Create channel
-      </button>
+            + Create channel
+          </button>
+        {/if}
+      {/if}
     </div>
   {:else}
     <div class="empty-state">
@@ -504,8 +571,6 @@
       <p class="create-channel-subtitle">Invite friends to {activeSquad?.name ?? 'this Squad'}.</p>
       {#if loadingInviteToSquad}
         <p class="create-channel-loading">Loading…</p>
-      {:else if inviteToSquadHasNoChannel}
-        <p class="create-channel-empty-friends">This Squad has no channel yet. Create a channel first (use + next to Channels), or create Squads from DMs so they get an announcements channel.</p>
       {:else if inviteToSquadCandidates.length === 0}
         <p class="create-channel-empty-friends">No one to invite right now. Start a DM with someone first, or they may already be in this Squad.</p>
       {:else}
@@ -522,16 +587,14 @@
           {/each}
         </div>
       {/if}
-      {#if !inviteToSquadHasNoChannel}
-        <p class="create-channel-invite-by-npub-label">Or invite by npub:</p>
-        <input
-          type="text"
-          class="create-channel-invite-npub-input"
-          placeholder="npub1…"
-          bind:value={inviteByNpub}
-          disabled={invitingToSquad}
-        />
-      {/if}
+      <p class="create-channel-invite-by-npub-label">Or invite by npub:</p>
+      <input
+        type="text"
+        class="create-channel-invite-npub-input"
+        placeholder="npub1…"
+        bind:value={inviteByNpub}
+        disabled={invitingToSquad}
+      />
       {#if inviteToSquadError}
         <p class="create-channel-error" role="alert">{inviteToSquadError}</p>
       {/if}
@@ -543,7 +606,7 @@
           type="button"
           class="create-channel-btn-create"
           on:click={handleInviteToSquad}
-          disabled={inviteToSquadHasNoChannel || (selectedInviteNpubs.length === 0 && !inviteByNpub.trim()) || invitingToSquad}
+          disabled={(selectedInviteNpubs.length === 0 && !inviteByNpub.trim()) || invitingToSquad}
         >
           {invitingToSquad ? 'Inviting…' : 'Invite'}
         </button>
@@ -783,6 +846,61 @@
   .channel-list {
     display: flex;
     flex-direction: column;
+  }
+
+  .squad-setting-up {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px 16px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .setting-up-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border-subtle);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: squad-setting-up-spin 0.9s linear infinite;
+  }
+
+  @keyframes squad-setting-up-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .setting-up-text {
+    margin: 0;
+  }
+
+  .setting-up-error {
+    margin: 0;
+    color: var(--danger);
+    font-size: 0.8125rem;
+    text-align: center;
+  }
+
+  .setting-up-retry-btn {
+    margin-top: 4px;
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .setting-up-retry-btn:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+
+  .setting-up-retry-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
   }
 
   .empty-state {
