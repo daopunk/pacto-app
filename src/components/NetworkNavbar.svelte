@@ -13,12 +13,13 @@
     dmList,
     requestsList,
     pendingList,
-    networksCreatingAnnouncements,
-    networkCreateErrorByNetworkId,
-    networkPendingCreateMembers,
-    removeNetworkCreatingAnnouncements,
+    parentsCreatingAnnouncements,
+    parentCreateErrorById,
+    parentPendingCreateMembers,
+    removeParentCreatingAnnouncements,
     type Channel as ChannelType,
   } from '../stores/app';
+  import { getAnnouncementsChannel, createAnnouncementsGroupAndChannel, loadMembersForParent } from '../lib/parent-navbar';
   import {
     createGroupChat,
     getMlsGroupMembers,
@@ -37,30 +38,29 @@
   $: activeNetwork = $networks.find((n) => n.id === $activeNetworkId);
   $: channels = activeNetwork?.channels ?? [];
   $: sortedChannels = [...channels].sort((a, b) => a.order - b.order);
-  $: networkCreating = activeNetwork && activeNetwork.channels.length === 0 && $networksCreatingAnnouncements.has(activeNetwork.id);
-  $: networkCreateError = activeNetwork ? $networkCreateErrorByNetworkId[activeNetwork.id] ?? '' : '';
-  $: canRetryNetworkCreate = activeNetwork && networkCreateError && ($networkPendingCreateMembers[activeNetwork.id]?.length ?? 0) > 0;
+  $: networkCreating = activeNetwork && activeNetwork.channels.length === 0 && $parentsCreatingAnnouncements.has(activeNetwork.id);
+  $: networkCreateError = activeNetwork ? $parentCreateErrorById[activeNetwork.id] ?? '' : '';
+  $: canRetryNetworkCreate = activeNetwork && networkCreateError && ($parentPendingCreateMembers[activeNetwork.id]?.length ?? 0) > 0;
 
   let retryingNetworkCreate = false;
   async function handleRetryNetworkCreate() {
     const net = activeNetwork;
     if (!net || !networkCreateError || retryingNetworkCreate) return;
-    const allMemberNpubs = $networkPendingCreateMembers[net.id];
+    const allMemberNpubs = $parentPendingCreateMembers[net.id];
     if (!allMemberNpubs?.length) return;
     retryingNetworkCreate = true;
     try {
-      const groupId = await createGroupChat('announcements', allMemberNpubs);
-      const announcementsChannel: ChannelType = { name: 'announcements', groupId, order: 0 };
+      const { groupId, channel: announcementsChannel } = await createAnnouncementsGroupAndChannel(allMemberNpubs);
       networks.update((list) =>
         list.map((n) => (n.id !== net.id ? n : { ...n, channels: [announcementsChannel], updatedAt: Date.now() }))
       );
-      removeNetworkCreatingAnnouncements(net.id);
-      networkCreateErrorByNetworkId.update((m) => {
+      removeParentCreatingAnnouncements(net.id);
+      parentCreateErrorById.update((m) => {
         const next = { ...m };
         delete next[net.id];
         return next;
       });
-      networkPendingCreateMembers.update((m) => {
+      parentPendingCreateMembers.update((m) => {
         const next = { ...m };
         delete next[net.id];
         return next;
@@ -84,7 +84,7 @@
       }
       pendingReadyToast.set({ text: `${net.name} is ready!`, goTo: { type: 'network', name: net.name, id: net.id, channelId: groupId } });
     } catch (e) {
-      networkCreateErrorByNetworkId.update((m) => ({ ...m, [net.id]: friendlyMessage(getInvokeErrorMessage(e)) }));
+      parentCreateErrorById.update((m) => ({ ...m, [net.id]: friendlyMessage(getInvokeErrorMessage(e)) }));
     } finally {
       retryingNetworkCreate = false;
     }
@@ -94,11 +94,6 @@
     activeNetwork?.memberSquads?.length
       ? activeNetwork.memberSquads.map((s) => s.name).join(', ')
       : '';
-
-  /** Every network has an #announcements channel (created with name 'announcements'). */
-  function getNetworkAnnouncementsChannel(net: NonNullable<typeof activeNetwork>) {
-    return net.channels.find((c) => c.name === 'announcements') ?? [...net.channels].sort((a, b) => a.order - b.order)[0];
-  }
 
   let networkMenuOpen = false;
   let showInviteToNetworkModal = false;
@@ -128,11 +123,9 @@
   async function loadInviteToNetworkCandidates() {
     const net = $networks.find((n) => n.id === $activeNetworkId);
     if (!net) return;
-    const announcementsChannel = getNetworkAnnouncementsChannel(net);
     loadingInviteToNetwork = true;
     try {
-      const result = await getMlsGroupMembers(announcementsChannel.groupId);
-      const inNetwork = new Set(result.members ?? []);
+      const inNetwork = new Set(await loadMembersForParent(net, undefined));
       const dmListSnap = $dmList;
       const requestsSnap = $requestsList;
       const pendingSnap = $pendingList;
@@ -153,7 +146,7 @@
   async function handleInviteToNetwork() {
     const net = $networks.find((n) => n.id === $activeNetworkId);
     if (!net) return;
-    const announcementsChannel = getNetworkAnnouncementsChannel(net);
+    const announcementsChannel = getAnnouncementsChannel(net);
     const extraNpub = inviteByNpub.trim();
     const npubsToInvite = [
       ...selectedInviteNpubs,

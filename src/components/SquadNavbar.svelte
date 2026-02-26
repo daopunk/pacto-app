@@ -2,8 +2,9 @@
   import { get } from 'svelte/store';
   import Channel from './Channel.svelte';
   import ResizableSidebar from './ResizableSidebar.svelte';
-  import { squads, activeSquadId, activeChannelId, activeView, lastChannelBySquadId, dmList, requestsList, pendingList, squadsCreatingAnnouncements, squadCreateErrorBySquadId, squadPendingCreateMembers, removeSquadCreatingAnnouncements, type Channel as ChannelType } from '../stores/app';
-  import { createGroupChat, getMlsGroupMembers, inviteMemberToGroup, sendDmMessage, formatSquadInviteMessage, formatChannelInSquadMessage, leaveMlsGroup } from '../lib/api/nostr';
+  import { squads, activeSquadId, activeChannelId, activeView, lastChannelBySquadId, dmList, requestsList, pendingList, parentsCreatingAnnouncements, parentCreateErrorById, parentPendingCreateMembers, removeParentCreatingAnnouncements, type Channel as ChannelType } from '../stores/app';
+  import { getAnnouncementsChannel, createAnnouncementsGroupAndChannel, loadMembersForParent } from '../lib/parent-navbar';
+  import { createGroupChat, inviteMemberToGroup, sendDmMessage, formatSquadInviteMessage, formatChannelInSquadMessage, leaveMlsGroup } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { pendingReadyToast } from '../stores/toast';
   import { getProfileDisplayName } from '../lib/utils/profile';
@@ -16,30 +17,29 @@
   $: channels = activeSquad?.channels
     ? [...new Map(activeSquad.channels.map((c) => [c.groupId, c])).values()].sort((a, b) => a.order - b.order)
     : [];
-  $: squadCreating = activeSquad && activeSquad.channels.length === 0 && $squadsCreatingAnnouncements.has(activeSquad.id);
-  $: squadCreateError = activeSquad ? $squadCreateErrorBySquadId[activeSquad.id] ?? '' : '';
-  $: canRetrySquadCreate = activeSquad && squadCreateError && ($squadPendingCreateMembers[activeSquad.id]?.length ?? 0) > 0;
+  $: squadCreating = activeSquad && activeSquad.channels.length === 0 && $parentsCreatingAnnouncements.has(activeSquad.id);
+  $: squadCreateError = activeSquad ? $parentCreateErrorById[activeSquad.id] ?? '' : '';
+  $: canRetrySquadCreate = activeSquad && squadCreateError && ($parentPendingCreateMembers[activeSquad.id]?.length ?? 0) > 0;
 
   let retryingSquadCreate = false;
   async function handleRetrySquadCreate() {
     const squad = activeSquad;
     if (!squad || !squadCreateError || retryingSquadCreate) return;
-    const memberIds = $squadPendingCreateMembers[squad.id];
+    const memberIds = $parentPendingCreateMembers[squad.id];
     if (!memberIds?.length) return;
     retryingSquadCreate = true;
     try {
-      const groupId = await createGroupChat('announcements', memberIds);
-      const announcementsChannel: ChannelType = { name: 'announcements', groupId, order: 0 };
+      const { groupId, channel: announcementsChannel } = await createAnnouncementsGroupAndChannel(memberIds);
       squads.update((list) =>
         list.map((s) => (s.id !== squad.id ? s : { ...s, channels: [announcementsChannel], updatedAt: Date.now() }))
       );
-      removeSquadCreatingAnnouncements(squad.id);
-      squadCreateErrorBySquadId.update((m) => {
+      removeParentCreatingAnnouncements(squad.id);
+      parentCreateErrorById.update((m) => {
         const next = { ...m };
         delete next[squad.id];
         return next;
       });
-      squadPendingCreateMembers.update((m) => {
+      parentPendingCreateMembers.update((m) => {
         const next = { ...m };
         delete next[squad.id];
         return next;
@@ -56,7 +56,7 @@
       }
       pendingReadyToast.set({ text: `${squad.name} is ready!`, goTo: { type: 'squad', name: squad.name, id: squad.id, channelId: groupId } });
     } catch (e) {
-      squadCreateErrorBySquadId.update((m) => ({ ...m, [squad.id]: friendlyMessage(getInvokeErrorMessage(e)) }));
+      parentCreateErrorById.update((m) => ({ ...m, [squad.id]: friendlyMessage(getInvokeErrorMessage(e)) }));
     } finally {
       retryingSquadCreate = false;
     }
@@ -96,20 +96,12 @@
     loadCreateChannelMembers();
   }
 
-  /** Every squad has an #announcements channel (created with name 'announcements'). */
-  function getAnnouncementsChannel(squad: NonNullable<typeof activeSquad>) {
-    return squad.channels.find((c) => c.name === 'announcements') ?? [...squad.channels].sort((a, b) => a.order - b.order)[0];
-  }
-
   async function loadCreateChannelMembers() {
     const squad = $squads.find((s) => s.id === $activeSquadId);
     if (!squad) return;
-    const announcementsChannel = getAnnouncementsChannel(squad);
     loadingCreateChannelMembers = true;
     try {
-      const result = await getMlsGroupMembers(announcementsChannel.groupId);
-      const myNpub = $currentUser?.npub;
-      createChannelMemberList = (result.members ?? []).filter((n) => n !== myNpub);
+      createChannelMemberList = await loadMembersForParent(squad, $currentUser?.npub);
     } catch {
       createChannelMemberList = [];
     } finally {
@@ -297,21 +289,16 @@
   async function loadInviteToSquadCandidates() {
     const squad = $squads.find((s) => s.id === $activeSquadId);
     if (!squad) return;
-    const announcementsChannel = getAnnouncementsChannel(squad);
-    console.log('[Squads] loadInviteToSquadCandidates', { squadId: $activeSquadId, squadName: squad.name, announcementsGroupId: announcementsChannel.groupId.slice(0, 16) });
     loadingInviteToSquad = true;
     try {
-      const result = await getMlsGroupMembers(announcementsChannel.groupId);
-      const inSquad = new Set(result.members ?? []);
-      console.log('[Squads] getMlsGroupMembers result', { memberCount: inSquad.size, members: [...inSquad].map((n) => n.slice(0, 20) + '…') });
+      const members = await loadMembersForParent(squad, undefined);
+      const inSquad = new Set(members);
       const dmListSnap = $dmList;
       const requestsSnap = $requestsList;
       const pendingSnap = $pendingList;
       const allDmNpubs = [...dmListSnap, ...requestsSnap, ...pendingSnap].map((e) => e.npub);
       const uniqueNpubs = [...new Set(allDmNpubs)];
-      console.log('[Squads] DM lists', { dmCount: dmListSnap.length, requestsCount: requestsSnap.length, pendingCount: pendingSnap.length, uniqueNpubs: uniqueNpubs.length });
       inviteToSquadCandidates = uniqueNpubs.filter((npub) => !inSquad.has(npub));
-      console.log('[Squads] inviteToSquadCandidates', inviteToSquadCandidates.length, inviteToSquadCandidates.map((n) => n.slice(0, 20) + '…'));
     } catch (e) {
       console.warn('[Squads] loadInviteToSquadCandidates error', e);
       inviteToSquadCandidates = [];
