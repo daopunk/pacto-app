@@ -4,13 +4,12 @@
   import { listen } from '@tauri-apps/api/event';
   import Navbar from '../components/Navbar.svelte';
   import TopNavbar from '../components/TopNavbar.svelte';
-  import SquadNavbar from '../components/SquadNavbar.svelte';
+  import ParentNavbar from '../components/ParentNavbar.svelte';
   import ChatView from '../components/ChatView.svelte';
   import Profile from '../components/Profile.svelte';
   import MessengerNavbar from '../components/MessengerNavbar.svelte';
   import MessengerChatView from '../components/MessengerChatView.svelte';
   import DmThread from '../components/DmThread.svelte';
-  import NetworkNavbar from '../components/NetworkNavbar.svelte';
   import Toast from '../components/Toast.svelte';
   import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping, setNickname, listPendingMlsWelcomes, acceptMlsWelcome, parseSquadInviteMessage, parseChannelInSquadMessage, parseChannelInNetworkMessage, parseNetworkInviteMessage, syncMlsGroupsNow } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
@@ -925,14 +924,9 @@
             </div>
           </div>
         </div>
-      {:else if $activeTopNavTab === 'networks'}
-        <div class="networks-area">
-          <NetworkNavbar />
-          <ChatView />
-        </div>
       {:else}
-        <div class="squads-area">
-          <SquadNavbar />
+        <div class="parent-area">
+          <ParentNavbar type={$activeTopNavTab === 'networks' ? 'network' : 'squad'} />
           <ChatView />
         </div>
       {/if}
@@ -969,6 +963,7 @@
     flex-direction: column;
   }
 
+  .parent-area,
   .squads-area,
   .networks-area {
     flex: 1;

@@ -1,6 +1,6 @@
 /**
  * Shared logic for squad and network sidebars (ParentNavbar behaviour).
- * Used by SquadNavbar.svelte and NetworkNavbar.svelte so the same behaviour is not duplicated.
+ * Used by ParentNavbar.svelte so squad and network behaviour is not duplicated.
  */
 import { ANNOUNCEMENTS_CHANNEL_NAME, type Channel } from '../stores/app';
 import { createGroupChat, getMlsGroupMembers } from './api/nostr';
