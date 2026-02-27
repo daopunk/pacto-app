@@ -3,7 +3,7 @@
   import ParentSidebar from './ParentSidebar.svelte';
   import CreateChannelModal from './CreateChannelModal.svelte';
   import InviteToParentModal from './InviteToParentModal.svelte';
-  import ExitSquadModal from './ExitSquadModal.svelte';
+  import ExitParentModal from './ExitParentModal.svelte';
   import {
     squads,
     networks,
@@ -43,7 +43,7 @@
     leaveMlsGroup,
   } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
-  import { pendingReadyToast } from '../stores/toast';
+  import { pendingReadyToast, showToast } from '../stores/toast';
   import { getProfileDisplayName } from '../lib/utils/profile';
   import { profiles } from '../stores/profiles';
   import { currentUser } from '../stores/auth';
@@ -550,40 +550,94 @@
     })();
   }
 
-  // --- Exit squad modal (squad only) ---
-  let showExitSquadModal = false;
-  let exitingSquad = false;
-  let exitSquadError = '';
+  // --- Exit parent modal (squad or network) ---
+  let showExitModal = false;
+  let exitError = '';
 
-  function openExitSquadModal() {
-    showExitSquadModal = true;
-    exitSquadError = '';
+  function openExitModal() {
+    showExitModal = true;
+    exitError = '';
   }
 
-  function closeExitSquadModal() {
-    if (!exitingSquad) showExitSquadModal = false;
+  function closeExitModal() {
+    showExitModal = false;
   }
 
-  async function handleExitSquad() {
-    const squad = $squads.find((s) => s.id === $activeSquadId);
-    if (!squad) return;
-    exitingSquad = true;
-    exitSquadError = '';
-    try {
-      for (const ch of squad.channels) {
-        if (ch.groupId.startsWith('creating-')) continue;
-        await leaveMlsGroup(ch.groupId);
-      }
+  /** Optimistic exit: update UI immediately, leave MLS groups in background; revert + toast on failure. */
+  function handleExitParent() {
+    if (type === 'squad') {
+      const squad = $squads.find((s) => s.id === $activeSquadId);
+      if (!squad) return;
+      const wasActive = $activeSquadId === squad.id;
+      const previousChannelId = $activeChannelId;
+
       squads.update((list) => list.filter((s) => s.id !== squad.id));
-      if ($activeSquadId === squad.id) {
+      if (wasActive) {
         activeSquadId.set(null);
         activeChannelId.set(null);
       }
-      showExitSquadModal = false;
-    } catch (e) {
-      exitSquadError = friendlyMessage(getInvokeErrorMessage(e));
-    } finally {
-      exitingSquad = false;
+      showExitModal = false;
+      exitError = '';
+
+      (async () => {
+        try {
+          for (const ch of squad.channels) {
+            if (ch.groupId.startsWith('creating-')) continue;
+            await leaveMlsGroup(ch.groupId);
+          }
+        } catch (e) {
+          const msg = friendlyMessage(getInvokeErrorMessage(e));
+          squads.update((list) => [...list, squad]);
+          if (wasActive) {
+            activeSquadId.set(squad.id);
+            activeChannelId.set(previousChannelId ?? squad.channels[0]?.groupId ?? null);
+          }
+          showToast(`Could not exit squad "${squad.name}": ${msg}`);
+        }
+      })();
+    } else {
+      const network = $networks.find((n) => n.id === $activeNetworkId);
+      if (!network) return;
+      const wasActive = $activeNetworkId === network.id;
+      const previousChannelId = $activeChannelId;
+
+      networks.update((list) => list.filter((n) => n.id !== network.id));
+      if (wasActive) {
+        activeNetworkId.set(null);
+        activeChannelId.set(null);
+        lastOpenedNetworkId.set(null);
+        lastOpenedNetworkChannelId.set(null);
+        lastChannelByNetworkId.update((m) => {
+          const next = { ...m };
+          delete next[network.id];
+          return next;
+        });
+      }
+      showExitModal = false;
+      exitError = '';
+
+      (async () => {
+        try {
+          for (const ch of network.channels) {
+            if (ch.groupId.startsWith('creating-')) continue;
+            await leaveMlsGroup(ch.groupId);
+          }
+        } catch (e) {
+          const msg = friendlyMessage(getInvokeErrorMessage(e));
+          networks.update((list) => [...list, network]);
+          if (wasActive) {
+            activeNetworkId.set(network.id);
+            activeChannelId.set(previousChannelId ?? network.channels[0]?.groupId ?? null);
+            lastOpenedNetworkId.set(network.id);
+            lastOpenedNetworkChannelId.set(previousChannelId ?? network.channels[0]?.groupId ?? null);
+            lastChannelByNetworkId.update((m) => ({
+              ...m,
+              [network.id]: previousChannelId ?? network.channels[0]?.groupId ?? '',
+            }));
+          }
+          showToast(`Could not exit network "${network.name}": ${msg}`);
+        }
+      })();
     }
   }
 </script>
@@ -607,7 +661,8 @@
   onCreateChannel={openCreateChannelModal}
   onRetryCreate={handleRetryCreate}
   onInvite={openInviteModal}
-  onExitSquad={type === 'squad' ? openExitSquadModal : undefined}
+  onExitSquad={type === 'squad' ? openExitModal : undefined}
+  onExitNetwork={type === 'network' ? openExitModal : undefined}
 />
 
 <CreateChannelModal
@@ -651,13 +706,12 @@
   getCandidateDisplayName={getMemberDisplayName}
 />
 
-{#if type === 'squad'}
-  <ExitSquadModal
-    open={showExitSquadModal}
-    squadName={activeParent?.name ?? ''}
-    error={exitSquadError}
-    exiting={exitingSquad}
-    onClose={closeExitSquadModal}
-    onConfirm={handleExitSquad}
-  />
-{/if}
+<ExitParentModal
+  open={showExitModal}
+  type={type}
+  parentName={activeParent?.name ?? ''}
+  error={exitError}
+  exiting={false}
+  onClose={closeExitModal}
+  onConfirm={handleExitParent}
+/>
