@@ -135,6 +135,21 @@
         );
         if (get(activeSquadId) === parent.id) activeChannelId.set(groupId);
         lastChannelBySquadId.update((m) => ({ ...m, [parent.id]: groupId }));
+        pendingReadyToast.set({
+          text: `${(parent as Squad).name} is ready!`,
+          goTo: { type: 'squad', name: (parent as Squad).name, id: parent.id, channelId: groupId },
+        });
+        removeParentCreatingAnnouncements(parent.id);
+        parentCreateErrorById.update((m) => {
+          const next = { ...m };
+          delete next[parent.id];
+          return next;
+        });
+        parentPendingCreateMembers.update((m) => {
+          const next = { ...m };
+          delete next[parent.id];
+          return next;
+        });
         const payload = formatSquadInviteMessage({
           type: 'squad_invite',
           squadName: (parent as Squad).name,
@@ -147,10 +162,6 @@
             console.warn('[ParentNavbar] retry send squad invite DM failed for', npub.slice(0, 20) + '…', e);
           }
         }
-        pendingReadyToast.set({
-          text: `${(parent as Squad).name} is ready!`,
-          goTo: { type: 'squad', name: (parent as Squad).name, id: parent.id, channelId: groupId },
-        });
       } else {
         networks.update((list) =>
           list.map((n) =>
@@ -161,6 +172,21 @@
           activeChannelId.set(groupId);
           lastOpenedNetworkChannelId.set(groupId);
         }
+        pendingReadyToast.set({
+          text: `${(parent as Network).name} is ready!`,
+          goTo: { type: 'network', name: (parent as Network).name, id: parent.id, channelId: groupId },
+        });
+        removeParentCreatingAnnouncements(parent.id);
+        parentCreateErrorById.update((m) => {
+          const next = { ...m };
+          delete next[parent.id];
+          return next;
+        });
+        parentPendingCreateMembers.update((m) => {
+          const next = { ...m };
+          delete next[parent.id];
+          return next;
+        });
         const payload = formatNetworkInviteMessage({
           type: 'network_invite',
           networkName: (parent as Network).name,
@@ -174,22 +200,7 @@
             console.warn('[ParentNavbar] retry send network invite DM failed for', npub.slice(0, 20) + '…', e);
           }
         }
-        pendingReadyToast.set({
-          text: `${(parent as Network).name} is ready!`,
-          goTo: { type: 'network', name: (parent as Network).name, id: parent.id, channelId: groupId },
-        });
       }
-      removeParentCreatingAnnouncements(parent.id);
-      parentCreateErrorById.update((m) => {
-        const next = { ...m };
-        delete next[parent.id];
-        return next;
-      });
-      parentPendingCreateMembers.update((m) => {
-        const next = { ...m };
-        delete next[parent.id];
-        return next;
-      });
     } catch (e) {
       parentCreateErrorById.update((m) => ({
         ...m,
