@@ -19,11 +19,13 @@
     loadedOffsetByChat,
     groupSendError,
     showMembersPanel,
-    squadsCreatingAnnouncements,
-    squadCreateErrorBySquadId,
-    networksCreatingAnnouncements,
-    networkCreateErrorByNetworkId,
+    parentsCreatingAnnouncements,
+    parentCreateErrorById,
+    ANNOUNCEMENTS_CHANNEL_NAME,
+    membershipVersionByGroupId,
     type DmMessage,
+    type Squad,
+    type Network,
   } from '../stores/app';
   import { sendDmMessage, getDmMessages, leaveMlsGroup, getMlsGroupMembers, inviteMemberToGroup } from '../lib/api/nostr';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
@@ -35,30 +37,30 @@
 
   const LOAD_OLDER_PAGE_SIZE = 50;
 
-  $: activeSquad = $activeTopNavTab === 'squads' ? $squads.find((c) => c.id === $activeSquadId) : null;
-  $: activeNetwork = $activeTopNavTab === 'networks' && $activeNetworkId ? $networks.find((n) => n.id === $activeNetworkId) : null;
+  // Single derivation: active parent (squad or network) and active channel from tab + ids + lists.
+  $: activeParent =
+    $activeTopNavTab === 'squads'
+      ? ($squads.find((c) => c.id === $activeSquadId) ?? null)
+      : $activeTopNavTab === 'networks' && $activeNetworkId
+        ? ($networks.find((n) => n.id === $activeNetworkId) ?? null)
+        : null;
   $: activeChannel = (() => {
-    if ($activeTopNavTab === 'networks' && activeNetwork && $activeChannelId) {
-      const sorted = [...activeNetwork.channels].sort((a, b) => a.order - b.order);
-      return sorted.find((ch) => ch.groupId === $activeChannelId) ?? null;
-    }
-    if ($activeTopNavTab === 'squads') {
-      return (
-        activeSquad?.channels.find((ch) => ch.groupId === $activeChannelId) ??
-        $ungroupedChannels.find((ch) => ch.groupId === $activeChannelId)
-      ) ?? null;
-    }
+    if (!activeParent || !$activeChannelId) return null;
+    const sorted = [...activeParent.channels].sort((a, b) => a.order - b.order);
+    const ch = sorted.find((c) => c.groupId === $activeChannelId);
+    if (ch) return ch;
+    if ($activeTopNavTab === 'squads') return $ungroupedChannels.find((c) => c.groupId === $activeChannelId) ?? null;
     return null;
   })();
+  $: activeSquad = $activeTopNavTab === 'squads' && activeParent ? (activeParent as Squad) : null;
+  $: activeNetwork = $activeTopNavTab === 'networks' && activeParent ? (activeParent as Network) : null;
+
   $: channelName = activeChannel?.name || 'channel';
-  $: isAnnouncementsChannel = activeSquad
-    ? activeSquad.channels[0]?.groupId === $activeChannelId
-    : (activeNetwork ? [...activeNetwork.channels].sort((a, b) => a.order - b.order)[0]?.groupId === $activeChannelId : false);
+  $: isAnnouncementsChannel =
+    (activeParent && activeChannel?.name === ANNOUNCEMENTS_CHANNEL_NAME) ?? false;
   $: isChannelCreating = (activeChannel?.groupId?.startsWith('creating-') ?? false);
-  $: squadSettingUp = $activeTopNavTab === 'squads' && activeSquad && activeSquad.channels.length === 0 && $squadsCreatingAnnouncements.has(activeSquad.id);
-  $: squadSettingUpError = (squadSettingUp && activeSquad && $squadCreateErrorBySquadId[activeSquad.id]) ?? '';
-  $: networkSettingUp = $activeTopNavTab === 'networks' && activeNetwork && activeNetwork.channels.length === 0 && $networksCreatingAnnouncements.has(activeNetwork.id);
-  $: networkSettingUpError = (networkSettingUp && activeNetwork && $networkCreateErrorByNetworkId[activeNetwork.id]) ?? '';
+  $: parentSettingUp = activeParent && activeParent.channels.length === 0 && $parentsCreatingAnnouncements.has(activeParent.id);
+  $: parentSettingUpError = (parentSettingUp && activeParent && $parentCreateErrorById[activeParent.id]) ?? '';
 
   let channelMenuOpen = false;
   let showLeaveChannelConfirm = false;
@@ -132,6 +134,16 @@
     loadChannelMembers();
   }
   $: if (!$showMembersPanel) prevChannelIdForMembers = null;
+
+  // When root bumps membership version for the active group (mls_group_updated / mls_group_left),
+  // refetch members if the panel is open.
+  $: if ($showMembersPanel && $activeChannelId) {
+    const cid = $activeChannelId;
+    const version = $membershipVersionByGroupId[cid] ?? 0;
+    if (version > 0) {
+      loadChannelMembers();
+    }
+  }
 
   let loadingOlder = false;
   function scrollMessagesToBottom() {
@@ -257,6 +269,13 @@
     closeChannelMenu();
     loadChannelMembers();
   }
+  function toggleMembersPanel() {
+    if ($showMembersPanel) {
+      showMembersPanel.set(false);
+    } else {
+      openMembersPanel();
+    }
+  }
   async function loadChannelMembers() {
     const groupId = $activeChannelId;
     if (!groupId) return;
@@ -352,20 +371,12 @@
   }}
 />
 <div class="chat-view">
-  {#if squadSettingUp}
+  {#if parentSettingUp}
     <div class="squad-setting-up-state" role="status" aria-live="polite">
       <div class="squad-setting-up-spinner"></div>
       <p class="squad-setting-up-text">Setting up this space…</p>
-      {#if squadSettingUpError}
-        <p class="squad-setting-up-error" role="alert">{squadSettingUpError}</p>
-      {/if}
-    </div>
-  {:else if networkSettingUp}
-    <div class="squad-setting-up-state" role="status" aria-live="polite">
-      <div class="squad-setting-up-spinner"></div>
-      <p class="squad-setting-up-text">Setting up this space…</p>
-      {#if networkSettingUpError}
-        <p class="squad-setting-up-error" role="alert">{networkSettingUpError}</p>
+      {#if parentSettingUpError}
+        <p class="squad-setting-up-error" role="alert">{parentSettingUpError}</p>
       {/if}
     </div>
   {:else if activeChannel}
@@ -377,22 +388,25 @@
       </div>
       <div class="channel-header-actions">
         <div class="channel-header-actions-inner">
-          <button
-            type="button"
-            class="channel-menu-btn"
-            title="Channel options"
-            on:click={() => (channelMenuOpen = !channelMenuOpen)}
-            aria-expanded={channelMenuOpen}
-            aria-haspopup="menu"
-          >
-            <img src={chevronDownIcon} alt="" class="channel-menu-btn-icon" />
-          </button>
+          {#if !isAnnouncementsChannel}
+            <button
+              type="button"
+              class="channel-menu-btn"
+              title="Channel options"
+              on:click={() => (channelMenuOpen = !channelMenuOpen)}
+              aria-expanded={channelMenuOpen}
+              aria-haspopup="menu"
+            >
+              <img src={chevronDownIcon} alt="" class="channel-menu-btn-icon" />
+            </button>
+          {/if}
           <button
             type="button"
             class="channel-members-btn"
             title="Members"
-            on:click={openMembersPanel}
-            aria-label="View channel members"
+            on:click={toggleMembersPanel}
+            aria-label={$showMembersPanel ? 'Close channel members' : 'View channel members'}
+            aria-expanded={$showMembersPanel}
           >
             <img src={friendsIcon} alt="" class="channel-members-btn-icon" />
           </button>
@@ -403,16 +417,16 @@
               <button type="button" class="channel-menu-item" role="menuitem" on:click={openInviteToChannelModal}>
                 Invite to channel
               </button>
+              <button
+                type="button"
+                class="channel-menu-item channel-menu-item-danger"
+                role="menuitem"
+                disabled={leavingChannel}
+                on:click={openLeaveChannelConfirm}
+              >
+                Leave channel
+              </button>
             {/if}
-            <button
-              type="button"
-              class="channel-menu-item channel-menu-item-danger"
-              role="menuitem"
-              disabled={leavingChannel}
-              on:click={openLeaveChannelConfirm}
-            >
-              Leave channel
-            </button>
           </div>
         {/if}
       </div>
@@ -510,7 +524,6 @@
       <aside class="members-panel" aria-label="Channel members">
         <div class="members-panel-header">
           <h3 class="members-panel-title">Members</h3>
-          <button type="button" class="members-panel-close" aria-label="Close" on:click={() => showMembersPanel.set(false)}>×</button>
         </div>
         <div class="members-panel-list">
           {#if loadingMembers}
@@ -776,22 +789,6 @@
     font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text-primary);
-  }
-
-  .members-panel-close {
-    padding: 4px 8px;
-    font-size: 1.25rem;
-    line-height: 1;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    border-radius: 4px;
-  }
-
-  .members-panel-close:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
   }
 
   .members-panel-list {

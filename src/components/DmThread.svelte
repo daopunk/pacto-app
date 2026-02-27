@@ -54,7 +54,10 @@
   export let acceptingChannelInNetworkId: string | null = null;
   export let acceptingNetworkInviteId: string | null = null;
   export let showOptionsMenu = true;
+  /** When false, Pin/Unpin DM is hidden (e.g. for Requests and Pending tabs). */
+  export let showPinOption = true;
   export let onSaveNickname: (value: string) => Promise<void> = async () => {};
+  export let onDeleteChat: (() => void) | undefined = undefined;
 
   function truncateNpub(n: string): string {
     if (n.length <= 16) return n;
@@ -254,13 +257,28 @@
                   <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={openNicknameEdit}>
                     Set Nickname
                   </button>
-                  {#if $pinnedDmNpubs.has(npub)}
-                    <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={unpinDm}>
-                      Unpin DM
-                    </button>
-                  {:else}
-                    <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={pinDm}>
-                      Pin DM
+                  {#if showPinOption}
+                    {#if $pinnedDmNpubs.has(npub)}
+                      <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={unpinDm}>
+                        Unpin DM
+                      </button>
+                    {:else}
+                      <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={pinDm}>
+                        Pin DM
+                      </button>
+                    {/if}
+                  {/if}
+                  {#if onDeleteChat}
+                    <button
+                      type="button"
+                      class="dm-thread-dropdown-item dm-thread-dropdown-item-danger"
+                      role="menuitem"
+                      on:click={() => {
+                        menuOpen = false;
+                        onDeleteChat();
+                      }}
+                    >
+                      Delete chat
                     </button>
                   {/if}
                 </div>
@@ -496,6 +514,15 @@
 
   .dm-thread-dropdown-item:hover {
     background: var(--bg-hover);
+  }
+
+  .dm-thread-dropdown-item-danger {
+    color: var(--danger);
+  }
+
+  .dm-thread-dropdown-item-danger:hover {
+    background: rgba(237, 66, 69, 0.15);
+    color: var(--danger);
   }
 
   .dm-thread-nickname-edit {
