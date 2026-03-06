@@ -1,17 +1,37 @@
 # Pacto
 
-## Tech Stack
-- Tauri
-- SvelteKit
-- TypeScript
+Pacto is a private, censorship-resistant, and governable community organizing platform that requires no KYC. Encrypted communications run over Nostr, a decentralized client-relay network, while governance and financial operations execute over EVM or Aztec blockchains with embedded wallets that require no configuration. Everything just works.
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
+[Nostr](https://nostr.com/) is used for communications because it is computationally cheap (virtually free to use), decentralized (censorship-resistant), and enables privacy with the following standards: [NIP-17](https://github.com/nostr-protocol/nips/blob/master/17.md) Private DMs, [NIP-44 ](https://github.com/nostr-protocol/nips/blob/master/44.md) Encrypted Payloads, [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md) Gift Wraps (metadata protection).
 
-## Recommended IDE Setup
+[Ethereum](https://ethereum.org/) and [Aztec](https://docs.aztec.network/) networks handle governance and financial activities - domains requiring enforcement of scarcity (votes and coins are digitally scarce items), unlike communications that only require privacy.
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+Privacy on these blockchains is achieved through Zero-Knowledge (ZK) proving schemes, which verify computation without exposing sensitive data. This enables voting and payments with Ethereum's security and immutability guarantees while keeping user activity private.
 
-## Prerequisites
+## Feature Set
+
+Core
+- DMs: End-to-End-Encrypted (E2EE) direct messaging
+- Squads: private Discord/Slack-style community hubs with text channels
+- Networks: private community hubs comprised of Squads that allow inter-organizational coordination (Squad of Squads)
+
+Squad / Network
+- Message Layer Security (MLS) private and metadata-protected group messaging channels
+- Dashboard with Web3-integrated widgets
+- Modular Governance Platform to accommodate various models of democracy and decision making
+- Safe Wallet for collective management of financial resources
+
+## Architecture Diagram
+
+[WIP]
+
+## Fork
+
+[Vector](https://vectorapp.io/) - Private decentralized messenger built on Nostr
+
+Pacto forked the Rust [backend of Vector](https://github.com/VectorPrivacy/Vector/tree/master/src-tauri) for the Nostr E2EE/MLS messaging, cryptographic, and database management logic. While Vector offers a Signal-style privacy messenger with mini-app support, Pacto extends the codebase to enable Discord-inspired communities that are governable through embedded blockchain primitives.
+
+## Build Prerequisites
 
 - [Ubuntu](./docs/ubuntuGuide.md)
 - [macOS](./docs/macGuide.md)
