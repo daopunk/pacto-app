@@ -33,6 +33,6 @@ Pacto forked the Rust [backend of Vector](https://github.com/VectorPrivacy/Vecto
 
 ## Build Prerequisites
 
-- [Ubuntu](./docs/ubuntuGuide.md)
-- [macOS](./docs/macGuide.md)
-- [Windows](./docs/windowsGuide.md)
+- [Ubuntu](./docs/build/ubuntuGuide.md)
+- [macOS](./docs/build/macGuide.md)
+- [Windows](./docs/build/windowsGuide.md)
