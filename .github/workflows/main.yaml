@@ -47,7 +47,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake clang libclang-dev file curl wget git pkg-config libvulkan-dev libxdo-dev libssl-dev libayatana-appindicator3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+          sudo apt-get install -y build-essential cmake clang libclang-dev file curl wget git pkg-config libvulkan-dev libxdo-dev libssl-dev libayatana-appindicator3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libasound2-dev
           # Install Vulkan SDK with glslc compiler
           wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
