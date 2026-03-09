@@ -34,6 +34,7 @@ jobs:
       - name: setup pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 9
           run_install: false
 
       - name: install Rust stable
@@ -125,6 +126,7 @@ jobs:
       - name: setup pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 9
           run_install: false
 
       - name: Install Rust stable
@@ -225,3 +227,4 @@ jobs:
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
