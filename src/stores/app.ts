@@ -1,5 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { PendingMlsWelcome } from '../lib/api/nostr';
+import type { SupportedChainId } from '../lib/wallet/chains';
+import type { WalletAssetCode } from '../lib/wallet/assets';
 import {
   initInviteDecisionPersistence,
   getInviteDecisionLoadEntries,
@@ -9,6 +11,8 @@ import {
   declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
+  acceptedWalletTxRequestMessageIds,
+  declinedWalletTxRequestMessageIds,
 } from './invite-decisions';
 
 // Re-export invite decision stores for consumers (e.g. +page, clear-account-state)
@@ -19,6 +23,8 @@ export {
   declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
+  acceptedWalletTxRequestMessageIds,
+  declinedWalletTxRequestMessageIds,
 };
 
 /** Current npub for persistence: scoped localStorage keys use this. Set on login, cleared on logout. */
@@ -67,6 +73,29 @@ pinnedDmNpubs.subscribe((set) => {
 
 // New Chat flow: when true, show npub + message form instead of DM list/thread
 export const composingNewChat = writable<boolean>(false);
+
+/** When set, WalletBar is open for this DM npub (Friends / Pinned only). Cleared when switching tab, view, or chat. */
+export const walletSidebarOpenForNpub = writable<string | null>(null);
+
+/** One-shot: accepting a `wallet_tx_request` pre-fills the send modal and opens the wallet sidebar. Not persisted. */
+export type WalletSendPrefillPayload = {
+  targetNpub: string;
+  network: SupportedChainId;
+  asset: WalletAssetCode;
+  amount: string;
+  requestId: string;
+  requestMessageId: string;
+};
+
+export const walletSendPrefillFromRequest = writable<WalletSendPrefillPayload | null>(null);
+
+export function toggleWalletSidebar(npub: string): void {
+  walletSidebarOpenForNpub.update((cur) => (cur === npub ? null : npub));
+}
+
+export function closeWalletSidebar(): void {
+  walletSidebarOpenForNpub.set(null);
+}
 
 // DM entry for display in the sidebar
 export interface DmEntry {
