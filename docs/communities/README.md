@@ -2,10 +2,7 @@
 
 This folder documents **squads** and **in-app networks** together: two product shapes that share the same **MLS + channels** stack.
 
-**Why the path is `communities/` and not `networks/`:**  
-“Networks” is easy to read as Nostr relays or the internet. **`groups`** clashes with **MLS groups** / `groupId` everywhere in Rust and docs. **`communities`** is a neutral umbrella: **Squads** and the **Networks** tab are both community-style containers in the UI.
-
-**Code and storage** still use concrete names: types like `Network` / `Squad`, keys like `pacto_networks_<npub>` — this directory is only the **documentation** namespace.
+**Code and storage** use concrete names: types like `Network` / `Squad`, keys like `pacto_networks_<npub>` — this directory is only the **documentation** namespace.
 
 | Concept | What it is |
 |---------|------------|
