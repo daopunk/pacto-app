@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { loadProfile, profiles, profileLoadingStates } from '../stores/profiles';
-  import { logout, currentUser } from '../stores/auth';
-  import { exportKeys, getEvmAddress } from '../lib/api/auth';
-  import { loadAndDecryptKey } from '../lib/api/encryption';
-  import { updateProfile, uploadAvatar } from '../lib/api/nostr';
-  import { getProfileAvatarSrc, getProfileBannerSrc } from '../lib/utils/profile';
-  import { openExternalUrl } from '../lib/utils/open-external';
+  import { loadProfile, profiles, profileLoadingStates } from '../../stores/profiles';
+  import { logout, currentUser } from '../../stores/auth';
+  import { exportKeys, getEvmAddress } from '../../lib/api/auth';
+  import { loadAndDecryptKey } from '../../lib/api/encryption';
+  import { updateProfile, uploadAvatar } from '../../lib/api/nostr';
+  import { getProfileAvatarSrc, getProfileBannerSrc } from '../../lib/utils/profile';
+  import { openExternalUrl } from '../../lib/utils/open-external';
   import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
-  import { theme, setTheme, type Theme } from '../stores/theme';
-  import { activeView } from '../stores/app';
-  import backIcon from '../icons/chevron-double-left.svg';
+  import { theme, setTheme, type Theme } from '../../stores/theme';
+  import { activeView } from '../../stores/app';
+  import backIcon from '../../icons/chevron-double-left.svg';
 
   function goBack() {
     $activeView = 'hub';

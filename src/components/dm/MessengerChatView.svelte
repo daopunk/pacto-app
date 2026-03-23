@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { activeDmId, composingNewChat, addPendingDm, backendDmMessages, dmSendError } from '../stores/app';
-  import { sendDmMessage } from '../lib/api/nostr';
-  import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
-  import { dmLog, dmError } from '../lib/utils/dm-debug';
-  import { isValidNpub } from '../lib/utils/npub';
+  import { activeDmId, composingNewChat, addPendingDm, backendDmMessages, dmSendError } from '../../stores/app';
+  import { sendDmMessage } from '../../lib/api/nostr';
+  import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
+  import { dmLog, dmError } from '../../lib/utils/dm-debug';
+  import { isValidNpub } from '../../lib/utils/npub';
 
   let npub = '';
   let messageText = '';

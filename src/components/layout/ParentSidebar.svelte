@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Channel from './Channel.svelte';
-  import ResizableSidebar from './ResizableSidebar.svelte';
-  import ParentSettingUp from './ParentSettingUp.svelte';
-  import chevronDownIcon from '../icons/chevron-down.svg';
+  import Channel from '../channel/Channel.svelte';
+  import ResizableSidebar from '../ui/ResizableSidebar.svelte';
+  import ParentSettingUp from '../parent/ParentSettingUp.svelte';
+  import chevronDownIcon from '../../icons/chevron-down.svg';
 
   /** Channel shape for list items (name, groupId, order). Re-exported via type. */
   interface ParentChannel {

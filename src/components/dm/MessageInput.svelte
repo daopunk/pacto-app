@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import smileFaceIcon from '../icons/smile-face.svg';
-  import { getEmojiList, recentEmojisStore, addToRecentEmojis, searchEmojis } from '../stores/emojis';
+  import smileFaceIcon from '../../icons/smile-face.svg';
+  import { getEmojiList, recentEmojisStore, addToRecentEmojis, searchEmojis } from '../../stores/emojis';
 
   export let channelName: string = "";
   export let onSend: (content: string) => void = () => {};

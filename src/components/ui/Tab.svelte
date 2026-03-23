@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { portal } from '../lib/utils/portal';
+  import { portal } from '../../lib/utils/portal';
 
   export let active: boolean = false;
   export let label: string = "";

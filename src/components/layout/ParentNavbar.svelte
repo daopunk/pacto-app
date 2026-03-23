@@ -1,10 +1,10 @@
 <script lang="ts">
   import { get } from 'svelte/store';
   import ParentSidebar from './ParentSidebar.svelte';
-  import CreateChannelModal from './CreateChannelModal.svelte';
-  import InviteToParentModal from './InviteToParentModal.svelte';
-  import ExitParentModal from './ExitParentModal.svelte';
-  import Modal from './Modal.svelte';
+  import CreateChannelModal from '../channel/CreateChannelModal.svelte';
+  import InviteToParentModal from '../channel/InviteToParentModal.svelte';
+  import ExitParentModal from '../channel/ExitParentModal.svelte';
+  import Modal from '../ui/Modal.svelte';
   import {
     squads,
     networks,
@@ -28,12 +28,12 @@
     type Channel as ChannelType,
     type Squad,
     type Network,
-  } from '../stores/app';
+  } from '../../stores/app';
   import {
     getAnnouncementsChannel,
     createAnnouncementsGroupAndChannel,
     loadMembersForParent,
-  } from '../lib/parent-navbar';
+  } from '../../lib/parent-navbar';
   import {
     createGroupChat,
     getMlsGroupMembers,
@@ -44,12 +44,12 @@
     formatChannelInNetworkMessage,
     formatNetworkInviteMessage,
     leaveMlsGroup,
-  } from '../lib/api/nostr';
-  import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
-  import { pendingReadyToast, showToast } from '../stores/toast';
-  import { getProfileDisplayName } from '../lib/utils/profile';
-  import { profiles } from '../stores/profiles';
-  import { currentUser } from '../stores/auth';
+  } from '../../lib/api/nostr';
+  import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
+  import { pendingReadyToast, showToast } from '../../stores/toast';
+  import { getProfileDisplayName } from '../../lib/utils/profile';
+  import { profiles } from '../../stores/profiles';
+  import { currentUser } from '../../stores/auth';
 
   export let type: 'squad' | 'network' = 'squad';
 

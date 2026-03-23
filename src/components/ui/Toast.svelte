@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { toastMessage } from '../stores/toast';
+  import { toastMessage } from '../../stores/toast';
   import {
     activeTopNavTab,
     activeSquadId,
@@ -12,8 +12,8 @@
     lastOpenedNetworkChannelId,
     lastChannelBySquadId,
     lastChannelByNetworkId,
-  } from '../stores/app';
-  import { clearToast } from '../stores/toast';
+  } from '../../stores/app';
+  import { clearToast } from '../../stores/toast';
 
   function goToSpace(goTo: { type: 'squad' | 'network'; name: string; id: string; channelId: string }) {
     if (goTo.type === 'squad') {

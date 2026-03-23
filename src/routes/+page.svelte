@@ -2,18 +2,20 @@
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { listen } from '@tauri-apps/api/event';
-  import Navbar from '../components/Navbar.svelte';
-  import TopNavbar from '../components/TopNavbar.svelte';
-  import ParentNavbar from '../components/ParentNavbar.svelte';
-  import ChatView from '../components/ChatView.svelte';
-  import ParentDashboard from '../components/ParentDashboard.svelte';
-  import Profile from '../components/Profile.svelte';
-  import MessengerNavbar from '../components/MessengerNavbar.svelte';
-  import MessengerChatView from '../components/MessengerChatView.svelte';
-  import DmThread from '../components/DmThread.svelte';
-  import Toast from '../components/Toast.svelte';
+  import Navbar from '../components/layout/Navbar.svelte';
+  import TopNavbar from '../components/layout/TopNavbar.svelte';
+  import ParentNavbar from '../components/layout/ParentNavbar.svelte';
+  import ChatView from '../components/channel/ChatView.svelte';
+  import ParentDashboard from '../components/parent/ParentDashboard.svelte';
+  import Profile from '../components/profile/Profile.svelte';
+  import MessengerNavbar from '../components/dm/MessengerNavbar.svelte';
+  import MessengerChatView from '../components/dm/MessengerChatView.svelte';
+  import DmThread from '../components/dm/DmThread.svelte';
+  import WalletBar from '../components/wallet/WalletBar.svelte';
+  import Toast from '../components/ui/Toast.svelte';
   import { getDmMessages, getChatMessageCount, sendDmMessage, queueProfileSync, fetchMessages, markAsRead, startTyping, setNickname, listPendingMlsWelcomes, acceptMlsWelcome, parseSquadInviteMessage, parseChannelInSquadMessage, parseChannelInNetworkMessage, parseNetworkInviteMessage, syncMlsGroupsNow, deleteDmChatBackend, getSafe, setSafe } from '../lib/api/nostr';
   import { buildAnnounceContent, ANNOUNCE_TYPE_SAFE_UPDATED, parseAnnouncement } from '../lib/announcements';
+  import { formatWalletTxAnnouncement } from '../lib/wallet/dm-messages';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
   import { isAuthenticated, currentUser } from '../stores/auth';
@@ -27,6 +29,8 @@
     activeDmTab,
     activeDmId,
     composingNewChat,
+    walletSidebarOpenForNpub,
+    closeWalletSidebar,
     backendDmMessages,
     backendGroupMessages,
     pendingMlsWelcomes,
@@ -80,12 +84,31 @@
     showToast($pendingReadyToast.text, $pendingReadyToast.goTo);
     pendingReadyToast.set(null);
   }
+
+  /** Wallet sidebar only valid on DMs hub, Friends/Pinned, not while composing new chat. */
+  $: walletSidebarInvalidContext =
+    $activeTopNavTab !== 'dms' ||
+    $activeView !== 'hub' ||
+    ($activeDmTab !== 'friends' && $activeDmTab !== 'pinned') ||
+    $composingNewChat;
+
+  $: if (walletSidebarInvalidContext && $walletSidebarOpenForNpub !== null) {
+    closeWalletSidebar();
+  }
+
+  $: if (
+    $walletSidebarOpenForNpub &&
+    (!$activeDmId || $walletSidebarOpenForNpub !== $activeDmId)
+  ) {
+    closeWalletSidebar();
+  }
+
   const LOAD_OLDER_PAGE_SIZE = 50;
 
   /** Group IDs we just accepted as squad invites — skip "Add to squad" modal for these. */
   let acceptedSquadInviteGroupIds = new Set<string>();
 
-  /** Hydrate Safe address from backend when dashboard is shown (once per squad/network). */
+  /** Hydrate Safe address from backend when dashboard is shown or via background prefetch (once per squad/network). */
   let safeHydratedIds = new Set<string>();
   $: dashboardParentId = $activeChannelId === DASHBOARD_CHANNEL_ID ? ($activeTopNavTab === 'squads' ? $activeSquadId : $activeNetworkId) ?? null : null;
   $: if (dashboardParentId && !safeHydratedIds.has(dashboardParentId)) {
@@ -93,6 +116,27 @@
     getSafe(dashboardParentId).then((addr) => {
       if (addr != null) safeByParentId.update((m) => ({ ...m, [dashboardParentId]: addr }));
     });
+  }
+
+  /** Background prefetch: on app start/load, best-effort fetch of Safe addresses for all known parents (squads + networks). */
+  let initialSafePrefetchDone = false;
+  $: if (!initialSafePrefetchDone && ($squads.length > 0 || $networks.length > 0)) {
+    initialSafePrefetchDone = true;
+    const parentIds = [
+      ...$squads.map((s) => s.id),
+      ...$networks.map((n) => n.id),
+    ];
+    for (const pid of parentIds) {
+      if (!pid || safeHydratedIds.has(pid)) continue;
+      safeHydratedIds.add(pid);
+      getSafe(pid).then((addr) => {
+        if (addr != null) {
+          safeByParentId.update((m) => ({ ...m, [pid]: addr }));
+        }
+      }).catch(() => {
+        // Ignore failures; dashboard-level fetch and announce-cards will keep state consistent.
+      });
+    }
   }
 
   /** When user accepts a channel invite (squad or network) we store mapping so mls_welcome_accepted can add channel to the right parent. */
@@ -521,9 +565,9 @@
     }, 400);
   }
 
-  async function handleDmSend(content: string) {
+  async function handleDmSend(content: string): Promise<boolean> {
     const id = $activeDmId;
-    if (!id) return;
+    if (!id) return false;
     dmLog('handleDmSend', { receiver: id.slice(0, 20) + '…', contentLen: content.length });
     $dmSendError = null;
     try {
@@ -535,11 +579,34 @@
           'dm_send'
         );
       }
+      return ok;
     } catch (e: unknown) {
       const raw = getInvokeErrorMessage(e, 'Failed to send message');
       $dmSendError = friendlyMessage(raw, 'dm_send');
       dmError('handleDmSend error', e);
+      return false;
     }
+  }
+
+  /** Dev-only: post a test `wallet_tx_announcement` to validate the in-thread card (fake tx hash). */
+  async function devPostWalletTxAnnouncementStub() {
+    const peerNpub = get(activeDmId);
+    const me = get(currentUser)?.npub;
+    if (!peerNpub || !me) {
+      showToast('Open a DM and ensure you are logged in.');
+      return;
+    }
+    const content = formatWalletTxAnnouncement({
+      network: 'sepolia',
+      asset: 'ETH',
+      amount: '0.001',
+      tx_hash: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      from_npub: me,
+      to_npub: peerNpub,
+      block_number: '1',
+    });
+    const ok = await handleDmSend(content);
+    if (ok) showToast('Dev: posted test wallet_tx_announcement (fake tx).');
   }
 
   /** Ungrouped channels UI removed; keep store empty. */
@@ -925,7 +992,8 @@
       {:else if $activeTopNavTab === 'dms'}
         <div class="dm-area">
           <MessengerNavbar />
-          <div class="dm-area-center">
+          <div class="dm-main-row">
+            <div class="dm-area-center">
             {#if $dmSyncStatus !== 'idle'}
               <p class="dm-sync-banner dm-sync-{$dmSyncStatus}" role="status">
                 {$dmSyncStatus === 'syncing' ? 'Updating messages…' : 'Up to date'}
@@ -982,6 +1050,7 @@
                     showToast('Could not delete chat. Please try again.');
                   });
                 }}
+                showWalletButton={$activeDmTab === 'friends' || $activeDmTab === 'pinned' /* wallet: Friends + Pinned only; not Pending/Requests/new chat */ }
               />
             {:else}
               <div class="dm-empty">
@@ -989,6 +1058,14 @@
               </div>
             {/if}
             </div>
+            </div>
+            {#if $walletSidebarOpenForNpub && $walletSidebarOpenForNpub === $activeDmId}
+              <WalletBar
+                npub={$walletSidebarOpenForNpub}
+                postDmPlaintext={handleDmSend}
+                onDevPostTestWalletAnnouncement={import.meta.env.DEV ? devPostWalletTxAnnouncementStub : undefined}
+              />
+            {/if}
           </div>
         </div>
       {:else}
@@ -1061,6 +1138,15 @@
     min-height: 0;
     display: flex;
     flex-direction: row;
+  }
+
+  .dm-main-row {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
   }
 
   .dm-area-center {

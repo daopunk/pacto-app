@@ -2,15 +2,22 @@
   import Message from './Message.svelte';
   import MessageInput from './MessageInput.svelte';
   import InviteCard from './InviteCard.svelte';
-  import { getProfileAvatarSrc, getProfileDisplayName } from '../lib/utils/profile';
+  import WalletTxRequestCard from '../wallet/WalletTxRequestCard.svelte';
+  import WalletTxAnnouncementCard from '../wallet/WalletTxAnnouncementCard.svelte';
+  import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
+  import {
+    parseWalletTxRequest,
+    parseWalletTxAnnouncement,
+    getFulfilledWalletRequestIdsFromMessages,
+  } from '../../lib/wallet/dm-messages';
   import {
     parseChannelInSquadMessage,
     parseChannelInNetworkMessage,
     parseNetworkInviteMessage,
     parseSquadInviteMessage,
-  } from '../lib/api/nostr';
-  import type { NostrProfile } from '../lib/api/nostr';
-  import { profiles } from '../stores/profiles';
+  } from '../../lib/api/nostr';
+  import type { NostrProfile } from '../../lib/api/nostr';
+  import { profiles } from '../../stores/profiles';
   import {
     pinnedDmNpubs,
     dmSendError,
@@ -21,9 +28,15 @@
     declinedChannelInviteMessageIds,
     acceptedNetworkInviteIds,
     declinedNetworkInviteIds,
+    acceptedWalletTxRequestMessageIds,
+    declinedWalletTxRequestMessageIds,
     type DmMessage,
-  } from '../stores/app';
-  import { currentUser } from '../stores/auth';
+    walletSidebarOpenForNpub,
+    walletSendPrefillFromRequest,
+    toggleWalletSidebar,
+  } from '../../stores/app';
+  import { currentUser } from '../../stores/auth';
+  import { showToast } from '../../stores/toast';
 
   export let npub: string;
   export let messages: DmMessage[] = [];
@@ -57,6 +70,7 @@
   export let showPinOption = true;
   export let onSaveNickname: (value: string) => Promise<void> = async () => {};
   export let onDeleteChat: (() => void) | undefined = undefined;
+  export let showWalletButton: boolean = false;
 
   function truncateNpub(n: string): string {
     if (n.length <= 16) return n;
@@ -149,6 +163,9 @@
   let nicknameSaving = false;
   let nicknameError: string | null = null;
 
+  /** `request_id`s tied by a `wallet_tx_announcement` in this thread (on-chain completion). */
+  $: fulfilledWalletRequestIds = getFulfilledWalletRequestIdsFromMessages(messages);
+
   function openNicknameEdit() {
     menuOpen = false;
     nicknameEditValue = contactProfile?.nickname ?? '';
@@ -234,58 +251,102 @@
         {/if}
       {:else}
         <div class="dm-thread-header-title-row">
-          <h3 class="dm-thread-title">{contactDisplayName}</h3>
-          {#if showOptionsMenu}
-            <div class="dm-thread-header-actions">
-              <button
-                type="button"
-                class="dm-thread-dropdown-trigger"
-                title="Options"
-                on:click={() => (menuOpen = !menuOpen)}
-                aria-haspopup="true"
-                aria-expanded={menuOpen}
-              >
-                <span class="dm-thread-chevron" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">
-                    <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </span>
-              </button>
-              {#if menuOpen}
-                <div class="dm-thread-dropdown" role="menu">
-                  <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={openNicknameEdit}>
-                    Set Nickname
-                  </button>
-                  {#if showPinOption}
-                    {#if $pinnedDmNpubs.has(npub)}
-                      <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={unpinDm}>
-                        Unpin DM
-                      </button>
-                    {:else}
-                      <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={pinDm}>
-                        Pin DM
+          <div class="dm-thread-title-left">
+            <h3 class="dm-thread-title">{contactDisplayName}</h3>
+            {#if showOptionsMenu}
+              <div class="dm-thread-header-actions">
+                <button
+                  type="button"
+                  class="dm-thread-dropdown-trigger"
+                  title="Options"
+                  on:click={() => (menuOpen = !menuOpen)}
+                  aria-haspopup="true"
+                  aria-expanded={menuOpen}
+                >
+                  <span class="dm-thread-chevron" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">
+                      <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                </button>
+                {#if menuOpen}
+                  <div class="dm-thread-dropdown" role="menu">
+                    <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={openNicknameEdit}>
+                      Set Nickname
+                    </button>
+                    {#if showPinOption}
+                      {#if $pinnedDmNpubs.has(npub)}
+                        <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={unpinDm}>
+                          Unpin DM
+                        </button>
+                      {:else}
+                        <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={pinDm}>
+                          Pin DM
+                        </button>
+                      {/if}
+                    {/if}
+                    {#if onDeleteChat}
+                      <button
+                        type="button"
+                        class="dm-thread-dropdown-item dm-thread-dropdown-item-danger"
+                        role="menuitem"
+                        on:click={() => {
+                          menuOpen = false;
+                          onDeleteChat();
+                        }}
+                      >
+                        Delete chat
                       </button>
                     {/if}
-                  {/if}
-                  {#if onDeleteChat}
-                    <button
-                      type="button"
-                      class="dm-thread-dropdown-item dm-thread-dropdown-item-danger"
-                      role="menuitem"
-                      on:click={() => {
-                        menuOpen = false;
-                        onDeleteChat();
-                      }}
-                    >
-                      Delete chat
-                    </button>
-                  {/if}
-                </div>
-              {/if}
-            </div>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+          {#if showWalletButton}
+            <button
+              type="button"
+              class="dm-thread-wallet-btn"
+              title={$walletSidebarOpenForNpub === npub ? 'Close wallet' : 'Open wallet'}
+              aria-label={$walletSidebarOpenForNpub === npub ? 'Close wallet sidebar' : 'Open wallet sidebar'}
+              aria-expanded={$walletSidebarOpenForNpub === npub}
+              aria-controls="wallet-bar"
+              on:click={() => toggleWalletSidebar(npub)}
+            >
+              <span class="dm-thread-wallet-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                  xmlns="http://www.w3.org/2000/svg" focusable="false">
+                  <!-- Wallet base -->
+                  <rect x="3" y="7" width="18" height="10" rx="3"
+                    stroke="currentColor" stroke-width="2" />
+                  <!-- Slot -->
+                  <path d="M6 10H14" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" />
+                  <!-- Coin on top -->
+                  <circle cx="10" cy="5" r="2.5"
+                    stroke="currentColor" stroke-width="2"
+                    fill="currentColor" opacity="0.15" />
+                </svg>
+              </span>
+            </button>
           {/if}
         </div>
-        <span class="dm-thread-npub">{truncateNpub(npub)}</span>
+        <div class="dm-thread-npub-row">
+          <span class="dm-thread-npub">{truncateNpub(npub)}</span>
+          <button
+            type="button"
+            class="dm-thread-copy-btn"
+            title="Copy full npub"
+            on:click={() => navigator.clipboard?.writeText(npub)}
+          >
+            <span class="dm-thread-copy-icon" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">
+                <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/>
+                <rect x="4" y="4" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2" opacity="0.6"/>
+              </svg>
+            </span>
+          </button>
+        </div>
       {/if}
     </div>
   </div>
@@ -303,6 +364,8 @@
         {@const channelInNetworkPayload = parseChannelInNetworkMessage(msg.content ?? '')}
         {@const networkInvitePayload = parseNetworkInviteMessage(msg.content ?? '')}
         {@const invitePayload = parseSquadInviteMessage(msg.content ?? '')}
+        {@const walletTxRequestPayload = parseWalletTxRequest(msg.content ?? '')}
+        {@const walletTxAnnouncementPayload = parseWalletTxAnnouncement(msg.content ?? '')}
         {@const isInvite = !!(channelInSquadPayload || channelInNetworkPayload || networkInvitePayload || invitePayload)}
         {@const inviterDisplay = isInvite ? getInviterDisplay(msg, npub, $profiles) : { inviterName: '', inviterAvatarSrc: null }}
         {#if channelInSquadPayload}
@@ -361,6 +424,48 @@
             onAccept={() => onAcceptSquadInvite(msg, invitePayload.groupId)}
             onDecline={() => onDeclineSquad(msg)}
           />
+        {:else if walletTxRequestPayload}
+          {@const walletFulfilled = fulfilledWalletRequestIds.has(walletTxRequestPayload.request_id)}
+          {@const walletReqStatus = walletFulfilled
+            ? 'fulfilled'
+            : $acceptedWalletTxRequestMessageIds.includes(msg.id)
+              ? 'accepted'
+              : $declinedWalletTxRequestMessageIds.includes(msg.id)
+                ? 'declined'
+                : 'pending'}
+          <WalletTxRequestCard
+            payload={walletTxRequestPayload}
+            isMine={msg.mine}
+            peerDisplayName={getInviterDisplay(msg, npub, $profiles).inviterName}
+            status={walletReqStatus}
+            accepting={false}
+            onAccept={() => {
+              acceptedWalletTxRequestMessageIds.update((ids) =>
+                ids.includes(msg.id) ? ids : [...ids, msg.id]
+              );
+              declinedWalletTxRequestMessageIds.update((ids) => ids.filter((id) => id !== msg.id));
+              walletSendPrefillFromRequest.set({
+                targetNpub: npub,
+                network: walletTxRequestPayload.network,
+                asset: walletTxRequestPayload.asset,
+                amount: walletTxRequestPayload.amount,
+                requestId: walletTxRequestPayload.request_id,
+                requestMessageId: msg.id,
+              });
+              walletSidebarOpenForNpub.set(npub);
+            }}
+            onDecline={() => {
+              declinedWalletTxRequestMessageIds.update((ids) =>
+                ids.includes(msg.id) ? ids : [...ids, msg.id]
+              );
+              acceptedWalletTxRequestMessageIds.update((ids) => ids.filter((id) => id !== msg.id));
+              if (!msg.mine) {
+                showToast('Payment request declined. The requester was not notified.');
+              }
+            }}
+          />
+        {:else if walletTxAnnouncementPayload}
+          <WalletTxAnnouncementCard payload={walletTxAnnouncementPayload} />
         {:else}
           <Message {...toMessageProps(msg)} />
         {/if}
@@ -425,6 +530,7 @@
 
   .dm-thread-header-info {
     min-width: 0;
+    flex: 1;
   }
 
   .dm-thread-title {
@@ -437,9 +543,19 @@
     white-space: nowrap;
   }
 
-  .dm-thread-npub {
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
+  .dm-thread-header-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .dm-thread-title-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
   }
 
   .dm-thread-header-title-row {
@@ -452,6 +568,62 @@
   .dm-thread-header-actions {
     position: relative;
     flex-shrink: 0;
+  }
+
+  .dm-thread-wallet-btn {
+    padding: 4px 6px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dm-thread-wallet-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+
+  .dm-thread-wallet-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dm-thread-npub-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dm-thread-npub {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+
+  .dm-thread-copy-btn {
+    padding: 2px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dm-thread-copy-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+  }
+
+  .dm-thread-copy-icon {
+    display: block;
   }
 
   .dm-thread-dropdown-trigger {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { afterUpdate } from 'svelte';
-  import { formatMessageContent } from '../lib/utils/message-formatting';
-  import { openExternalUrl } from '../lib/utils/open-external';
+  import { formatMessageContent } from '../../lib/utils/message-formatting';
+  import { openExternalUrl } from '../../lib/utils/open-external';
 
   export let content: string = '';
 

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { activeDmTab, dmList, pendingList, requestsList, pinnedList, activeDmId, type DmEntry } from '../stores/app';
-  import { profiles } from '../stores/profiles';
-  import { getProfileAvatarSrc, getProfileDisplayName } from '../lib/utils/profile';
-  import userPlaceholder from '../icons/user-placeholder.svg';
+  import { activeDmTab, dmList, pendingList, requestsList, pinnedList, activeDmId, type DmEntry } from '../../stores/app';
+  import { profiles } from '../../stores/profiles';
+  import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
+  import userPlaceholder from '../../icons/user-placeholder.svg';
 
   $: title =
     $activeDmTab === 'friends'

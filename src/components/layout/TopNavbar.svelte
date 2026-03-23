@@ -12,7 +12,7 @@
     lastOpenedNetworkChannelId,
     lastChannelByNetworkId,
     type TopNavTab,
-  } from '../stores/app';
+  } from '../../stores/app';
 
   const tabs: { id: TopNavTab; label: string }[] = [
     { id: 'dms', label: 'DMs' }, // 1-on-1 chat, non-governable

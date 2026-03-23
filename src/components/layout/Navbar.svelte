@@ -1,21 +1,21 @@
 <script lang="ts">
-  import Tab from './Tab.svelte';
-  import Modal from './Modal.svelte';
-  import settingsIcon from '../icons/settings.svg';
-  import plusCircleIcon from '../icons/plus-circle.svg';
-  import minusCircleIcon from '../icons/minus-circle.svg';
-  import friendsIcon from '../icons/friends.svg';
-  import requestsIcon from '../icons/requests.svg';
-  import pendingIcon from '../icons/pending.svg';
-  import pinIcon from '../icons/pin.svg';
+  import Tab from '../ui/Tab.svelte';
+  import Modal from '../ui/Modal.svelte';
+  import settingsIcon from '../../icons/settings.svg';
+  import plusCircleIcon from '../../icons/plus-circle.svg';
+  import minusCircleIcon from '../../icons/minus-circle.svg';
+  import friendsIcon from '../../icons/friends.svg';
+  import requestsIcon from '../../icons/requests.svg';
+  import pendingIcon from '../../icons/pending.svg';
+  import pinIcon from '../../icons/pin.svg';
   import { get } from 'svelte/store';
-  import { squads, networks, activeSquadId, activeChannelId, activeView, activeTopNavTab, activeDmTab, activeNetworkId, lastOpenedSquadId, lastOpenedChannelId, lastOpenedNetworkId, lastOpenedNetworkChannelId, lastChannelBySquadId, lastChannelByNetworkId, composingNewChat, dmList, pinnedList, addParentCreatingAnnouncements, removeParentCreatingAnnouncements, parentCreateErrorById, parentPendingCreateMembers, ANNOUNCEMENTS_CHANNEL_NAME, type TopNavTab, type DmTab, type Squad, type Channel, type Network } from '../stores/app';
-  import { currentUser } from '../stores/auth';
-  import { createGroupChat, getMlsGroupMembers, sendDmMessage, formatSquadInviteMessage, formatNetworkInviteMessage } from '../lib/api/nostr';
-  import { pendingReadyToast } from '../stores/toast';
-  import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
-  import { getProfileDisplayName } from '../lib/utils/profile';
-  import { profiles } from '../stores/profiles';
+  import { squads, networks, activeSquadId, activeChannelId, activeView, activeTopNavTab, activeDmTab, activeNetworkId, lastOpenedSquadId, lastOpenedChannelId, lastOpenedNetworkId, lastOpenedNetworkChannelId, lastChannelBySquadId, lastChannelByNetworkId, composingNewChat, dmList, pinnedList, addParentCreatingAnnouncements, removeParentCreatingAnnouncements, parentCreateErrorById, parentPendingCreateMembers, ANNOUNCEMENTS_CHANNEL_NAME, DASHBOARD_CHANNEL_ID, type TopNavTab, type DmTab, type Squad, type Channel, type Network } from '../../stores/app';
+  import { currentUser } from '../../stores/auth';
+  import { createGroupChat, getMlsGroupMembers, sendDmMessage, formatSquadInviteMessage, formatNetworkInviteMessage } from '../../lib/api/nostr';
+  import { pendingReadyToast } from '../../stores/toast';
+  import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
+  import { getProfileDisplayName } from '../../lib/utils/profile';
+  import { profiles } from '../../stores/profiles';
 
   function selectSquad(squadId: string) {
     const squad = $squads.find((s) => s.id === squadId);
@@ -23,12 +23,17 @@
     const sortedChannels = [...squad.channels].sort((a, b) => a.order - b.order);
     const firstChannel = sortedChannels[0];
     const lastChannelId = $lastChannelBySquadId[squadId];
-    const channel =
-      lastChannelId && sortedChannels.some((c) => c.groupId === lastChannelId)
-        ? sortedChannels.find((c) => c.groupId === lastChannelId)!
-        : firstChannel;
+    let nextChannelGroupId: string | null = null;
+    if (lastChannelId === DASHBOARD_CHANNEL_ID) {
+      // Remember #dashboard as a first-class "channel" choice
+      nextChannelGroupId = DASHBOARD_CHANNEL_ID;
+    } else if (lastChannelId && sortedChannels.some((c) => c.groupId === lastChannelId)) {
+      nextChannelGroupId = lastChannelId;
+    } else {
+      nextChannelGroupId = firstChannel?.groupId ?? null;
+    }
     $activeSquadId = squadId;
-    $activeChannelId = channel?.groupId ?? firstChannel?.groupId ?? null;
+    $activeChannelId = nextChannelGroupId;
     $activeView = 'hub';
   }
 
@@ -38,13 +43,17 @@
     const sortedChannels = [...net.channels].sort((a, b) => a.order - b.order);
     const firstChannel = sortedChannels[0];
     const lastChannelId = $lastChannelByNetworkId[networkId];
-    const channel =
-      lastChannelId && sortedChannels.some((c) => c.groupId === lastChannelId)
-        ? sortedChannels.find((c) => c.groupId === lastChannelId)!
-        : firstChannel;
+    let nextChannelGroupId: string | null = null;
+    if (lastChannelId === DASHBOARD_CHANNEL_ID) {
+      nextChannelGroupId = DASHBOARD_CHANNEL_ID;
+    } else if (lastChannelId && sortedChannels.some((c) => c.groupId === lastChannelId)) {
+      nextChannelGroupId = lastChannelId;
+    } else {
+      nextChannelGroupId = firstChannel?.groupId ?? null;
+    }
     $activeNetworkId = networkId;
     $lastOpenedNetworkId = networkId;
-    $activeChannelId = channel?.groupId ?? firstChannel?.groupId ?? null;
+    $activeChannelId = nextChannelGroupId;
     if ($activeChannelId) $lastOpenedNetworkChannelId = $activeChannelId;
     $activeView = 'hub';
   }

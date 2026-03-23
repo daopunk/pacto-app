@@ -26,6 +26,8 @@ import {
   declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
+  acceptedWalletTxRequestMessageIds,
+  declinedWalletTxRequestMessageIds,
   backendGroupMessages,
   groupSendError,
   pendingMlsWelcomes,
@@ -39,6 +41,8 @@ import {
   activeDmTab,
   activeView,
   showMembersPanel,
+  walletSidebarOpenForNpub,
+  walletSendPrefillFromRequest,
   backendDmMessages,
   messageCountByChat,
   loadedOffsetByChat,
@@ -138,6 +142,8 @@ export function clearAccountState(npub?: string): void {
   declinedNetworkInviteIds.set([]);
   acceptedChannelInviteMessageIds.set([]);
   declinedChannelInviteMessageIds.set([]);
+  acceptedWalletTxRequestMessageIds.set([]);
+  declinedWalletTxRequestMessageIds.set([]);
   backendGroupMessages.set({});
   groupSendError.set(null);
   pendingMlsWelcomes.set([]);
@@ -151,6 +157,8 @@ export function clearAccountState(npub?: string): void {
   activeDmTab.set('friends');
   activeView.set('hub');
   showMembersPanel.set(false);
+  walletSidebarOpenForNpub.set(null);
+  walletSendPrefillFromRequest.set(null);
 
   backendDmMessages.set({});
   messageCountByChat.set({});

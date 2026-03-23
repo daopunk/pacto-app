@@ -1,10 +1,10 @@
 <script lang="ts">
   import { get } from 'svelte/store';
-  import Message from './Message.svelte';
-  import AnnounceCard from './announcements/AnnounceCard.svelte';
-  import MessageInput from './MessageInput.svelte';
-  import Modal from './Modal.svelte';
-  import { parseAnnouncement } from '../lib/announcements';
+  import Message from '../dm/Message.svelte';
+  import AnnounceCard from '../announcements/AnnounceCard.svelte';
+  import MessageInput from '../dm/MessageInput.svelte';
+  import Modal from '../ui/Modal.svelte';
+  import { parseAnnouncement } from '../../lib/announcements';
   import {
     activeChannelId,
     squads,
@@ -28,14 +28,14 @@
     type DmMessage,
     type Squad,
     type Network,
-  } from '../stores/app';
-  import { sendDmMessage, getDmMessages, leaveMlsGroup, getMlsGroupMembers, inviteMemberToGroup } from '../lib/api/nostr';
-  import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
-  import { getProfileAvatarSrc, getProfileDisplayName } from '../lib/utils/profile';
-  import { profiles } from '../stores/profiles';
-  import { currentUser } from '../stores/auth';
-  import chevronDownIcon from '../icons/chevron-down.svg';
-  import friendsIcon from '../icons/friends.svg';
+  } from '../../stores/app';
+  import { sendDmMessage, getDmMessages, leaveMlsGroup, getMlsGroupMembers, inviteMemberToGroup } from '../../lib/api/nostr';
+  import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
+  import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
+  import { profiles } from '../../stores/profiles';
+  import { currentUser } from '../../stores/auth';
+  import chevronDownIcon from '../../icons/chevron-down.svg';
+  import friendsIcon from '../../icons/friends.svg';
 
   const LOAD_OLDER_PAGE_SIZE = 50;
 

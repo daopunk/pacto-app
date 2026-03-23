@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Squad, Network } from '../stores/app';
-  import { safeStateByParentId, refreshSafeStateForParent } from '../stores/safe';
+  import type { Squad, Network } from '../../stores/app';
+  import { safeStateByParentId, refreshSafeStateForParent } from '../../stores/safe';
 
   export let parent: Squad | Network;
   export let parentType: 'squad' | 'network' = 'squad';
