@@ -1,5 +1,7 @@
 # Wallet (embedded EVM) — developer docs
 
+Parent index: **[`docs/README.md`](../README.md)** (Nostr, MLS, storage layout, build).
+
 These files are **tracked in git** and are intended for references from **source comments** and **user-facing strings** (e.g. error hints). Paths are stable on GitHub.
 
 | Document | Summary |

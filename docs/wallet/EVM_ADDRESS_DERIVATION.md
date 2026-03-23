@@ -20,4 +20,4 @@ If you published `evm_address` in Nostr profile metadata while the wrong value w
 
 ---
 
-**Maintainers:** The auto-repair path is catalogued for pre–v1 removal — see `ai-docs/legacy-fixes/` (LF-001).
+**Maintainers:** The auto-repair path is catalogued for pre–v1 removal — see [`docs/legacy-fixes/LF-001-evm-address-repair.md`](../legacy-fixes/LF-001-evm-address-repair.md).
