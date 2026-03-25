@@ -7,7 +7,9 @@
     WALLET_ASSETS_CHAIN_IDS,
     getWalletNetworkDisplayName,
     getExplorerTxUrl,
+    explorerTxLinkLabel,
   } from '../../lib/wallet/assets';
+  import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
   import {
     listWalletAssetOptionsForChainWithWatched,
     type WatchedErc20Row,
@@ -180,7 +182,7 @@
 
   $: amountValid = parsePositiveAmount(amountStr) !== null;
   let sending = false;
-  let sendError: { message: string; txHash?: string } | null = null;
+  let sendError: { message: string; txHash?: string; code?: string } | null = null;
 
   $: insufficientFunds =
     mode === 'send' &&
@@ -195,6 +197,26 @@
     sendError?.txHash != null && sendError.txHash.length > 0
       ? getExplorerTxUrl(chainId, sendError.txHash)
       : null;
+  $: explorerLinkLabel = explorerTxLinkLabel(chainId);
+
+  async function copyErrorTxHash() {
+    const h = sendError?.txHash;
+    if (!h) return;
+    const ok = await copyTextToClipboard(h);
+    showToast(ok ? 'Transaction hash copied' : 'Could not copy hash');
+  }
+
+  /** Receipt timeout: tx was already broadcast; another Confirm would risk a duplicate send. */
+  $: canRetryAfterError =
+    sendError != null &&
+    !sending &&
+    (mode === 'request' || sendError.code !== 'RECEIPT_TIMEOUT');
+
+  async function retryFailedSend() {
+    if (!sendError || sending || !canRetryAfterError) return;
+    sendError = null;
+    await handleConfirm();
+  }
 
   $: approxUsd =
     pricesResult?.ok === true && amountValid
@@ -283,6 +305,7 @@
         sendError = {
           message: out.message,
           txHash: out.parsed?.txHash,
+          code: out.parsed?.code,
         };
         showToast(out.parsed?.code === 'RECEIPT_TIMEOUT' ? 'Confirmation timed out' : out.message);
       }
@@ -366,17 +389,38 @@
     {#if sendError}
       <div class="wallet-stub-error" role="alert">
         <p class="wallet-stub-error-msg">{sendError.message}</p>
+        {#if sendError.txHash}
+          <div class="wallet-stub-tx-hash-row">
+            <code class="wallet-stub-tx-hash-code" title={sendError.txHash}>{sendError.txHash}</code>
+            <button
+              type="button"
+              class="wallet-stub-copy-hash"
+              aria-label="Copy full transaction hash"
+              on:click={copyErrorTxHash}
+            >
+              Copy hash
+            </button>
+          </div>
+        {/if}
         {#if explorerLinkForError}
           <a
             class="wallet-stub-error-link"
             href={explorerLinkForError}
             target="_blank"
             rel="noopener noreferrer"
+            title={explorerLinkForError}
           >
-            View on block explorer
+            {explorerLinkLabel}
           </a>
-        {:else if sendError.txHash}
-          <p class="wallet-stub-error-hash"><code>{sendError.txHash}</code></p>
+        {/if}
+        {#if sendError?.code === 'RECEIPT_TIMEOUT'}
+          <p class="wallet-stub-error-retry-hint" role="note">
+            The transaction may still confirm. Check the explorer before sending again.
+          </p>
+        {:else if canRetryAfterError}
+          <button type="button" class="wallet-stub-retry" on:click={retryFailedSend}>
+            Try again
+          </button>
         {/if}
       </div>
     {/if}
@@ -509,21 +553,101 @@
   }
 
   .wallet-stub-error-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
+    padding: 8px 14px;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--accent);
-    text-decoration: underline;
+    font-family: inherit;
+    color: var(--accent-contrast, #fff);
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   }
 
-  .wallet-stub-error-hash {
-    margin: 0;
-    font-size: 0.75rem;
+  .wallet-stub-error-link:hover {
+    background: var(--accent-hover);
+    filter: brightness(1.02);
+  }
+
+  .wallet-stub-error-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wallet-stub-error-retry-hint {
+    margin: 12px 0 0 0;
+    font-size: 0.8125rem;
     color: var(--text-muted);
-    word-break: break-all;
+    line-height: 1.4;
   }
 
-  .wallet-stub-error-hash code {
+  .wallet-stub-retry {
+    margin-top: 12px;
+    padding: 8px 14px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .wallet-stub-retry:hover {
+    background: var(--bg-hover);
+    border-color: var(--border);
+  }
+
+  .wallet-stub-retry:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wallet-stub-tx-hash-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .wallet-stub-tx-hash-code {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 6px 8px;
+    font-size: 0.75rem;
     font-family: ui-monospace, monospace;
+    color: var(--text-secondary);
+    word-break: break-all;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .wallet-stub-copy-hash {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .wallet-stub-copy-hash:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .wallet-stub-actions {

@@ -39,6 +39,7 @@ export {
   getWalletAssetsForChain,
   getWalletNetworkDisplayName,
   getExplorerTxUrl,
+  explorerTxLinkLabel,
   listWalletAssetOptionsForChain,
   type WalletAssetCode,
   type WalletStablecoin,
@@ -80,3 +81,4 @@ export {
   type WalletSummaryHydrated,
 } from './wallet-summary-cache';
 export { scheduleWalletSummaryBackgroundPrefetch } from './wallet-summary-prefetch';
+export { copyTextToClipboard } from './clipboard-copy';
