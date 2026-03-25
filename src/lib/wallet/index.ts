@@ -45,6 +45,18 @@ export {
   type WalletAssetsFile,
   type WalletNetworkAssets,
 } from './assets';
+export {
+  loadWatchedErc20Rows,
+  saveWatchedErc20Rows,
+  watchedRowsToWire,
+  defaultWatchedErc20Rows,
+  buildCatalogSearchEntries,
+  listWalletAssetOptionsForChainWithWatched,
+  type WatchedErc20Row,
+  type WatchedErc20Wire,
+  type CatalogSearchEntry,
+  type WalletAssetOptionRow,
+} from './watched-tokens';
 
 export {
   WALLET_TX_REQUEST_WIRE_TYPE,
@@ -57,3 +69,14 @@ export {
   type WalletTxRequestPayload,
   type WalletTxAnnouncementPayload,
 } from './dm-messages';
+export {
+  WALLET_SUMMARY_CACHE_VERSION,
+  hydrateWalletSummaryCacheFromDisk,
+  persistWalletSummaryCache,
+  clearWalletSummaryCacheStore,
+  getMatchingCachedSummary,
+  walletSummaryHydrated,
+  watchedWireFingerprint,
+  type WalletSummaryHydrated,
+} from './wallet-summary-cache';
+export { scheduleWalletSummaryBackgroundPrefetch } from './wallet-summary-prefetch';

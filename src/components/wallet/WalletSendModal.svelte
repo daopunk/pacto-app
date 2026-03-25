@@ -2,10 +2,12 @@
   import WalletTransferStubModal from './WalletTransferStubModal.svelte';
   import type { WalletTransferSuccessDetail } from '../../lib/wallet';
   import type { WalletSendPrefillPayload } from '../../stores/app';
+  import type { WatchedErc20Row } from '../../lib/wallet/watched-tokens';
 
   export let npub: string;
   export let peerDisplayName: string;
   export let onClose: () => void;
+  export let watchedAssetRows: WatchedErc20Row[] = [];
   /** From Accept on a payment request: network, asset, amount, request id. */
   export let formPrefill: WalletSendPrefillPayload | null = null;
   /**
@@ -20,6 +22,7 @@
   mode="send"
   {npub}
   {peerDisplayName}
+  {watchedAssetRows}
   {onClose}
   {formPrefill}
   {onTransferSuccess}

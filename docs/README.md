@@ -9,8 +9,8 @@ These docs are **tracked in git** and are the primary map for humans and coding 
 | **[mls/](./mls/)** | MDK engine, storage split, invites, eviction & leave |
 | **[storage-layout/](./storage-layout/)** | SQLite schema, paths, logout, local message encryption |
 | **[communities/](./communities/)** | **Squads & in-app Networks**: shared MLS model, stable ids, invites, persistence |
-| **[legacy-fixes/](./legacy-fixes/)** | Alpha-only repair code to remove before public v1 |
-| **[wallet/](./wallet/)** | Embedded EVM wallet, RPC, chain config, DM payment messages |
+| **[legacy-fixes/](./legacy-fixes/)** | Alpha-only repair and migration paths to remove before beta or public v1 ([catalog](./legacy-fixes/CATALOG.md)) |
+| **[wallet/](./wallet/)** | Embedded EVM wallet, RPC, chain config, DM payment messages ([on-chain read pattern](./wallet/ONCHAIN_READ_PATTERN.md)) |
 | **[build/](./build/)** | Desktop build guides (macOS, Windows, Ubuntu) |
 
 ## Conventions

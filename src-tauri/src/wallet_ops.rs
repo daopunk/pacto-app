@@ -8,7 +8,8 @@ use alloy::rpc::types::TransactionRequest;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use alloy::sol_types::SolCall;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::time::Duration;
 use tauri::{AppHandle, Runtime};
 
@@ -61,6 +62,22 @@ pub struct WalletSendResult {
     pub chain_id: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_number: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchedErc20Input {
+    pub network: String,
+    pub symbol: String,
+    pub address: String,
+    pub decimals: u8,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Erc20TransferSpec {
+    pub address: String,
+    pub decimals: u8,
 }
 
 #[derive(Serialize)]
@@ -161,9 +178,36 @@ fn is_retryable_wallet_rpc_error(msg: &str) -> bool {
         || m.contains("504")
 }
 
-/// Tauri command: per-network ETH + USDC + USDT balances and USD total (Chainlink prices on mainnet).
+fn watched_erc20_rows_for_network_key(
+    net_key: &str,
+    watched: &[WatchedErc20Input],
+) -> Result<Vec<(String, Address, u8)>, String> {
+    let mut out: Vec<(String, Address, u8)> = Vec::new();
+    let mut seen_addr: HashSet<String> = HashSet::new();
+    for r in watched {
+        if r.network.to_lowercase() != net_key {
+            continue;
+        }
+        let sym = r.symbol.trim().to_uppercase();
+        if sym.is_empty() {
+            return Err("Each watched token needs a symbol.".to_string());
+        }
+        let addr = parse_address(&r.address)?;
+        let k = format!("{:x}", addr);
+        if seen_addr.insert(k) {
+            out.push((sym, addr, r.decimals));
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(out)
+}
+
+/// Tauri command: per-network native balance plus any watched ERC-20 rows; USD total uses Chainlink for ETH/USDC/USDT only.
 #[tauri::command]
-pub async fn get_wallet_summary<R: Runtime>(app: AppHandle<R>) -> Result<WalletSummary, String> {
+pub async fn get_wallet_summary<R: Runtime>(
+    app: AppHandle<R>,
+    watched_erc20s: Vec<WatchedErc20Input>,
+) -> Result<WalletSummary, String> {
     let _ = db::repair_evm_address_if_needed(&app).await;
     let addr_str = db::read_stored_evm_address(app.clone())?
         .ok_or_else(|| "No EVM address for this account. Log in again or set your wallet address.".to_string())?;
@@ -184,17 +228,10 @@ pub async fn get_wallet_summary<R: Runtime>(app: AppHandle<R>) -> Result<WalletS
             return Err(format!("{}: no RPC URL configured", net.key));
         }
 
-        let usdc_a: Address = net
-            .usdc_address
-            .parse()
-            .map_err(|_| format!("{}: bad USDC address in wallet-assets.json", net.key))?;
-        let usdt_a: Address = net
-            .usdt_address
-            .parse()
-            .map_err(|_| format!("{}: bad USDT address in wallet-assets.json", net.key))?;
+        let erc20_rows = watched_erc20_rows_for_network_key(&net.key, &watched_erc20s)?;
 
         let mut last_err = String::new();
-        let mut triple: Option<(U256, U256, U256)> = None;
+        let mut snapshot: Option<(U256, Vec<(String, U256, u8)>)> = None;
 
         'next_url: for url_s in &urls {
             if url_s.parse::<url::Url>().is_err() {
@@ -225,33 +262,26 @@ pub async fn get_wallet_summary<R: Runtime>(app: AppHandle<R>) -> Result<WalletS
                 }
             };
 
-            let usdc_raw = match erc20_balance(&provider, usdc_a, owner).await {
-                Ok(v) => v,
-                Err(e) => {
-                    if is_retryable_wallet_rpc_error(&e) {
-                        last_err = e;
-                        continue 'next_url;
+            let mut erc20_balances: Vec<(String, U256, u8)> = Vec::with_capacity(erc20_rows.len());
+            for (sym, token_addr, dec) in &erc20_rows {
+                let raw = match erc20_balance(&provider, *token_addr, owner).await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if is_retryable_wallet_rpc_error(&e) {
+                            last_err = e;
+                            continue 'next_url;
+                        }
+                        return Err(e);
                     }
-                    return Err(e);
-                }
-            };
+                };
+                erc20_balances.push((sym.clone(), raw, *dec));
+            }
 
-            let usdt_raw = match erc20_balance(&provider, usdt_a, owner).await {
-                Ok(v) => v,
-                Err(e) => {
-                    if is_retryable_wallet_rpc_error(&e) {
-                        last_err = e;
-                        continue 'next_url;
-                    }
-                    return Err(e);
-                }
-            };
-
-            triple = Some((eth_raw, usdc_raw, usdt_raw));
+            snapshot = Some((eth_raw, erc20_balances));
             break;
         }
 
-        let (eth_raw, usdc_raw, usdt_raw) = triple.ok_or_else(|| {
+        let (eth_raw, erc20_balances) = snapshot.ok_or_else(|| {
             format!(
                 "{}: all {} RPC endpoint(s) failed (last: {})",
                 net.key,
@@ -264,35 +294,35 @@ pub async fn get_wallet_summary<R: Runtime>(app: AppHandle<R>) -> Result<WalletS
         let eth_usd = (prices.eth_usd * eth_dec.parse::<f64>().unwrap_or(0.0)).max(0.0);
         total_usd += eth_usd;
 
-        let usdc_dec = format_decimal(usdc_raw, net.usdc_decimals);
-        let usdt_dec = format_decimal(usdt_raw, net.usdt_decimals);
-        let usdc_usd = (prices.usdc_usd * usdc_dec.parse::<f64>().unwrap_or(0.0)).max(0.0);
-        let usdt_usd = (prices.usdt_usd * usdt_dec.parse::<f64>().unwrap_or(0.0)).max(0.0);
-        total_usd += usdc_usd + usdt_usd;
+        let mut assets: Vec<WalletSummaryAsset> = vec![WalletSummaryAsset {
+            symbol: net.native_symbol.clone(),
+            balance_raw: eth_raw.to_string(),
+            balance_decimal: eth_dec,
+            usd_value: Some(eth_usd),
+        }];
+
+        for (sym, raw, dec) in erc20_balances {
+            let dec_str = format_decimal(raw, dec);
+            let usd_val = match sym.as_str() {
+                "USDC" => Some((prices.usdc_usd * dec_str.parse::<f64>().unwrap_or(0.0)).max(0.0)),
+                "USDT" => Some((prices.usdt_usd * dec_str.parse::<f64>().unwrap_or(0.0)).max(0.0)),
+                _ => None,
+            };
+            if let Some(u) = usd_val {
+                total_usd += u;
+            }
+            assets.push(WalletSummaryAsset {
+                symbol: sym,
+                balance_raw: raw.to_string(),
+                balance_decimal: dec_str,
+                usd_value: usd_val,
+            });
+        }
 
         networks_out.push(WalletSummaryNetwork {
             network: net.key.clone(),
             chain_id: net.chain_id,
-            assets: vec![
-                WalletSummaryAsset {
-                    symbol: net.native_symbol.clone(),
-                    balance_raw: eth_raw.to_string(),
-                    balance_decimal: eth_dec,
-                    usd_value: Some(eth_usd),
-                },
-                WalletSummaryAsset {
-                    symbol: "USDC".into(),
-                    balance_raw: usdc_raw.to_string(),
-                    balance_decimal: usdc_dec,
-                    usd_value: Some(usdc_usd),
-                },
-                WalletSummaryAsset {
-                    symbol: "USDT".into(),
-                    balance_raw: usdt_raw.to_string(),
-                    balance_decimal: usdt_dec,
-                    usd_value: Some(usdt_usd),
-                },
-            ],
+            assets,
         });
     }
 
@@ -311,6 +341,7 @@ pub async fn wallet_build_and_send_transaction<R: Runtime>(
     network: String,
     asset: String,
     amount: String,
+    erc20_transfer: Option<Erc20TransferSpec>,
 ) -> Result<WalletSendResult, String> {
     let net_key = network.to_lowercase();
     let Some(net) = wallet_chain_config::network_by_key(&net_key) else {
@@ -322,7 +353,11 @@ pub async fn wallet_build_and_send_transaction<R: Runtime>(
     };
 
     let asset_up = asset.to_uppercase();
-    if asset_up != "ETH" && asset_up != "USDC" && asset_up != "USDT" {
+    if erc20_transfer.is_none()
+        && asset_up != "ETH"
+        && asset_up != "USDC"
+        && asset_up != "USDT"
+    {
         return Err(wallet_err_json(
             "UNSUPPORTED_ASSET",
             format!("Unknown asset: {}", asset),
@@ -415,7 +450,7 @@ pub async fn wallet_build_and_send_transaction<R: Runtime>(
         }
     };
 
-    let pending = if asset_up == "ETH" {
+    let pending = if asset_up == "ETH" && erc20_transfer.is_none() {
         let v = parse_units(&amount, net.native_decimals).map_err(|e| {
             wallet_err_json("INVALID_AMOUNT", format!("{}", e), None)
         })?;
@@ -433,17 +468,25 @@ pub async fn wallet_build_and_send_transaction<R: Runtime>(
                 )
             })?
     } else {
-        let (token_addr, dec) = if asset_up == "USDC" {
-            (&net.usdc_address, net.usdc_decimals)
+        let (token_addr_s, dec) = if let Some(spec) = &erc20_transfer {
+            (&spec.address[..], spec.decimals)
+        } else if asset_up == "USDC" {
+            (&net.usdc_address[..], net.usdc_decimals)
+        } else if asset_up == "USDT" {
+            (&net.usdt_address[..], net.usdt_decimals)
         } else {
-            (&net.usdt_address, net.usdt_decimals)
+            return Err(wallet_err_json(
+                "UNSUPPORTED_ASSET",
+                "ERC-20 transfers require a token address or a supported symbol.",
+                None,
+            ));
         };
         let v = parse_units(&amount, dec).map_err(|e| {
             wallet_err_json("INVALID_AMOUNT", format!("{}", e), None)
         })?;
-        let token: Address = token_addr
-            .parse()
-            .map_err(|_| wallet_err_json("INTERNAL", "bad token address in chain config", None))?;
+        let token: Address = parse_address(token_addr_s).map_err(|e| {
+            wallet_err_json("INVALID_TOKEN_ADDRESS", e, None)
+        })?;
         let call = IERC20::transferCall {
             to: to_addr,
             amount: v.into(),

@@ -31,7 +31,7 @@
     acceptedWalletTxRequestMessageIds,
     declinedWalletTxRequestMessageIds,
     type DmMessage,
-    walletSidebarOpenForNpub,
+    walletSidebarOpen,
     walletSendPrefillFromRequest,
     toggleWalletSidebar,
   } from '../../stores/app';
@@ -307,11 +307,11 @@
             <button
               type="button"
               class="dm-thread-wallet-btn"
-              title={$walletSidebarOpenForNpub === npub ? 'Close wallet' : 'Open wallet'}
-              aria-label={$walletSidebarOpenForNpub === npub ? 'Close wallet sidebar' : 'Open wallet sidebar'}
-              aria-expanded={$walletSidebarOpenForNpub === npub}
+              title={$walletSidebarOpen ? 'Close wallet' : 'Open wallet'}
+              aria-label={$walletSidebarOpen ? 'Close wallet sidebar' : 'Open wallet sidebar'}
+              aria-expanded={$walletSidebarOpen}
               aria-controls="wallet-bar"
-              on:click={() => toggleWalletSidebar(npub)}
+              on:click={() => toggleWalletSidebar()}
             >
               <span class="dm-thread-wallet-icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -452,7 +452,7 @@
                 requestId: walletTxRequestPayload.request_id,
                 requestMessageId: msg.id,
               });
-              walletSidebarOpenForNpub.set(npub);
+              walletSidebarOpen.set(true);
             }}
             onDecline={() => {
               declinedWalletTxRequestMessageIds.update((ids) =>
