@@ -5,11 +5,16 @@
   import { DEFAULT_CHAIN_ID } from '../../lib/wallet/chains';
   import {
     WALLET_ASSETS_CHAIN_IDS,
-    listWalletAssetOptionsForChain,
     getWalletNetworkDisplayName,
     getExplorerTxUrl,
-    type WalletAssetCode,
+    explorerTxLinkLabel,
   } from '../../lib/wallet/assets';
+  import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
+  import {
+    listWalletAssetOptionsForChainWithWatched,
+    type WatchedErc20Row,
+    type WalletAssetOptionRow,
+  } from '../../lib/wallet/watched-tokens';
   import {
     getWalletUsdSpotPrices,
     amountToApproxUsd,
@@ -17,9 +22,14 @@
     type WalletUsdSpotPrices,
   } from '../../lib/wallet/pricing';
   import {
+    getWalletSummary,
     walletBuildAndSendTransaction,
+    watchedRowsToWire,
+    watchedWireFingerprint,
+    type WalletSummary,
     type WalletTransferSuccessDetail,
-  } from '../../lib/wallet/backend-wallet';
+  } from '../../lib/wallet';
+  import { parseUnits } from 'viem';
   import { showToast } from '../../stores/toast';
   import type { WalletSendPrefillPayload } from '../../stores/app';
   import { formatWalletTxRequest } from '../../lib/wallet/dm-messages';
@@ -36,6 +46,9 @@
   export let onTransferSuccess: ((detail: WalletTransferSuccessDetail) => void | Promise<void>) | undefined =
     undefined;
 
+  /** ERC-20 rows the user watches (from Import tokens); native ETH is always offered. */
+  export let watchedAssetRows: WatchedErc20Row[] = [];
+
   function truncateNpub(n: string): string {
     if (n.length <= 20) return n;
     return n.slice(0, 10) + '…' + n.slice(-6);
@@ -45,7 +58,7 @@
   const descId = `wallet-${mode}-desc`;
 
   let chainId: SupportedChainId = DEFAULT_CHAIN_ID;
-  let assetCode: WalletAssetCode = 'ETH';
+  let assetCode = 'ETH';
   let amountStr = '';
 
   let appliedPrefillKey = '';
@@ -84,11 +97,79 @@
     };
   });
 
-  $: assetOptions = listWalletAssetOptionsForChain(chainId);
+  $: assetOptions = listWalletAssetOptionsForChainWithWatched(
+    chainId,
+    watchedAssetRows
+  ) as WalletAssetOptionRow[];
 
-  function syncAssetToChain() {
-    const codes = listWalletAssetOptionsForChain(chainId).map((o) => o.code);
-    if (!codes.includes(assetCode)) assetCode = 'ETH';
+  $: {
+    const codes = assetOptions.map((o) => o.code);
+    if (codes.length > 0 && !codes.includes(assetCode)) {
+      assetCode = codes[0] ?? 'ETH';
+    }
+  }
+
+  $: selectedOpt = assetOptions.find((o) => o.code === assetCode);
+
+  let sendBalanceSummary: WalletSummary | null = null;
+  let sendBalanceError: string | null = null;
+  let sendBalanceLoading = false;
+  let sendBalanceFetchKey = '';
+  let sendBalanceFetchGen = 0;
+
+  $: watchedWireForBalances = watchedRowsToWire(watchedAssetRows);
+
+  $: if (mode !== 'send') {
+    sendBalanceFetchKey = '';
+    sendBalanceSummary = null;
+    sendBalanceError = null;
+    sendBalanceLoading = false;
+  } else {
+    const key = `${chainId}|${watchedWireFingerprint(watchedWireForBalances)}`;
+    if (key !== sendBalanceFetchKey) {
+      sendBalanceFetchKey = key;
+      sendBalanceFetchGen += 1;
+      const gen = sendBalanceFetchGen;
+      sendBalanceLoading = true;
+      sendBalanceError = null;
+      getWalletSummary(watchedWireForBalances).then((r) => {
+        if (gen !== sendBalanceFetchGen) return;
+        sendBalanceLoading = false;
+        if (r.ok) {
+          sendBalanceSummary = r.summary;
+        } else {
+          sendBalanceSummary = null;
+          sendBalanceError = r.message;
+        }
+      });
+    }
+  }
+
+  function findBalanceForAsset(
+    summary: WalletSummary | null,
+    netKey: SupportedChainId,
+    symbol: string
+  ): { balanceRaw: string; balanceDecimal: string } | null {
+    if (!summary) return null;
+    const net = summary.networks.find((n) => n.network === netKey);
+    if (!net) return null;
+    const asset = net.assets.find((a) => a.symbol === symbol);
+    if (!asset) return null;
+    return { balanceRaw: asset.balanceRaw, balanceDecimal: asset.balanceDecimal };
+  }
+
+  $: selectedBalanceRow =
+    mode === 'send' ? findBalanceForAsset(sendBalanceSummary, chainId, assetCode) : null;
+
+  /** Compare human amount to `balance_raw` (integer string) using asset decimals. */
+  function amountExceedsBalance(amountTrimmed: string, balanceRaw: string, decimals: number): boolean {
+    try {
+      if (!/^\d+$/.test(balanceRaw.trim())) return false;
+      const amt = parseUnits(amountTrimmed.replace(/,/g, ''), decimals);
+      return amt > BigInt(balanceRaw.trim());
+    } catch {
+      return false;
+    }
   }
 
   function parsePositiveAmount(s: string): number | null {
@@ -101,13 +182,41 @@
 
   $: amountValid = parsePositiveAmount(amountStr) !== null;
   let sending = false;
-  let sendError: { message: string; txHash?: string } | null = null;
+  let sendError: { message: string; txHash?: string; code?: string } | null = null;
 
-  $: canConfirm = amountValid && !sending;
+  $: insufficientFunds =
+    mode === 'send' &&
+    amountValid &&
+    selectedOpt != null &&
+    selectedBalanceRow != null &&
+    amountExceedsBalance(amountStr.trim(), selectedBalanceRow.balanceRaw, selectedOpt.decimals);
+
+  $: canConfirm =
+    amountValid && !sending && selectedOpt != null && (mode === 'request' || !insufficientFunds);
   $: explorerLinkForError =
     sendError?.txHash != null && sendError.txHash.length > 0
       ? getExplorerTxUrl(chainId, sendError.txHash)
       : null;
+  $: explorerLinkLabel = explorerTxLinkLabel(chainId);
+
+  async function copyErrorTxHash() {
+    const h = sendError?.txHash;
+    if (!h) return;
+    const ok = await copyTextToClipboard(h);
+    showToast(ok ? 'Transaction hash copied' : 'Could not copy hash');
+  }
+
+  /** Receipt timeout: tx was already broadcast; another Confirm would risk a duplicate send. */
+  $: canRetryAfterError =
+    sendError != null &&
+    !sending &&
+    (mode === 'request' || sendError.code !== 'RECEIPT_TIMEOUT');
+
+  async function retryFailedSend() {
+    if (!sendError || sending || !canRetryAfterError) return;
+    sendError = null;
+    await handleConfirm();
+  }
 
   $: approxUsd =
     pricesResult?.ok === true && amountValid
@@ -121,10 +230,19 @@
         ? pricesResult.message
         : approxUsd != null
           ? `≈ ${formatApproxUsd(approxUsd)}`
-          : 'Enter an amount to see USD estimate.';
+          : amountValid && (assetCode === 'ETH' || assetCode === 'USDC' || assetCode === 'USDT')
+            ? 'Enter an amount to see USD estimate.'
+            : amountValid
+              ? 'USD estimate unavailable for this asset.'
+              : 'Enter an amount to see USD estimate.';
 
   async function handleConfirm() {
-    if (!amountValid || sending) return;
+    if (!amountValid || sending || !selectedOpt) return;
+    if (mode === 'send' && insufficientFunds) return;
+    const erc20Transfer =
+      selectedOpt.kind === 'erc20' && selectedOpt.address
+        ? { address: selectedOpt.address as string, decimals: selectedOpt.decimals }
+        : undefined;
     if (mode === 'request') {
       const postDm = postDmPlaintext;
       if (!postDm) {
@@ -162,7 +280,13 @@
     sendError = null;
     sending = true;
     try {
-      const out = await walletBuildAndSendTransaction(npub, chainId, assetCode, amountStr.trim());
+      const out = await walletBuildAndSendTransaction(
+        npub,
+        chainId,
+        assetCode,
+        amountStr.trim(),
+        erc20Transfer
+      );
       if (out.ok) {
         if (onTransferSuccess) {
           await onTransferSuccess({
@@ -181,6 +305,7 @@
         sendError = {
           message: out.message,
           txHash: out.parsed?.txHash,
+          code: out.parsed?.code,
         };
         showToast(out.parsed?.code === 'RECEIPT_TIMEOUT' ? 'Confirmation timed out' : out.message);
       }
@@ -207,10 +332,9 @@
         bind:value={chainId}
         aria-label="Network"
         disabled={sending}
-        on:change={syncAssetToChain}
       >
         {#each WALLET_ASSETS_CHAIN_IDS as cid (cid)}
-          <option value={cid}>{getWalletNetworkDisplayName(cid)}</option>
+          <option value={cid as SupportedChainId}>{getWalletNetworkDisplayName(cid as SupportedChainId)}</option>
         {/each}
       </select>
     </label>
@@ -218,8 +342,8 @@
     <label class="wallet-stub-label">
       <span class="wallet-stub-label-text">Asset</span>
       <select class="wallet-stub-select" bind:value={assetCode} aria-label="Asset" disabled={sending}>
-        {#each assetOptions as opt (opt.code)}
-          <option value={opt.code}>{opt.code}</option>
+        {#each assetOptions as o (o.code)}
+          <option value={o.code}>{o.code}</option>
         {/each}
       </select>
     </label>
@@ -234,10 +358,25 @@
         placeholder="0.0"
         bind:value={amountStr}
         disabled={sending}
-        aria-invalid={amountStr.trim() !== '' && !amountValid}
+        aria-invalid={amountStr.trim() !== '' && (!amountValid || insufficientFunds)}
         aria-label="Amount"
       />
     </label>
+
+    {#if mode === 'send' && sendBalanceLoading}
+      <p class="wallet-stub-balance-loading" role="status">Loading balance…</p>
+    {/if}
+    {#if mode === 'send' && insufficientFunds && selectedBalanceRow}
+      <p class="wallet-stub-insufficient" role="alert">
+        This amount is more than your {assetCode} balance on this network. Available: {selectedBalanceRow.balanceDecimal}{' '}
+        {assetCode}.
+      </p>
+    {:else if mode === 'send' && sendBalanceError && !sendBalanceLoading}
+      <p class="wallet-stub-balance-warn" role="status">
+        Could not load your balance ({sendBalanceError}). You can still try to send; the network will reject if funds are
+        insufficient.
+      </p>
+    {/if}
 
     <p class="wallet-stub-usd" role="status">{usdLine}</p>
 
@@ -250,17 +389,38 @@
     {#if sendError}
       <div class="wallet-stub-error" role="alert">
         <p class="wallet-stub-error-msg">{sendError.message}</p>
+        {#if sendError.txHash}
+          <div class="wallet-stub-tx-hash-row">
+            <code class="wallet-stub-tx-hash-code" title={sendError.txHash}>{sendError.txHash}</code>
+            <button
+              type="button"
+              class="wallet-stub-copy-hash"
+              aria-label="Copy full transaction hash"
+              on:click={copyErrorTxHash}
+            >
+              Copy hash
+            </button>
+          </div>
+        {/if}
         {#if explorerLinkForError}
           <a
             class="wallet-stub-error-link"
             href={explorerLinkForError}
             target="_blank"
             rel="noopener noreferrer"
+            title={explorerLinkForError}
           >
-            View on block explorer
+            {explorerLinkLabel}
           </a>
-        {:else if sendError.txHash}
-          <p class="wallet-stub-error-hash"><code>{sendError.txHash}</code></p>
+        {/if}
+        {#if sendError?.code === 'RECEIPT_TIMEOUT'}
+          <p class="wallet-stub-error-retry-hint" role="note">
+            The transaction may still confirm. Check the explorer before sending again.
+          </p>
+        {:else if canRetryAfterError}
+          <button type="button" class="wallet-stub-retry" on:click={retryFailedSend}>
+            Try again
+          </button>
         {/if}
       </div>
     {/if}
@@ -340,6 +500,25 @@
     outline-offset: 1px;
   }
 
+  .wallet-stub-balance-loading,
+  .wallet-stub-balance-warn {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+
+  .wallet-stub-insufficient {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--text-primary);
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(220, 53, 69, 0.08);
+  }
+
   .wallet-stub-usd {
     margin: 0;
     font-size: 0.8125rem;
@@ -374,21 +553,101 @@
   }
 
   .wallet-stub-error-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
+    padding: 8px 14px;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--accent);
-    text-decoration: underline;
+    font-family: inherit;
+    color: var(--accent-contrast, #fff);
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   }
 
-  .wallet-stub-error-hash {
-    margin: 0;
-    font-size: 0.75rem;
+  .wallet-stub-error-link:hover {
+    background: var(--accent-hover);
+    filter: brightness(1.02);
+  }
+
+  .wallet-stub-error-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wallet-stub-error-retry-hint {
+    margin: 12px 0 0 0;
+    font-size: 0.8125rem;
     color: var(--text-muted);
-    word-break: break-all;
+    line-height: 1.4;
   }
 
-  .wallet-stub-error-hash code {
+  .wallet-stub-retry {
+    margin-top: 12px;
+    padding: 8px 14px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .wallet-stub-retry:hover {
+    background: var(--bg-hover);
+    border-color: var(--border);
+  }
+
+  .wallet-stub-retry:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wallet-stub-tx-hash-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .wallet-stub-tx-hash-code {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 6px 8px;
+    font-size: 0.75rem;
     font-family: ui-monospace, monospace;
+    color: var(--text-secondary);
+    word-break: break-all;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .wallet-stub-copy-hash {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .wallet-stub-copy-hash:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .wallet-stub-actions {

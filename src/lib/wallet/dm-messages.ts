@@ -4,8 +4,6 @@
  */
 
 import type { SupportedChainId } from './chains';
-import type { WalletAssetCode } from './assets';
-
 export const WALLET_TX_REQUEST_WIRE_TYPE = 'wallet_tx_request';
 export const WALLET_TX_ANNOUNCEMENT_WIRE_TYPE = 'wallet_tx_announcement';
 
@@ -16,14 +14,14 @@ const MAX_AMOUNT_LEN = 32;
 const TX_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
 const NETWORKS = new Set<string>(['mainnet', 'optimism', 'sepolia']);
-const ASSETS = new Set<string>(['ETH', 'USDC', 'USDT']);
 
 function isSupportedNetwork(s: unknown): s is SupportedChainId {
   return typeof s === 'string' && NETWORKS.has(s);
 }
 
-function isWalletAsset(s: unknown): s is WalletAssetCode {
-  return typeof s === 'string' && ASSETS.has(s);
+/** Ticker in DMs: ETH / USDC / USDT or an imported token symbol (uppercase alnum). */
+function isWalletAssetLabel(s: unknown): s is string {
+  return typeof s === 'string' && /^[A-Z0-9]{1,16}$/.test(s);
 }
 
 function isValidAmountString(s: unknown): s is string {
@@ -53,7 +51,7 @@ export interface WalletTxRequestPayload {
   version: typeof SCHEMA_VERSION;
   request_id: string;
   network: SupportedChainId;
-  asset: WalletAssetCode;
+  asset: string;
   amount: string;
   created_at_ms?: number;
 }
@@ -62,7 +60,7 @@ export interface WalletTxAnnouncementPayload {
   type: typeof WALLET_TX_ANNOUNCEMENT_WIRE_TYPE;
   version: typeof SCHEMA_VERSION;
   network: SupportedChainId;
-  asset: WalletAssetCode;
+  asset: string;
   amount: string;
   tx_hash: string;
   from_npub: string;
@@ -121,7 +119,7 @@ export function parseWalletTxRequest(content: string): WalletTxRequestPayload | 
   if (o.version !== SCHEMA_VERSION) return null;
   if (typeof o.request_id !== 'string' || o.request_id.length === 0) return null;
   if (!isSupportedNetwork(o.network)) return null;
-  if (!isWalletAsset(o.asset)) return null;
+  if (!isWalletAssetLabel(o.asset)) return null;
   if (!isValidAmountString(o.amount)) return null;
   if (o.created_at_ms !== undefined) {
     if (typeof o.created_at_ms !== 'number' || !Number.isFinite(o.created_at_ms)) return null;
@@ -155,7 +153,7 @@ export function parseWalletTxAnnouncement(content: string): WalletTxAnnouncement
   if (o.type !== WALLET_TX_ANNOUNCEMENT_WIRE_TYPE) return null;
   if (o.version !== SCHEMA_VERSION) return null;
   if (!isSupportedNetwork(o.network)) return null;
-  if (!isWalletAsset(o.asset)) return null;
+  if (!isWalletAssetLabel(o.asset)) return null;
   if (!isValidAmountString(o.amount)) return null;
   if (!isValidTxHash(o.tx_hash)) return null;
   if (!isLikelyNpub(o.from_npub) || !isLikelyNpub(o.to_npub)) return null;

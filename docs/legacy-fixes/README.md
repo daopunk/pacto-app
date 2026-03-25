@@ -2,7 +2,7 @@
 
 This folder catalogs **code paths that exist only for dev / alpha users** who already have local data or relay-published state from older builds.
 
-**Goal:** Before **public v1** (greenfield users), review **[CATALOG.md](./CATALOG.md)** and **remove or gate** these paths so the codebase does not carry permanent repair logic for populations that no longer exist.
+**Goal:** Before **beta** or **public v1** (greenfield users), review **[CATALOG.md](./CATALOG.md)** and **remove or gate** these paths so the codebase does not carry permanent repair or migration logic for populations that no longer exist.
 
 ## How to use before launch
 

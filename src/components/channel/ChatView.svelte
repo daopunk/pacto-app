@@ -24,6 +24,7 @@
     parentsCreatingAnnouncements,
     parentCreateErrorById,
     ANNOUNCEMENTS_CHANNEL_NAME,
+    DASHBOARD_CHANNEL_ID,
     membershipVersionByGroupId,
     type DmMessage,
     type Squad,
@@ -56,6 +57,17 @@
   })();
   $: activeSquad = $activeTopNavTab === 'squads' && activeParent ? (activeParent as Squad) : null;
   $: activeNetwork = $activeTopNavTab === 'networks' && activeParent ? (activeParent as Network) : null;
+
+  /** MLS group used for the members sidebar: announcements membership for the dashboard pseudo-channel. */
+  $: announcementsGroupIdForMembers =
+    activeParent?.channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.groupId ??
+    activeParent?.channels[0]?.groupId ??
+    null;
+  $: effectiveMembersGroupId = (() => {
+    if (!$activeChannelId) return null;
+    if ($activeChannelId === DASHBOARD_CHANNEL_ID) return announcementsGroupIdForMembers;
+    return $activeChannelId;
+  })();
 
   $: channelName = activeChannel?.name || 'channel';
   $: isAnnouncementsChannel =
@@ -129,19 +141,19 @@
     groupSendError.set(null);
   }
 
-  // When members panel is open and user navigates to another squad/network/channel, refresh the list
-  let prevChannelIdForMembers: string | null = null;
-  $: if ($showMembersPanel && $activeChannelId && prevChannelIdForMembers !== $activeChannelId) {
-    prevChannelIdForMembers = $activeChannelId;
+  // When members panel is open and the MLS group for the sidebar changes, refresh the list
+  let prevMembersGroupIdForPanel: string | null = null;
+  $: if ($showMembersPanel && effectiveMembersGroupId && prevMembersGroupIdForPanel !== effectiveMembersGroupId) {
+    prevMembersGroupIdForPanel = effectiveMembersGroupId;
     loadChannelMembers();
   }
-  $: if (!$showMembersPanel) prevChannelIdForMembers = null;
+  $: if (!$showMembersPanel) prevMembersGroupIdForPanel = null;
 
   // When root bumps membership version for the active group (mls_group_updated / mls_group_left),
   // refetch members if the panel is open.
-  $: if ($showMembersPanel && $activeChannelId) {
-    const cid = $activeChannelId;
-    const version = $membershipVersionByGroupId[cid] ?? 0;
+  $: if ($showMembersPanel && effectiveMembersGroupId) {
+    const gid = effectiveMembersGroupId;
+    const version = $membershipVersionByGroupId[gid] ?? 0;
     if (version > 0) {
       loadChannelMembers();
     }
@@ -266,7 +278,7 @@
 
   function openMembersPanel() {
     showMembersPanel.set(true);
-    prevChannelIdForMembers = $activeChannelId;
+    prevMembersGroupIdForPanel = effectiveMembersGroupId;
     channelMembers = [];
     closeChannelMenu();
     loadChannelMembers();
@@ -279,7 +291,7 @@
     }
   }
   async function loadChannelMembers() {
-    const groupId = $activeChannelId;
+    const groupId = effectiveMembersGroupId;
     if (!groupId) return;
     loadingMembers = true;
     try {

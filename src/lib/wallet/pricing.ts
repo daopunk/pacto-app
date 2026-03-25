@@ -6,6 +6,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { WalletAssetCode } from './assets';
 
+function isKnownUsdAsset(code: string): code is WalletAssetCode {
+  return code === 'ETH' || code === 'USDC' || code === 'USDT';
+}
+
 export interface WalletUsdSpotPrices {
   ethUsd: number;
   usdcUsd: number;
@@ -67,11 +71,12 @@ function usdPerUnit(prices: WalletUsdSpotPrices, code: WalletAssetCode): number 
  */
 export function amountToApproxUsd(
   amountDecimal: string,
-  assetCode: WalletAssetCode,
+  assetCode: string,
   prices: WalletUsdSpotPrices
 ): number | null {
   const n = Number.parseFloat(amountDecimal.trim());
   if (!Number.isFinite(n) || n < 0) return null;
+  if (!isKnownUsdAsset(assetCode)) return null;
   const rate = usdPerUnit(prices, assetCode);
   if (!Number.isFinite(rate) || rate <= 0) return null;
   return n * rate;

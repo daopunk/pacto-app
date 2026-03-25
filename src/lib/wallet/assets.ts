@@ -60,6 +60,18 @@ export function getExplorerTxUrl(chainId: SupportedChainId, txHash: string): str
   return `${base}${h}`;
 }
 
+/** User-facing explorer link label derived from configured `explorerTxPath` hostname (e.g. sepolia.etherscan.io). */
+export function explorerTxLinkLabel(chainId: SupportedChainId): string {
+  const path = WALLET_ASSETS.networks[chainId]?.explorerTxPath;
+  if (!path) return 'View on block explorer';
+  try {
+    const host = new URL(path).hostname.replace(/^www\./, '');
+    return `View on ${host}`;
+  } catch {
+    return 'View on block explorer';
+  }
+}
+
 export function listWalletAssetOptionsForChain(chainId: SupportedChainId): {
   code: WalletAssetCode;
   kind: 'native' | 'erc20';

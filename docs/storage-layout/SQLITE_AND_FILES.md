@@ -48,7 +48,7 @@ When adding a column:
 
 ## Frontend / other storage
 
-Browser **localStorage** and in-memory stores can still hold account-specific UI state; see **`ai-docs/past/STORAGE_AND_ACCOUNT_ISOLATION_PLAN.md`** for how that interacts with backend per-npub isolation.
+Browser **localStorage** and in-memory stores can still hold account-specific UI state; see **[ACCOUNT_LOGOUT_AND_ISOLATION.md](./ACCOUNT_LOGOUT_AND_ISOLATION.md)** for how that interacts with backend per-npub isolation.
 
 ## Naming note
 

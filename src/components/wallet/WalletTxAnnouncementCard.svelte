@@ -1,11 +1,23 @@
 <script lang="ts">
   import type { WalletTxAnnouncementPayload } from '../../lib/wallet/dm-messages';
-  import { getWalletNetworkDisplayName, getExplorerTxUrl } from '../../lib/wallet/assets';
+  import {
+    getWalletNetworkDisplayName,
+    getExplorerTxUrl,
+    explorerTxLinkLabel,
+  } from '../../lib/wallet/assets';
+  import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
+  import { showToast } from '../../stores/toast';
 
   export let payload: WalletTxAnnouncementPayload;
 
   $: networkLabel = getWalletNetworkDisplayName(payload.network);
   $: explorerUrl = getExplorerTxUrl(payload.network, payload.tx_hash);
+  $: explorerLabel = explorerTxLinkLabel(payload.network);
+
+  async function copyHash() {
+    const ok = await copyTextToClipboard(payload.tx_hash);
+    showToast(ok ? 'Transaction hash copied' : 'Could not copy hash');
+  }
 </script>
 
 <div class="wallet-tx-announce-card" role="article">
@@ -14,17 +26,28 @@
     <p class="wallet-tx-announce-badge">Transfer confirmed</p>
     <p class="wallet-tx-announce-title">{payload.amount} {payload.asset}</p>
     <p class="wallet-tx-announce-subtitle">{networkLabel}</p>
-    <p class="wallet-tx-announce-hash" title={payload.tx_hash}>
-      {payload.tx_hash.slice(0, 10)}…{payload.tx_hash.slice(-8)}
-    </p>
+    <div class="wallet-tx-announce-hash-row">
+      <p class="wallet-tx-announce-hash" title={payload.tx_hash}>
+        {payload.tx_hash.slice(0, 10)}…{payload.tx_hash.slice(-8)}
+      </p>
+      <button
+        type="button"
+        class="wallet-tx-announce-copy"
+        aria-label="Copy full transaction hash"
+        on:click={copyHash}
+      >
+        Copy hash
+      </button>
+    </div>
     {#if explorerUrl}
       <a
         class="wallet-tx-announce-link"
         href={explorerUrl}
         target="_blank"
         rel="noopener noreferrer"
+        title={explorerUrl}
       >
-        View on explorer
+        {explorerLabel}
       </a>
     {/if}
   </div>
@@ -85,22 +108,67 @@
     color: var(--text-muted);
   }
 
-  .wallet-tx-announce-hash {
+  .wallet-tx-announce-hash-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
     margin: 0 0 8px 0;
+  }
+
+  .wallet-tx-announce-hash {
+    margin: 0;
     font-size: 0.75rem;
     font-family: ui-monospace, monospace;
     color: var(--text-secondary);
     word-break: break-all;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .wallet-tx-announce-copy {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .wallet-tx-announce-copy:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .wallet-tx-announce-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 4px;
+    padding: 8px 14px;
     font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--accent);
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--accent-contrast, #fff);
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
     text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   }
 
   .wallet-tx-announce-link:hover {
-    text-decoration: underline;
+    background: var(--accent-hover);
+    filter: brightness(1.02);
+  }
+
+  .wallet-tx-announce-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 </style>

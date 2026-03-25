@@ -4,8 +4,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { SupportedChainId } from './chains';
-import type { WalletAssetCode } from './assets';
 import type { WalletUsdSpotPrices } from './pricing';
+import type { WatchedErc20Wire } from './watched-tokens';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && !!(window as { __TAURI__?: unknown }).__TAURI__;
@@ -35,12 +35,12 @@ export type WalletSummaryResult =
   | { ok: false; message: string };
 
 /** Per-network + per-asset balances with USD lines (Chainlink-backed prices from backend). */
-export async function getWalletSummary(): Promise<WalletSummaryResult> {
+export async function getWalletSummary(watchedErc20s: WatchedErc20Wire[]): Promise<WalletSummaryResult> {
   if (!isTauri()) {
     return { ok: false, message: 'Wallet summary is only available in the desktop app.' };
   }
   try {
-    const summary = await invoke<WalletSummary>('get_wallet_summary');
+    const summary = await invoke<WalletSummary>('get_wallet_summary', { watchedErc20s });
     return { ok: true, summary };
   } catch (e) {
     const msg =
@@ -65,7 +65,8 @@ export interface WalletSendResult {
 export interface WalletTransferSuccessDetail {
   result: WalletSendResult;
   network: SupportedChainId;
-  asset: WalletAssetCode;
+  /** Ticker shown in DMs (ETH, USDC, or an imported symbol). */
+  asset: string;
   amount: string;
   /** When paying a `wallet_tx_request`, included on the announcement JSON. */
   requestId?: string;
@@ -114,8 +115,9 @@ function tryParseWalletOpError(raw: string): WalletOpParsedError | null {
 export async function walletBuildAndSendTransaction(
   toNpub: string,
   network: SupportedChainId,
-  asset: WalletAssetCode,
-  amount: string
+  asset: string,
+  amount: string,
+  erc20Transfer?: { address: string; decimals: number } | null
 ): Promise<WalletSendResultOutcome> {
   if (!isTauri()) {
     return { ok: false, message: 'Sending is only available in the desktop app.' };
@@ -126,6 +128,7 @@ export async function walletBuildAndSendTransaction(
       network,
       asset,
       amount: amount.trim(),
+      erc20Transfer: erc20Transfer ?? null,
     });
     return { ok: true, result };
   } catch (e) {

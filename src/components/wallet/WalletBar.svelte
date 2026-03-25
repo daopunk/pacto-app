@@ -7,9 +7,18 @@
   import {
     getWalletSummary,
     getWalletNetworkDisplayName,
+    WALLET_ASSETS_CHAIN_IDS,
+    watchedRowsToWire,
+    loadWatchedErc20Rows,
+    defaultWatchedErc20Rows,
     type WalletSummary,
+    type WalletSummaryNetwork,
+    type WalletSummaryAsset,
     type SupportedChainId,
     type WalletTransferSuccessDetail,
+    type WatchedErc20Row,
+    getMatchingCachedSummary,
+    persistWalletSummaryCache,
   } from '../../lib/wallet';
   import { formatWalletTxAnnouncement } from '../../lib/wallet/dm-messages';
   import { showToast } from '../../stores/toast';
@@ -19,6 +28,7 @@
   } from '../../stores/app';
   import WalletSendModal from './WalletSendModal.svelte';
   import WalletRequestModal from './WalletRequestModal.svelte';
+  import WalletImportTokensModal from './WalletImportTokensModal.svelte';
 
   /** Active DM counterparty npub */
   export let npub: string;
@@ -31,6 +41,7 @@
 
   let sendModalOpen = false;
   let requestModalOpen = false;
+  let importTokensModalOpen = false;
   /** Form prefill when opening Send from Accept on a payment request card. */
   let sendModalPrefill: WalletSendPrefillPayload | null = null;
 
@@ -51,17 +62,89 @@
   let summaryError: string | null = null;
   let summary: WalletSummary | null = null;
 
+  const STORAGE_NETWORK = 'pacto_wallet_bar_network_filter';
+
+  /** `all` = every chain; otherwise one `SupportedChainId`. */
+  let networkFilter: 'all' | SupportedChainId = 'all';
+
+  function parseNetworkFilter(raw: string | null): 'all' | SupportedChainId {
+    if (!raw || raw === 'all') return 'all';
+    if (WALLET_ASSETS_CHAIN_IDS.includes(raw as SupportedChainId)) return raw as SupportedChainId;
+    return 'all';
+  }
+
+  function loadWalletBarPrefs() {
+    if (typeof localStorage === 'undefined') return;
+    networkFilter = parseNetworkFilter(localStorage.getItem(STORAGE_NETWORK));
+  }
+
+  function saveNetworkFilter() {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(STORAGE_NETWORK, networkFilter);
+  }
+
+  /** Logged-in account: watched ERC-20 list is keyed by this npub. */
+  $: accountNpub = $currentUser?.npub ?? null;
+
+  let watchedErc20Rows: WatchedErc20Row[] = [];
+
+  function reloadWatchedRows() {
+    watchedErc20Rows = accountNpub
+      ? loadWatchedErc20Rows(accountNpub)
+      : defaultWatchedErc20Rows();
+  }
+
+  $: {
+    accountNpub;
+    reloadWatchedRows();
+  }
+
+  function networksForBalanceList(
+    s: WalletSummary | null,
+    filter: 'all' | SupportedChainId
+  ): WalletSummaryNetwork[] {
+    if (!s) return [];
+    return s.networks.filter((n) => (filter === 'all' ? true : n.network === filter));
+  }
+
+  let networksForBalance: WalletSummaryNetwork[] = [];
+  $: networksForBalance = networksForBalanceList(summary, networkFilter);
+
+  /** Options for the network dropdown (always all chains that have summary rows). */
+  let networkSelectOptions: WalletSummaryNetwork[] = [];
+  $: networkSelectOptions = (summary?.networks ?? []) as WalletSummaryNetwork[];
+
   async function refreshSummary() {
+    const wire = watchedRowsToWire(watchedErc20Rows);
+    const preCached = accountNpub ? getMatchingCachedSummary(accountNpub, wire) : null;
+
+    if (!accountNpub) {
+      summary = null;
+      summaryError = null;
+      summaryLoading = false;
+      return;
+    }
+
+    if (preCached) {
+      summary = preCached;
+      summaryError = null;
+    } else {
+      summaryError = null;
+    }
+
+    const hadDisplay = summary != null;
     summaryLoading = true;
-    summaryError = null;
-    const r = await getWalletSummary();
-    summaryLoading = false;
+
+    const r = await getWalletSummary(wire);
     if (r.ok) {
       summary = r.summary;
+      summaryError = null;
+      persistWalletSummaryCache(accountNpub, wire, r.summary);
     } else {
-      summary = null;
       summaryError = r.message;
+      if (!hadDisplay && !preCached) summary = null;
     }
+    summaryLoading = false;
   }
 
   async function handleWalletTransferSuccess(detail: WalletTransferSuccessDetail) {
@@ -101,14 +184,22 @@
   }
 
   onMount(() => {
+    loadWalletBarPrefs();
     refreshSummary();
-    const unsub = walletSendPrefillFromRequest.subscribe((v) => {
+    const unsub = walletSendPrefillFromRequest.subscribe((v: WalletSendPrefillPayload | null) => {
       if (!v || v.targetNpub !== npub) return;
       walletSendPrefillFromRequest.set(null);
       sendModalPrefill = v;
       sendModalOpen = true;
     });
-    return unsub;
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshSummary();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      unsub();
+    };
   });
 
   function closeSendModal() {
@@ -157,28 +248,67 @@
     </div>
     {#if summaryLoading && !summary}
       <p class="wallet-bar-placeholder">Loading balances…</p>
-    {:else if summaryError}
-      <p class="wallet-bar-error" role="alert">{summaryError}</p>
     {:else if summary}
+      {#if summaryError}
+        <p class="wallet-bar-stale" role="status">
+          Could not refresh balances. Showing last known amounts.
+          <span class="wallet-bar-stale-detail">{summaryError}</span>
+        </p>
+      {/if}
+      <div class="wallet-bar-filters">
+        <label class="wallet-bar-filter-label" for="wallet-bar-network-select">Network</label>
+        <select
+          id="wallet-bar-network-select"
+          class="wallet-bar-select"
+          bind:value={networkFilter}
+          on:change={saveNetworkFilter}
+        >
+          <option value="all">All networks</option>
+          {#each networkSelectOptions as net (net.network)}
+            <option value={net.network}
+              >{getWalletNetworkDisplayName(net.network as SupportedChainId)}</option
+            >
+          {/each}
+        </select>
+        <button
+          type="button"
+          class="wallet-bar-btn wallet-bar-btn-import"
+          on:click={() => (importTokensModalOpen = true)}
+        >
+          Import tokens
+        </button>
+      </div>
       <p class="wallet-bar-total">
         Total (approx.) <strong>${summary.totalUsdApprox.toFixed(2)}</strong>
         <span class="wallet-bar-total-meta">via {summary.prices.source}</span>
       </p>
-      <ul class="wallet-bar-netlist">
-        {#each summary.networks as net (net.network)}
-          <li class="wallet-bar-net">
-            <span class="wallet-bar-net-name">{getWalletNetworkDisplayName(net.network as SupportedChainId)}</span>
-            <ul class="wallet-bar-assets">
-              {#each net.assets as a (a.symbol)}
-                <li>
-                  <span class="wallet-bar-asset-sym">{a.symbol}</span>
-                  <span class="wallet-bar-asset-amt" title={a.balanceRaw}>{a.balanceDecimal}</span>
-                </li>
-              {/each}
-            </ul>
-          </li>
-        {/each}
-      </ul>
+      {#if networksForBalance.length === 0}
+        <p class="wallet-bar-placeholder">No networks match this filter.</p>
+      {:else}
+        <ul class="wallet-bar-netlist">
+          {#each networksForBalance as net (net.network)}
+            {@const n = net as WalletSummaryNetwork}
+            <li class="wallet-bar-net">
+              {#if networkFilter === 'all'}
+                <span class="wallet-bar-net-name"
+                  >{getWalletNetworkDisplayName(n.network as SupportedChainId)}</span
+                >
+              {/if}
+              <ul class="wallet-bar-assets">
+                {#each n.assets as a, i (`${n.network}-${(a as WalletSummaryAsset).symbol}-${i}`)}
+                  {@const asset = a as WalletSummaryAsset}
+                  <li>
+                    <span class="wallet-bar-asset-sym">{asset.symbol}</span>
+                    <span class="wallet-bar-asset-amt" title={asset.balanceRaw}>{asset.balanceDecimal}</span>
+                  </li>
+                {/each}
+              </ul>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {:else if summaryError}
+      <p class="wallet-bar-error" role="alert">{summaryError}</p>
     {:else}
       <p class="wallet-bar-placeholder">No balance data.</p>
     {/if}
@@ -215,6 +345,7 @@
   <WalletSendModal
     {npub}
     peerDisplayName={contactDisplayName}
+    watchedAssetRows={watchedErc20Rows}
     formPrefill={sendModalPrefill}
     onClose={closeSendModal}
     onTransferSuccess={handleWalletTransferSuccess}
@@ -224,10 +355,21 @@
   <WalletRequestModal
     {npub}
     peerDisplayName={contactDisplayName}
+    watchedAssetRows={watchedErc20Rows}
     postDmPlaintext={postDmPlaintext}
     onClose={() => (requestModalOpen = false)}
   />
 {/if}
+<WalletImportTokensModal
+  open={importTokensModalOpen}
+  networkScope={networkFilter}
+  accountNpub={accountNpub}
+  onClose={() => (importTokensModalOpen = false)}
+  onSaved={() => {
+    reloadWatchedRows();
+    refreshSummary();
+  }}
+/>
 
 <style>
   .wallet-bar {
@@ -354,6 +496,53 @@
     margin: 0;
   }
 
+  .wallet-bar-filters {
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .wallet-bar-filter-label {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+  }
+
+  .wallet-bar-select {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 0.8125rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .wallet-bar-btn-import {
+    width: 100%;
+    margin-top: 4px;
+    padding: 8px 10px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .wallet-bar-btn-import:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+  }
+
   .wallet-bar-section-title {
     margin: 0 0 8px;
     font-size: 0.8125rem;
@@ -390,6 +579,24 @@
   }
 
   .wallet-bar-total-meta {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+  }
+
+  .wallet-bar-stale {
+    margin: 0 0 12px;
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .wallet-bar-stale-detail {
     display: block;
     margin-top: 4px;
     font-size: 0.6875rem;

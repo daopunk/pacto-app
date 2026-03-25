@@ -61,6 +61,14 @@ describe('parseWalletTxRequest', () => {
     ).toBeNull();
   });
 
+  it('accepts imported token ticker as asset label', () => {
+    const j =
+      '{"version":1,"type":"wallet_tx_request","request_id":"x","network":"sepolia","asset":"DAI","amount":"1.5"}';
+    const p = parseWalletTxRequest(j);
+    expect(p).not.toBeNull();
+    expect(p!.asset).toBe('DAI');
+  });
+
   it('round-trips via formatWalletTxRequest', () => {
     const p = parseWalletTxRequest(VALID_REQUEST_JSON)!;
     const again = parseWalletTxRequest(

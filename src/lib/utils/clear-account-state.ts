@@ -41,7 +41,7 @@ import {
   activeDmTab,
   activeView,
   showMembersPanel,
-  walletSidebarOpenForNpub,
+  walletSidebarOpen,
   walletSendPrefillFromRequest,
   backendDmMessages,
   messageCountByChat,
@@ -51,6 +51,7 @@ import {
   dmSendError,
   setCurrentNpubForPersistence,
 } from '../../stores/app';
+import { clearWalletSummaryCacheStore } from '../wallet/wallet-summary-cache';
 import { INVITE_DECISION_SCOPED_PREFIXES } from '../../stores/invite-decisions';
 import { theme } from '../../stores/theme';
 import { recentEmojisStore } from '../../stores/emojis';
@@ -84,6 +85,7 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_last_network_channel_id',
   'pacto_last_channel_by_network',
   'pacto_pinned_dm_npubs',
+  'pacto_wallet_summary_cache_v1',
   ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;
 
@@ -114,6 +116,7 @@ function clearAccountLocalStorage(npub?: string): void {
  */
 export function clearAccountState(npub?: string): void {
   setCurrentNpubForPersistence(null);
+  clearWalletSummaryCacheStore();
   clearAccountLocalStorage(npub);
 
   squads.set([]);
@@ -157,7 +160,7 @@ export function clearAccountState(npub?: string): void {
   activeDmTab.set('friends');
   activeView.set('hub');
   showMembersPanel.set(false);
-  walletSidebarOpenForNpub.set(null);
+  walletSidebarOpen.set(false);
   walletSendPrefillFromRequest.set(null);
 
   backendDmMessages.set({});

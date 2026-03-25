@@ -1,6 +1,16 @@
 <script lang="ts">
   import type { Squad, Network } from '../../stores/app';
+  import {
+    ANNOUNCEMENTS_CHANNEL_NAME,
+    DASHBOARD_CHANNEL_NAME,
+    showMembersPanel,
+    membershipVersionByGroupId,
+  } from '../../stores/app';
+  import { getMlsGroupMembers } from '../../lib/api/nostr';
+  import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
+  import { profiles } from '../../stores/profiles';
   import { safeStateByParentId, refreshSafeStateForParent } from '../../stores/safe';
+  import friendsIcon from '../../icons/friends.svg';
 
   export let parent: Squad | Network;
   export let parentType: 'squad' | 'network' = 'squad';
@@ -19,6 +29,58 @@
   /** Cached Safe state entry for this parent id (kept across navigation). */
   $: parentId = parent?.id;
   $: safeEntry = parentId ? $safeStateByParentId[parentId] : undefined;
+
+  $: announcementsGroupId =
+    parent?.channels?.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.groupId ??
+    parent?.channels?.[0]?.groupId ??
+    null;
+
+  let channelMembers: string[] = [];
+  let loadingMembers = false;
+  let prevMembersGroupIdForPanel: string | null = null;
+
+  async function loadDashboardMembers() {
+    const groupId = announcementsGroupId;
+    if (!groupId) return;
+    loadingMembers = true;
+    try {
+      const result = await getMlsGroupMembers(groupId);
+      channelMembers = (result.members ?? []) as string[];
+    } catch {
+      channelMembers = [];
+    } finally {
+      loadingMembers = false;
+    }
+  }
+
+  function openDashboardMembersPanel() {
+    showMembersPanel.set(true);
+    prevMembersGroupIdForPanel = announcementsGroupId;
+    channelMembers = [];
+    loadDashboardMembers();
+  }
+
+  function toggleMembersPanel() {
+    if ($showMembersPanel) {
+      showMembersPanel.set(false);
+    } else {
+      openDashboardMembersPanel();
+    }
+  }
+
+  $: if ($showMembersPanel && announcementsGroupId && prevMembersGroupIdForPanel !== announcementsGroupId) {
+    prevMembersGroupIdForPanel = announcementsGroupId;
+    loadDashboardMembers();
+  }
+  $: if (!$showMembersPanel) prevMembersGroupIdForPanel = null;
+
+  $: if ($showMembersPanel && announcementsGroupId) {
+    const gid = announcementsGroupId;
+    const version = $membershipVersionByGroupId[gid] ?? 0;
+    if (version > 0) {
+      loadDashboardMembers();
+    }
+  }
 
   // Refresh in background when we have a Safe address. Cached state remains visible for smooth UX.
   $: if (parentId && safeAddress && typeof safeAddress === 'string') {
@@ -69,7 +131,28 @@
   }
 </script>
 
-<div class="parent-dashboard">
+<div class="parent-dashboard-layout">
+  <div class="parent-dashboard-main">
+    <div class="dashboard-channel-header">
+      <div class="dashboard-channel-info">
+        <span class="dashboard-channel-icon">#</span>
+        <h3 class="dashboard-channel-name">{DASHBOARD_CHANNEL_NAME}</h3>
+      </div>
+      <div class="dashboard-header-actions">
+        <button
+          type="button"
+          class="channel-members-btn"
+          title="Members"
+          on:click={toggleMembersPanel}
+          aria-label={$showMembersPanel ? 'Close channel members' : 'View channel members'}
+          aria-expanded={$showMembersPanel}
+        >
+          <img src={friendsIcon} alt="" class="channel-members-btn-icon" />
+        </button>
+      </div>
+    </div>
+    <div class="parent-dashboard-body">
+      <div class="parent-dashboard">
   <div class="dashboard-header">
     <h2 class="dashboard-title">{parent.name}</h2>
     {#if parentType === 'network' && (parent as Network).memberSquads?.length}
@@ -98,7 +181,7 @@
           <dd>
             <ul class="safe-owners-list">
               {#each safeEntry.state.owners as owner}
-                <li><code class="safe-owner-address">{shortAddress(owner)}</code></li>
+                <li><code class="safe-owner-address">{shortAddress(owner as string)}</code></li>
               {/each}
             </ul>
           </dd>
@@ -118,6 +201,34 @@
       <button type="button" class="btn-primary" on:click={openSetSafe}>Set Safe address</button>
     {/if}
   </section>
+      </div>
+    </div>
+  </div>
+  {#if $showMembersPanel}
+    <aside class="members-panel" aria-label="Channel members">
+      <div class="members-panel-header">
+        <h3 class="members-panel-title">Members</h3>
+      </div>
+      <div class="members-panel-list">
+        {#if loadingMembers}
+          <p class="members-panel-loading">Loading…</p>
+        {:else}
+          {#each channelMembers as member (member)}
+            {@const npub = member as string}
+            {@const avatarSrc = getProfileAvatarSrc($profiles[npub])}
+            <div class="members-panel-member">
+              {#if avatarSrc}
+                <img src={avatarSrc} alt="" class="members-panel-avatar" />
+              {:else}
+                <div class="members-panel-avatar members-panel-avatar-placeholder" aria-hidden="true"></div>
+              {/if}
+              <span class="members-panel-name">{getProfileDisplayName($profiles[npub]) || npub.slice(0, 16) + '…'}</span>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </aside>
+  {/if}
 </div>
 
 {#if showSetSafeModal}
@@ -145,6 +256,159 @@
 {/if}
 
 <style>
+  .parent-dashboard-layout {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    background: var(--bg-panel);
+    height: 100%;
+    min-width: 0;
+    border-left: 1px solid var(--border-subtle);
+  }
+
+  .parent-dashboard-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .parent-dashboard-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .dashboard-channel-header {
+    height: 48px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  }
+
+  .dashboard-channel-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dashboard-channel-icon {
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .dashboard-channel-name {
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .dashboard-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .channel-members-btn {
+    padding: 6px 8px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .channel-members-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .channel-members-btn-icon {
+    width: 20px;
+    height: 20px;
+    display: block;
+    filter: var(--icon-dropdown-filter);
+  }
+
+  .members-panel {
+    width: 240px;
+    min-width: 240px;
+    background: var(--bg-elevated);
+    border-left: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .members-panel-header {
+    height: 48px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .members-panel-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .members-panel-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .members-panel-loading {
+    margin: 0 16px;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+  }
+
+  .members-panel-member {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 16px;
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  .members-panel-member:hover {
+    background: var(--bg-hover);
+  }
+
+  .members-panel-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .members-panel-avatar-placeholder {
+    background: var(--border);
+  }
+
+  .members-panel-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .parent-dashboard {
     padding: 24px;
     max-width: 560px;
