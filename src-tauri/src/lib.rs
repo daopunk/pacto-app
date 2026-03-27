@@ -191,10 +191,6 @@ impl ChatState {
     }
 
     /// Reset in-memory chats and sync progress (logout, or before binding a new key).
-    ///
-    /// If we only clear the DB on logout but keep `ChatState`, the next `login` **pushes** another
-    /// `profiles` entry so `profiles.len() != 1`. Then `fetch_messages(init: true)` skips loading
-    /// chats from SQLite and still emits `init_finished` with stale data — wrong DM tabs and flags.
     fn clear_session(&mut self) {
         *self = Self::new();
     }
