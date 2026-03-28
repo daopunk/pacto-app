@@ -3,8 +3,9 @@ import { listen } from '@tauri-apps/api/event';
 import { fetchNostrProfile, loadNostrProfile, startNotifs, syncAllProfiles, type NostrProfile } from '../lib/api/nostr';
 import { dmLog } from '../lib/utils/dm-debug';
 import { getProfileDisplayName } from '../lib/utils/profile';
-import { dmChatsByNpub, activeDmId, dmSyncStatus, type DmChatState } from './app';
+import { activeDmId, dmChatsByNpub, blockedDmNpubs, dmSyncStatus, type DmChatState } from './app';
 import { currentUser } from './auth';
+import { showToast } from './toast';
 
 const LAST_DM_NPUB_PREFIX = 'pacto_last_dm_npub';
 let lastOpenChatRestored = false;
@@ -41,6 +42,13 @@ const INIT_LISTENER_KEY = '__pacto_init_finished_unlisten';
           profilesMap[profile.id] = profile;
         }
         profiles.set(profilesMap);
+        blockedDmNpubs.set(
+          new Set(
+            Object.entries(profilesMap)
+              .filter(([, p]) => p.blocked)
+              .map(([id]) => id)
+          )
+        );
         dmLog('init_finished: profiles store set', Object.keys(profilesMap).length);
       }
 
@@ -116,6 +124,22 @@ const INIT_LISTENER_KEY = '__pacto_init_finished_unlisten';
   }
 })();
 
+// Kind 0 profile republish finished (e.g. wallet default receiving address). Emitted after relays accept the event.
+(async () => {
+  try {
+    await listen('kind0_profile_published', () => {
+      showToast('Profile metadata (Kind 0) published to the network.');
+    });
+    await listen('kind0_profile_publish_failed', (event: any) => {
+      const p = event.payload;
+      const msg = typeof p === 'string' && p.trim() ? p : 'Could not publish profile metadata.';
+      showToast(msg);
+    });
+  } catch (error) {
+    console.error('Failed to register kind0_profile publish listeners:', error);
+  }
+})();
+
 // Listen for profile updates from backend
 (async () => {
   try {
@@ -123,7 +147,13 @@ const INIT_LISTENER_KEY = '__pacto_init_finished_unlisten';
       const profile = event.payload as NostrProfile;
       if (profile?.id) {
         dmLog('profile_update', { npub: profile.id.slice(0, 20) + '…', name: profile.display_name || profile.name });
-        profiles.update(p => ({ ...p, [profile.id]: profile }));
+        profiles.update((p) => {
+          const next = { ...p, [profile.id]: { ...p[profile.id], ...profile } };
+          blockedDmNpubs.set(
+            new Set(Object.entries(next).filter(([, x]) => x.blocked).map(([k]) => k))
+          );
+          return next;
+        });
       }
     });
   } catch (error) {

@@ -47,6 +47,7 @@
   import { publishSquadMemberEvmShare } from '../lib/squad/squad-member-evm-share';
   import { setDmPeerEvmAddress } from '../lib/api/wallet-peers';
   import { scheduleWalletSummaryBackgroundPrefetch } from '../lib/wallet/wallet-summary-prefetch';
+  import { getActiveEvmSignerAddress } from '../lib/wallet/evm-accounts';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
   import { isAuthenticated, currentUser } from '../stores/auth';
@@ -63,6 +64,7 @@
     walletSidebarOpen,
     closeWalletSidebar,
     backendDmMessages,
+    dmThreadAnnouncementsByNpub,
     backendGroupMessages,
     pendingMlsWelcomes,
     ungroupedChannels,
@@ -93,6 +95,7 @@
     declinedChannelInviteMessageIds,
     dmChatsByNpub,
     pinnedDmNpubs,
+    blockedDmNpubs,
     dmSendError,
     deleteDmChat,
     revertDmChat,
@@ -275,6 +278,24 @@
     }));
   }
 
+  // Highlight the tab that matches the open thread (e.g. Pending → Friends when they reply). Skip Search so the unified list stays active.
+  // While viewing a locally blocked peer, do not auto-switch tabs (conversation can be hidden from the list but stay open).
+  $: if (
+    $activeTopNavTab === 'dms' &&
+    $activeDmId &&
+    $activeDmTab !== 'search' &&
+    !$blockedDmNpubs.has($activeDmId)
+  ) {
+    const desiredTab = dmSidebarCategoryForNpub($activeDmId, $dmChatsByNpub, $pinnedDmNpubs) as DmTab;
+    if ($activeDmTab !== desiredTab) {
+      lastOpenedDmByTab.update((byTab: Record<DmTab, string | null>) => ({
+        ...byTab,
+        [desiredTab]: $activeDmId,
+      }));
+      activeDmTab.set(desiredTab);
+    }
+  }
+
   const SQUAD_CHANNEL_DEBUG = false; // [SquadChannel] set true to trace squad channel persistence
   // Remember last opened squad/channel (so switching to Squads view restores it) and per-squad last channel.
   // Only write channel when it belongs to this squad (avoid overwriting with network channel when we've just switched to Squads and activeChannelId is still the network channel).
@@ -378,7 +399,9 @@
   $: mergedDmMessages = (() => {
     const npub = $activeDmId;
     if (!npub) return [];
-    const list = [...($backendDmMessages[npub] ?? [])];
+    const backend = [...($backendDmMessages[npub] ?? [])];
+    const announcements = [...($dmThreadAnnouncementsByNpub[npub] ?? [])];
+    const list = [...backend, ...announcements];
     list.sort((a: DmMessage, b: DmMessage) => a.at - b.at);
     const squadInviteCount = list.filter((m: DmMessage) => parseSquadInviteMessage(m.content ?? '') !== null).length;
     if (list.length > 0 || npub) console.log('[Squad/Invite] mergedDmMessages for', npub?.slice(0, 24) + '…', 'count=', list.length, 'squadInviteMsgs=', squadInviteCount);
@@ -744,6 +767,11 @@
       showToast('Open a DM and ensure you are logged in.');
       return;
     }
+    const fromEvm = await getActiveEvmSignerAddress();
+    if (!fromEvm) {
+      showToast('Dev: set up an active EVM account in Settings → Wallet first.');
+      return;
+    }
     const content = formatWalletTxAnnouncement({
       network: 'sepolia',
       asset: 'ETH',
@@ -751,6 +779,7 @@
       tx_hash: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
       from_npub: me,
       to_npub: peerNpub,
+      from_evm_address: fromEvm,
       block_number: '1',
     });
     const ok = await handleDmSend(content);

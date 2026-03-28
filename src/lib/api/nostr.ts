@@ -33,6 +33,8 @@ export interface NostrProfile {
   website: string;
   nip05: string;
   muted: boolean;
+  /** Local-only: hidden from DM lists; incoming DMs discarded after decrypt. */
+  blocked?: boolean;
   bot: boolean;
   // Cached image paths (for offline support)
   avatar_cached: string;
@@ -149,16 +151,15 @@ export async function updateProfile(params: {
   avatar: string;
   banner: string;
   about: string;
-}): Promise<boolean> {
+}): Promise<void> {
   dmLog('update_profile', { nameLen: params.name?.length ?? 0 });
-  const ok = (await invoke('update_profile', {
+  await invoke('update_profile', {
     name: params.name ?? '',
     avatar: params.avatar ?? '',
     banner: params.banner ?? '',
     about: params.about ?? '',
-  })) as boolean;
-  dmLog('update_profile result', { ok });
-  return ok;
+  });
+  dmLog('update_profile result', { ok: true });
 }
 
 /**
@@ -187,6 +188,11 @@ export async function setNickname(npub: string, nickname: string): Promise<boole
   const ok = (await invoke('set_nickname', { npub, nickname: nickname ?? '' })) as boolean;
   dmLog('set_nickname result', { ok });
   return ok;
+}
+
+/** Toggle local DM block for a contact. Relays still deliver gift wraps; backend drops payload after decrypt. */
+export async function toggleDmBlock(npub: string): Promise<boolean> {
+  return (await invoke('toggle_blocked', { npub })) as boolean;
 }
 
 /**

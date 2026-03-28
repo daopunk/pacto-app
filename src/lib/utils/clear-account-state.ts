@@ -8,6 +8,7 @@ import {
   squads,
   networks,
   pinnedDmNpubs,
+  blockedDmNpubs,
   dmChatsByNpub,
   activeDmId,
   lastOpenedDmByTab,
@@ -26,7 +27,6 @@ import {
   declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
-  acceptedWalletTxRequestMessageIds,
   declinedWalletTxRequestMessageIds,
   acceptedWalletPeerInfoRequestMessageIds,
   declinedWalletPeerInfoRequestMessageIds,
@@ -41,12 +41,14 @@ import {
   channelMessages,
   composingNewChat,
   activeTopNavTab,
+  activeSettingsAreaTab,
   activeDmTab,
   activeView,
   showMembersPanel,
   walletSidebarOpen,
   walletSendPrefillFromRequest,
   backendDmMessages,
+  dmThreadAnnouncementsByNpub,
   messageCountByChat,
   loadedOffsetByChat,
   dmSyncStatus,
@@ -71,6 +73,8 @@ const LEGACY_LOCAL_STORAGE_KEYS = [
   'pacto_last_network_id',
   'pacto_last_network_channel_id',
   'pacto_pinned_dm_npubs',
+  // Legacy: payment request "accepted" was removed; clear leftover keys.
+  'pacto_wallet_tx_request_accepted',
   ...INVITE_DECISION_SCOPED_PREFIXES,
   'pacto_theme',
   'recentEmojis',
@@ -91,6 +95,8 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_last_channel_by_network',
   'pacto_pinned_dm_npubs',
   'pacto_wallet_summary_cache_v1',
+  'pacto_wallet_ui_enabled_chains_v1',
+  'pacto_wallet_tx_request_accepted',
   ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;
 
@@ -128,6 +134,7 @@ export function clearAccountState(npub?: string): void {
   safeStateByTreasuryId.set({});
   squads.set([]);
   pinnedDmNpubs.set(new Set());
+  blockedDmNpubs.set(new Set());
   dmChatsByNpub.set({});
   activeDmId.set(null);
   lastOpenedDmByTab.set({
@@ -153,7 +160,6 @@ export function clearAccountState(npub?: string): void {
   declinedNetworkInviteIds.set([]);
   acceptedChannelInviteMessageIds.set([]);
   declinedChannelInviteMessageIds.set([]);
-  acceptedWalletTxRequestMessageIds.set([]);
   declinedWalletTxRequestMessageIds.set([]);
   acceptedWalletPeerInfoRequestMessageIds.set([]);
   declinedWalletPeerInfoRequestMessageIds.set([]);
@@ -168,6 +174,7 @@ export function clearAccountState(npub?: string): void {
   channelMessages.set({});
   composingNewChat.set(false);
   activeTopNavTab.set('squads');
+  activeSettingsAreaTab.set('profile');
   activeDmTab.set('friends');
   activeView.set('hub');
   showMembersPanel.set(false);
@@ -175,6 +182,7 @@ export function clearAccountState(npub?: string): void {
   walletSendPrefillFromRequest.set(null);
 
   backendDmMessages.set({});
+  dmThreadAnnouncementsByNpub.set({});
   messageCountByChat.set({});
   loadedOffsetByChat.set({});
   dmSyncStatus.set('idle');

@@ -16,15 +16,19 @@
     type WalletPeerInfoRequestPayload,
   } from '../../lib/wallet/dm-messages';
   import { setDmPeerEvmAddress } from '../../lib/api/wallet-peers';
+  import { notifyUserAction } from '../../lib/utils/desktop-notify';
   import {
     parseChannelInSquadMessage,
     parseChannelInNetworkMessage,
     parseNetworkInviteMessage,
     parseSquadInviteMessage,
+    toggleDmBlock,
   } from '../../lib/api/nostr';
   import type { NostrProfile } from '../../lib/api/nostr';
   import { profiles } from '../../stores/profiles';
   import {
+    activeDmTab,
+    lastOpenedDmByTab,
     pinnedDmNpubs,
     dmSendError,
     typingByChat,
@@ -34,7 +38,6 @@
     declinedChannelInviteMessageIds,
     acceptedNetworkInviteIds,
     declinedNetworkInviteIds,
-    acceptedWalletTxRequestMessageIds,
     declinedWalletTxRequestMessageIds,
     acceptedWalletPeerInfoRequestMessageIds,
     declinedWalletPeerInfoRequestMessageIds,
@@ -43,6 +46,8 @@
     walletSidebarOpen,
     walletSendPrefillFromRequest,
     toggleWalletSidebar,
+    type DmTab,
+    appendDmThreadAnnouncement,
   } from '../../stores/app';
   import { currentUser } from '../../stores/auth';
   import { showToast } from '../../stores/toast';
@@ -143,6 +148,7 @@
   $: if (npub !== scrollPrevNpub && messages.length === 0) scrollPrevNpub = npub;
 
   $: contactProfile = npub ? $profiles[npub] : null;
+  $: peerBlockedByMe = contactProfile?.blocked === true;
   $: contactAvatarSrc = getProfileAvatarSrc(contactProfile);
   $: contactDisplayName = contactProfile
     ? getProfileDisplayName(contactProfile)
@@ -227,7 +233,31 @@
       next.add(npub);
       return next;
     });
+    lastOpenedDmByTab.update((byTab: Record<DmTab, string | null>) => ({ ...byTab, pinned: npub }));
+    activeDmTab.set('pinned');
     menuOpen = false;
+  }
+
+  async function toggleBlockUser() {
+    menuOpen = false;
+    const peerLabel = contactDisplayName;
+    try {
+      const nowBlocked = await toggleDmBlock(npub);
+      if (nowBlocked) {
+        appendDmThreadAnnouncement(
+          npub,
+          `You blocked ${peerLabel}. New messages from this user are ignored.`
+        );
+        showToast('Blocked. New messages from this user are ignored. Relays may still deliver data to the app.');
+        notifyUserAction('Blocked user', `${peerLabel} is blocked.`);
+      } else {
+        appendDmThreadAnnouncement(npub, `You unblocked ${peerLabel}.`);
+        showToast('User unblocked.');
+        notifyUserAction('Unblocked user', `${peerLabel} is unblocked.`);
+      }
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Could not update block status.');
+    }
   }
 
   function unpinDm() {
@@ -321,6 +351,9 @@
                     <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={openNicknameEdit}>
                       Set Nickname
                     </button>
+                    <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={toggleBlockUser}>
+                      {$profiles[npub]?.blocked ? 'Unblock User' : 'Block User'}
+                    </button>
                     {#if showPinOption}
                       {#if $pinnedDmNpubs.has(npub)}
                         <button type="button" class="dm-thread-dropdown-item" role="menuitem" on:click={unpinDm}>
@@ -342,7 +375,7 @@
                           onDeleteChat();
                         }}
                       >
-                        Delete chat
+                        Delete Chat
                       </button>
                     {/if}
                   </div>
@@ -407,6 +440,9 @@
     {/if}
     {#if messages.length > 0}
       {#each messages as msg (msg.id)}
+        {#if msg.is_local_announcement}
+          <div class="dm-thread-announcement" role="status">{msg.content}</div>
+        {:else}
         {@const channelInSquadPayload = parseChannelInSquadMessage(msg.content ?? '')}
         {@const channelInNetworkPayload = parseChannelInNetworkMessage(msg.content ?? '')}
         {@const networkInvitePayload = parseNetworkInviteMessage(msg.content ?? '')}
@@ -509,11 +545,9 @@
           {@const walletFulfilled = fulfilledWalletRequestIds.has(walletTxRequestPayload.request_id)}
           {@const walletReqStatus = walletFulfilled
             ? 'fulfilled'
-            : $acceptedWalletTxRequestMessageIds.includes(msg.id)
-              ? 'accepted'
-              : $declinedWalletTxRequestMessageIds.includes(msg.id)
-                ? 'declined'
-                : 'pending'}
+            : $declinedWalletTxRequestMessageIds.includes(msg.id)
+              ? 'declined'
+              : 'pending'}
           <WalletTxRequestCard
             payload={walletTxRequestPayload}
             isMine={msg.mine}
@@ -521,9 +555,6 @@
             status={walletReqStatus}
             accepting={false}
             onAccept={() => {
-              acceptedWalletTxRequestMessageIds.update((ids) =>
-                ids.includes(msg.id) ? ids : [...ids, msg.id]
-              );
               declinedWalletTxRequestMessageIds.update((ids) => ids.filter((id) => id !== msg.id));
               walletSendPrefillFromRequest.set({
                 targetNpub: npub,
@@ -539,16 +570,20 @@
               declinedWalletTxRequestMessageIds.update((ids) =>
                 ids.includes(msg.id) ? ids : [...ids, msg.id]
               );
-              acceptedWalletTxRequestMessageIds.update((ids) => ids.filter((id) => id !== msg.id));
               if (!msg.mine) {
                 showToast('Payment request declined. The requester was not notified.');
               }
             }}
           />
         {:else if walletTxAnnouncementPayload}
-          <WalletTxAnnouncementCard payload={walletTxAnnouncementPayload} />
+          <WalletTxAnnouncementCard
+            payload={walletTxAnnouncementPayload}
+            peerDisplayName={contactDisplayName}
+            viewerIsSender={$currentUser?.npub === walletTxAnnouncementPayload.from_npub}
+          />
         {:else}
           <Message {...toMessageProps(msg)} />
+        {/if}
         {/if}
       {/each}
     {:else}
@@ -561,7 +596,13 @@
   {#if $dmSendError}
     <p class="dm-thread-error" role="alert">{$dmSendError}</p>
   {/if}
-  <MessageInput channelName={truncateNpub(npub)} onSend={onSend} onTyping={onTyping} />
+  <MessageInput
+    channelName={truncateNpub(npub)}
+    placeholderOverride={peerBlockedByMe ? `Blocked #${truncateNpub(npub)}` : undefined}
+    disabled={peerBlockedByMe}
+    onSend={onSend}
+    onTyping={onTyping}
+  />
 </div>
 
 <style>
@@ -869,6 +910,19 @@
   .load-older-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .dm-thread-announcement {
+    max-width: 36rem;
+    margin: 12px auto;
+    padding: 8px 14px;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    text-align: center;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
+    border-radius: 8px;
+    border: 1px solid var(--bg-elevated);
   }
 
   .dm-thread-placeholder {

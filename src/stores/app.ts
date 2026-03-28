@@ -12,7 +12,6 @@ import {
   declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
-  acceptedWalletTxRequestMessageIds,
   declinedWalletTxRequestMessageIds,
   acceptedWalletPeerInfoRequestMessageIds,
   declinedWalletPeerInfoRequestMessageIds,
@@ -26,7 +25,6 @@ export {
   declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
-  acceptedWalletTxRequestMessageIds,
   declinedWalletTxRequestMessageIds,
   acceptedWalletPeerInfoRequestMessageIds,
   declinedWalletPeerInfoRequestMessageIds,
@@ -44,9 +42,13 @@ function persistenceKey(prefix: string): string | null {
   return npub ? `${prefix}_${npub}` : null;
 }
 
-// Top navbar tab - determines what the side Navbar shows (DMs, Networks, Squads)
+// Top navbar tab - determines what the side Navbar shows (DMs, Squads, Networks)
 export type TopNavTab = 'dms' | 'networks' | 'squads';
 export const activeTopNavTab = writable<TopNavTab>('squads');
+
+/** Sub-area when `activeView === 'profile'` (Settings in sidebar): Nostr profile vs wallet vs app preferences. */
+export type SettingsAreaTab = 'profile' | 'wallet' | 'settings';
+export const activeSettingsAreaTab = writable<SettingsAreaTab>('profile');
 
 // UI state stores - what's currently selected
 export const activeSquadId = writable<string | null>(null);
@@ -75,6 +77,9 @@ pinnedDmNpubs.subscribe((set) => {
     // ignore
   }
 });
+
+/** Local block list (npubs hidden from DM sidebar; backend drops new incoming wraps after decrypt). */
+export const blockedDmNpubs = writable<Set<string>>(new Set());
 
 // New Chat flow: when true, show npub + message form instead of DM list/thread
 export const composingNewChat = writable<boolean>(false);
@@ -135,24 +140,27 @@ function toDmEntries(map: Record<string, DmChatState>, filter: (c: DmChatState) 
 }
 
 export const dmList = derived(
-  [dmChatsByNpub, pinnedDmNpubs] as const,
-  ([$m, $pinned]) =>
-    toDmEntries($m, (c) => c.hasFromMe && c.hasFromThem && !$pinned.has(c.npub))
+  [dmChatsByNpub, pinnedDmNpubs, blockedDmNpubs] as const,
+  ([$m, $pinned, $blocked]) =>
+    toDmEntries(
+      $m,
+      (c) => c.hasFromMe && c.hasFromThem && !$pinned.has(c.npub) && !$blocked.has(c.npub)
+    )
 );
 // Requests: they messaged us, we haven't replied. Includes invite-only DMs (squad/network/channel-in-squad) from non-friends.
-export const requestsList = derived(dmChatsByNpub, ($m) =>
-  toDmEntries($m, (c) => !c.hasFromMe && c.hasFromThem)
+export const requestsList = derived([dmChatsByNpub, blockedDmNpubs] as const, ([$m, $blocked]) =>
+  toDmEntries($m, (c) => !c.hasFromMe && c.hasFromThem && !$blocked.has(c.npub))
 );
 // Pending: we messaged them, they haven't replied. Includes conversations where we sent an invite and they haven't replied.
-export const pendingList = derived(dmChatsByNpub, ($m) =>
-  toDmEntries($m, (c) => c.hasFromMe && !c.hasFromThem)
+export const pendingList = derived([dmChatsByNpub, blockedDmNpubs] as const, ([$m, $blocked]) =>
+  toDmEntries($m, (c) => c.hasFromMe && !c.hasFromThem && !$blocked.has(c.npub))
 );
 
 export const pinnedList = derived(
-  [dmChatsByNpub, pinnedDmNpubs] as const,
-  ([$m, $pinned]) => {
+  [dmChatsByNpub, pinnedDmNpubs, blockedDmNpubs] as const,
+  ([$m, $pinned, $blocked]) => {
     const set = $pinned;
-    return toDmEntries($m, (c) => set.has(c.npub) && c.hasFromMe && c.hasFromThem);
+    return toDmEntries($m, (c) => set.has(c.npub) && c.hasFromMe && c.hasFromThem && !$blocked.has(c.npub));
   }
 );
 
@@ -298,6 +306,8 @@ export interface DmMessage {
   content: string;
   at: number;
   mine: boolean;
+  /** Local-only row: block / unblock notice in the thread (not from relays). */
+  is_local_announcement?: boolean;
   npub?: string;
   pending?: boolean;
   failed?: boolean;
@@ -313,6 +323,25 @@ export interface DmMessage {
 
 // Backend DM messages (from get_message_views + message_new). Keyed by npub.
 export const backendDmMessages = writable<Record<string, DmMessage[]>>({});
+
+/** Local-only lines shown in the thread (e.g. block / unblock). Merged at display time; not sent to relays. */
+export const dmThreadAnnouncementsByNpub = writable<Record<string, DmMessage[]>>({});
+
+export function appendDmThreadAnnouncement(npub: string, content: string): void {
+  const trimmedNpub = npub.trim();
+  if (!trimmedNpub) return;
+  dmThreadAnnouncementsByNpub.update((m) => {
+    const list = m[trimmedNpub] ?? [];
+    const msg: DmMessage = {
+      id: `local-announce-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      content,
+      at: Date.now(),
+      mine: true,
+      is_local_announcement: true,
+    };
+    return { ...m, [trimmedNpub]: [...list, msg] };
+  });
+}
 
 // Total message count per chat (from get_chat_message_count when opening a DM). Used for "load older" pagination.
 export const messageCountByChat = writable<Record<string, number>>({});

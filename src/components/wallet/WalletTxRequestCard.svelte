@@ -6,19 +6,22 @@
   export let isMine: boolean;
   /** Display name of the counterparty (the other person in the DM). */
   export let peerDisplayName: string;
-  export let status: 'pending' | 'accepted' | 'declined' | 'fulfilled';
+  export let status: 'pending' | 'declined' | 'fulfilled';
   export let accepting: boolean;
   export let onAccept: () => void;
   export let onDecline: () => void;
 
   $: networkLabel = getWalletNetworkDisplayName(payload.network);
   $: title = `${payload.amount} ${payload.asset}`;
-  $: subtitle = networkLabel;
+  $: fromAddr = payload.from_evm_address.trim();
+  $: fromAddrShort =
+    fromAddr.length > 14 ? `${fromAddr.slice(0, 8)}…${fromAddr.slice(-6)}` : fromAddr;
+  $: subtitle = `${networkLabel} · ${fromAddrShort}`;
   $: bodyText = isMine
-    ? `You requested this payment on ${networkLabel}.`
-    : `${peerDisplayName} requested you send this amount.`;
-  /** Keep declined expanded so each side sees clear copy; accepted/fulfilled stay compact. */
-  $: collapsed = status === 'accepted' || status === 'fulfilled';
+    ? `You requested this payment on ${networkLabel} (account ${fromAddrShort}).`
+    : `${peerDisplayName} requested you send this amount (their account ${fromAddrShort}).`;
+  /** Declined stays expanded; fulfilled compacts to amount + Paid. */
+  $: collapsed = status === 'fulfilled';
 </script>
 
 <div
@@ -45,8 +48,6 @@
       {/if}
     {:else if isMine}
       <p class="wallet-tx-request-hint">Waiting for the other person to respond.</p>
-    {:else if status === 'accepted'}
-      <p class="wallet-tx-request-status wallet-tx-request-status-accepted" aria-live="polite">Accepted</p>
     {:else if status === 'declined'}
       <p class="wallet-tx-request-status wallet-tx-request-status-declined" aria-live="polite">Declined</p>
       {#if isMine}
@@ -215,10 +216,6 @@
   .wallet-tx-request-status {
     margin: 0;
     font-size: 0.8125rem;
-  }
-
-  .wallet-tx-request-status-accepted {
-    color: var(--success);
   }
 
   .wallet-tx-request-status-fulfilled {
