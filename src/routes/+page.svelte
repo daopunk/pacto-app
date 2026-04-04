@@ -12,6 +12,7 @@
   import MessengerChatView from '../components/dm/MessengerChatView.svelte';
   import DmThread from '../components/dm/DmThread.svelte';
   import WalletBar from '../components/wallet/WalletBar.svelte';
+  import ResizableSidebar from '../components/ui/ResizableSidebar.svelte';
   import Toast from '../components/ui/Toast.svelte';
   import {
     getDmMessages,
@@ -62,7 +63,6 @@
     activeDmId,
     composingNewChat,
     walletSidebarOpen,
-    closeWalletSidebar,
     backendDmMessages,
     dmThreadAnnouncementsByNpub,
     backendGroupMessages,
@@ -129,16 +129,15 @@
     pendingReadyToast.set(null);
   }
 
-  /** Wallet sidebar only valid on DMs hub, Friends/Pinned, not while composing new chat. */
+  /** When true, the DM wallet panel is not shown (other top nav, DM tab, or new chat), but open state stays until the user closes it. */
   $: walletSidebarInvalidContext =
     $activeTopNavTab !== 'dms' ||
     $activeView !== 'hub' ||
     ($activeDmTab !== 'friends' && $activeDmTab !== 'pinned') ||
     $composingNewChat;
 
-  $: if (walletSidebarInvalidContext && $walletSidebarOpen) {
-    closeWalletSidebar();
-  }
+  $: dmWalletSidebarVisible =
+    $walletSidebarOpen && !!$activeDmId && !walletSidebarInvalidContext;
 
   /** Pin control: hidden on Requests/Pending tabs; on Search tab only for Friends/Pinned conversations. */
   $: showDmPinOption = (() => {
@@ -1184,7 +1183,7 @@
         <div class="dm-area">
           <MessengerNavbar />
           <div class="dm-main-row">
-            <div class="dm-area-center">
+            <div class="dm-area-center" class:dm-area-center--wallet-open={dmWalletSidebarVisible}>
             {#if $dmSyncStatus !== 'idle'}
               <p class="dm-sync-banner dm-sync-{$dmSyncStatus}" role="status">
                 {$dmSyncStatus === 'syncing' ? 'Updating messages…' : 'Up to date'}
@@ -1261,12 +1260,21 @@
             {/if}
             </div>
             </div>
-            {#if $walletSidebarOpen && $activeDmId && !walletSidebarInvalidContext}
-              <WalletBar
-                npub={$activeDmId}
-                postDmPlaintext={handleDmSend}
-                onDevPostTestWalletAnnouncement={import.meta.env.DEV ? devPostWalletTxAnnouncementStub : undefined}
-              />
+            {#if dmWalletSidebarVisible && $activeDmId}
+              <ResizableSidebar
+                edge="trailing"
+                sidebarClass="dm-wallet-resizable"
+                persistKey="pacto_dm_wallet_sidebar_width"
+                minWidth={240}
+                maxWidth={900}
+                initialWidth={300}
+              >
+                <WalletBar
+                  npub={$activeDmId}
+                  postDmPlaintext={handleDmSend}
+                  onDevPostTestWalletAnnouncement={import.meta.env.DEV ? devPostWalletTxAnnouncementStub : undefined}
+                />
+              </ResizableSidebar>
             {/if}
           </div>
         </div>
@@ -1399,6 +1407,14 @@
     display: flex;
     flex-direction: column;
     padding: 0 16px 0 16px;
+  }
+
+  .dm-area-center--wallet-open {
+    padding-right: 0;
+  }
+
+  :global(.dm-wallet-resizable) {
+    background-color: var(--bg-hover);
   }
 
   .dm-main {
