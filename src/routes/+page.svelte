@@ -30,6 +30,8 @@
     parseChannelInNetworkMessage,
     parseNetworkInviteMessage,
     syncMlsGroupsNow,
+    getMlsGroupMembers,
+    backfillSquadMemberEvmFromProfiles,
     deleteDmChatBackend,
     listParentTreasurySafes,
     addParentTreasurySafe,
@@ -39,7 +41,6 @@
   import { getExplorerTxUrl } from '../lib/wallet/assets';
   import { parseSupportedChainId } from '../lib/wallet/chains';
   import {
-    formatWalletTxAnnouncement,
     formatWalletPeerInfoGrant,
     formatWalletPeerInfoDecline,
     type WalletPeerInfoRequestPayload,
@@ -105,6 +106,7 @@
     ANNOUNCEMENTS_CHANNEL_NAME,
     DASHBOARD_CHANNEL_ID,
     treasurySafesByParentId,
+    dashboardPollReplicaNonceByParentId,
     type TreasurySafeEntry,
     type DmMessage,
     type DmTab,
@@ -521,12 +523,19 @@
     if (acceptingWalletPeerInfoRequestId) return;
     acceptingWalletPeerInfoRequestId = msg.id;
     try {
-      const myAddr = await getEvmAddress();
-      if (!myAddr?.trim()) {
-        showToast('Your wallet address is not ready. Try again in a moment.');
+      // Request includes the other party's address; accepting saves it here immediately so this side can pay
+      // them without a second request. WalletBar only refreshes when this tick runs.
+      await setDmPeerEvmAddress(peerNpub, payload.requester_evm_address);
+      dmWalletPeerExchangeTick.update((t: number) => t + 1);
+
+      const myAddr =
+        (await getActiveEvmSignerAddress())?.trim() || (await getEvmAddress())?.trim() || '';
+      if (!myAddr) {
+        showToast(
+          'Their address is saved. Add or select a wallet, then tap Accept again to send yours.'
+        );
         return;
       }
-      await setDmPeerEvmAddress(peerNpub, payload.requester_evm_address);
       const me = get(currentUser)?.npub;
       if (!me) return;
       const grantJson = formatWalletPeerInfoGrant({
@@ -537,7 +546,7 @@
       const ok = await handleDmSend(grantJson);
       if (!ok) {
         showToast(
-          'Could not send confirmation. Your device saved their address; try sending the confirmation again from chat.'
+          'Could not send your address. Theirs is saved on this device; tap Accept to try again.'
         );
         return;
       }
@@ -548,7 +557,7 @@
         ids.filter((id) => id !== msg.id)
       );
       dmWalletPeerExchangeTick.update((t: number) => t + 1);
-      showToast('You shared your wallet address.');
+      showToast('Wallet addresses exchanged for this chat.');
     } catch (e: unknown) {
       dmError('Accept wallet peer info failed', e);
       showToast('Could not complete wallet exchange.');
@@ -621,9 +630,36 @@
       activeView.set('hub');
       acceptedNetworkInviteIds.update((ids: string[]) => (ids.includes(messageId) ? ids : [...ids, messageId]));
     }
-    publishSquadMemberEvmShare(payload.groupId).catch((e) =>
-      dmError('publishSquadMemberEvmShare after accept', e)
-    );
+    try {
+      await syncMlsGroupsNow(payload.groupId);
+    } catch (e) {
+      dmError('syncMlsGroupsNow after accept invite', e);
+    }
+    try {
+      const membersResult = await getMlsGroupMembers(payload.groupId);
+      const memberNpubs = (membersResult.members ?? []) as string[];
+      await backfillSquadMemberEvmFromProfiles(payload.groupId, memberNpubs);
+    } catch (e) {
+      dmError('backfillSquadMemberEvmFromProfiles after accept', e);
+    }
+    bumpMembershipVersion(payload.groupId);
+    pendingReadyToast.set({
+      text: `${payload.name} is ready!`,
+      goTo:
+        type === 'squad'
+          ? {
+              type: 'squad',
+              name: payload.name,
+              id: payload.groupId,
+              channelId: payload.groupId,
+            }
+          : {
+              type: 'network',
+              name: payload.name,
+              id: payload.groupId,
+              channelId: payload.groupId,
+            },
+    });
   }
 
   async function handleAcceptSquadInvite(msg: DmMessage, groupId: string) {
@@ -763,33 +799,6 @@
       dmError('handleDmSend error', e);
       return false;
     }
-  }
-
-  /** Dev-only: post a test `wallet_tx_announcement` to validate the in-thread card (fake tx hash). */
-  async function devPostWalletTxAnnouncementStub() {
-    const peerNpub = get(activeDmId);
-    const me = get(currentUser)?.npub;
-    if (!peerNpub || !me) {
-      showToast('Open a DM and ensure you are logged in.');
-      return;
-    }
-    const fromEvm = await getActiveEvmSignerAddress();
-    if (!fromEvm) {
-      showToast('Dev: set up an active EVM account in Settings → Wallet first.');
-      return;
-    }
-    const content = formatWalletTxAnnouncement({
-      network: 'sepolia',
-      asset: 'ETH',
-      amount: '0.001',
-      tx_hash: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-      from_npub: me,
-      to_npub: peerNpub,
-      from_evm_address: fromEvm,
-      block_number: '1',
-    });
-    const ok = await handleDmSend(content);
-    if (ok) showToast('Dev: posted test wallet_tx_announcement (fake tx).');
   }
 
   /** Ungrouped channels UI removed; keep store empty. */
@@ -1104,9 +1113,9 @@
           group_id,
           channelInviteInfo.channelName
         );
-        publishSquadMemberEvmShare(channelInviteInfo.parentId).catch((e) =>
-          dmError('publishSquadMemberEvmShare after channel welcome', e)
-        );
+        void publishSquadMemberEvmShare(channelInviteInfo.parentId).then((ok) => {
+          if (!ok) dmError('publishSquadMemberEvmShare after channel welcome', new Error('share failed'));
+        });
         return;
       }
       if (acceptedSquadInviteGroupIds.has(group_id)) {
@@ -1163,6 +1172,14 @@
       if (gid) bumpMembershipVersion(gid);
     });
 
+    const unlistenDashboardPollReplica = listen('dashboard_poll_replica_updated', (event) => {
+      const raw = event.payload as Record<string, unknown> | undefined;
+      const pidRaw = raw?.parent_id ?? raw?.parentId;
+      const pid = typeof pidRaw === 'string' ? pidRaw.trim() : '';
+      if (!pid) return;
+      dashboardPollReplicaNonceByParentId.update((m) => ({ ...m, [pid]: (m[pid] ?? 0) + 1 }));
+    });
+
     return () => {
       unlistenNew.then((fn) => fn());
       unlistenUpdate.then((fn) => fn());
@@ -1178,6 +1195,7 @@
       unlistenGroupUpdated.then((fn) => fn());
       unlistenGroupInitialSync.then((fn) => fn());
       unlistenGroupLeft.then((fn) => fn());
+      unlistenDashboardPollReplica.then((fn) => fn());
     };
   });
 </script>
@@ -1281,11 +1299,7 @@
                 maxWidth={900}
                 initialWidth={300}
               >
-                <WalletBar
-                  npub={$activeDmId}
-                  postDmPlaintext={handleDmSend}
-                  onDevPostTestWalletAnnouncement={import.meta.env.DEV ? devPostWalletTxAnnouncementStub : undefined}
-                />
+                <WalletBar npub={$activeDmId} postDmPlaintext={handleDmSend} />
               </ResizableSidebar>
             {/if}
           </div>

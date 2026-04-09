@@ -39,6 +39,8 @@ export interface NostrProfile {
   // Cached image paths (for offline support)
   avatar_cached: string;
   banner_cached: string;
+  /** Kind 0 / DB payout `0x` when present (send path also uses `dm_peer_evm` first). */
+  evm_address?: string;
 }
 
 /**
@@ -573,6 +575,17 @@ export async function getMlsGroupMembers(groupId: string): Promise<MlsGroupMembe
   return result;
 }
 
+/** Insert missing `squad_member_evm` rows from local profile addresses if we already have them cached. */
+export async function backfillSquadMemberEvmFromProfiles(
+  parentId: string,
+  memberNpubs: string[]
+): Promise<number> {
+  return (await invoke('backfill_squad_member_evm_missing_from_profiles', {
+    parentId,
+    memberNpubs,
+  })) as number;
+}
+
 /**
  * Leave an MLS group. Backend: leave_mls_group.
  */
@@ -593,4 +606,51 @@ export async function syncMlsGroupsNow(groupId?: string | null): Promise<{ synce
   })) as [number, number];
   dmLog('sync_mls_groups_now result', { synced, total });
   return { synced, total };
+}
+
+/** Local replica row for dashboard polls (SQLite + MLS ingest). */
+export interface DashboardPollDto {
+  id: string;
+  parent_id: string;
+  title: string;
+  description: string;
+  options: { id: string; label: string; votes: number }[];
+  created_at_ms: number;
+  created_by_npub: string;
+}
+
+export async function listDashboardPolls(parentId: string): Promise<DashboardPollDto[]> {
+  return (await invoke('list_dashboard_polls', { parentId })) as DashboardPollDto[];
+}
+
+export async function sendDashboardPollCreate(params: {
+  announcementsGroupId: string;
+  parentId: string;
+  pollId: string;
+  title: string;
+  description: string;
+  options: { id: string; label: string }[];
+}): Promise<void> {
+  await invoke('send_dashboard_poll_create', {
+    announcementsGroupId: params.announcementsGroupId,
+    parentId: params.parentId,
+    pollId: params.pollId,
+    title: params.title,
+    description: params.description,
+    options: params.options,
+  });
+}
+
+export async function sendDashboardPollVote(params: {
+  announcementsGroupId: string;
+  parentId: string;
+  pollId: string;
+  optionId: string;
+}): Promise<void> {
+  await invoke('send_dashboard_poll_vote', {
+    announcementsGroupId: params.announcementsGroupId,
+    parentId: params.parentId,
+    pollId: params.pollId,
+    optionId: params.optionId,
+  });
 }
