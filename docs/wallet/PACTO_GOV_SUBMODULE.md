@@ -35,6 +35,10 @@ git commit -m "Bump pacto-gov submodule to …"
 
 Treat bumps like dependency upgrades: review contract diff and release notes before merging.
 
+## CI
+
+GitHub Actions **publish** workflow ([`.github/workflows/main.yaml`](../../.github/workflows/main.yaml)) checks out with **`submodules: recursive`** so `cargo`/Tauri builds see `third_party/pacto-gov`. Any new workflow that compiles `src-tauri` should do the same (or run `git submodule update --init --recursive` after checkout).
+
 ## Current pin
 
 Superproject records the submodule **gitlink** (commit SHA). As of the submodule’s introduction, `third_party/pacto-gov` tracks **`dev`** at commit **`54d4065f0fc3a16c29da2ecebc663130d206fd86`** (update this line when the pin changes).
