@@ -2,6 +2,11 @@
 description: Do not reference issue or ticket IDs in application source
 alwaysApply: true
 ---
+# No references to Cursor
+// ❌ BAD
+Co-authored-by: Cursor <cursoragent@cursor.com>
+
+No co-authors
 
 # No issue IDs in source
 

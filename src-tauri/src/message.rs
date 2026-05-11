@@ -377,6 +377,7 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
             })).unwrap();
             db::try_apply_squad_member_evm_share(&handle, &msg.content, msg.npub.as_deref());
             db::apply_parent_safe_announce(&handle, &msg.content);
+            db::maybe_upsert_governance_from_announce(&handle, &msg.content);
         } else {
             handle.emit("message_new", serde_json::json!({
                 "message": &msg,

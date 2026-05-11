@@ -16,7 +16,7 @@ lazy_static! {
         Arc::new(Mutex::new(None));
 }
 
-/// SQL Schema for Vector database
+/// SQL Schema for Pacto database
 ///
 /// This schema uses selective encryption:
 /// - Encrypted: message content, private keys, seed phrases, MLS secrets
@@ -138,6 +138,18 @@ CREATE TABLE IF NOT EXISTS parent_treasury_safe (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_parent_treasury_unique ON parent_treasury_safe(parent_id, safe_address, chain);
 CREATE INDEX IF NOT EXISTS idx_parent_treasury_parent ON parent_treasury_safe(parent_id, created_at_ms);
+
+-- Single governance provider per squad/network parent (pacto-gov hat tree id, Safe-as-governance marker, etc.).
+CREATE TABLE IF NOT EXISTS parent_governance (
+    parent_id TEXT PRIMARY KEY NOT NULL,
+    provider TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    canonical_ref TEXT NOT NULL,
+    pacto_gov_revision TEXT,
+    provider_payload TEXT,
+    created_at_ms INTEGER NOT NULL,
+    updated_at_ms INTEGER NOT NULL
+);
 
 -- Squad/network parent id + member npub -> EVM payout address (from MLS squad_member_evm_share)
 CREATE TABLE IF NOT EXISTS squad_member_evm (
@@ -814,6 +826,33 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         )
         .map_err(|e| format!("Failed to migrate squad_safe to parent_treasury_safe: {}", e))?;
         println!("[Migration] squad_safe → parent_treasury_safe copy done");
+    }
+
+    let has_parent_governance: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='parent_governance'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !has_parent_governance {
+        println!("[Migration] Creating parent_governance table...");
+        conn.execute_batch(
+            r#"CREATE TABLE IF NOT EXISTS parent_governance (
+                parent_id TEXT PRIMARY KEY NOT NULL,
+                provider TEXT NOT NULL,
+                chain TEXT NOT NULL,
+                canonical_ref TEXT NOT NULL,
+                pacto_gov_revision TEXT,
+                provider_payload TEXT,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );"#,
+        )
+        .map_err(|e| format!("Failed to create parent_governance table: {}", e))?;
+        println!("[Migration] parent_governance table created");
     }
 
     let has_dm_peer_evm: bool = conn

@@ -493,6 +493,20 @@ fn normalize_treasury_chain(raw: Option<&str>) -> String {
     }
 }
 
+fn normalize_governance_provider(raw: &str) -> Result<String, String> {
+    let s = raw.trim().to_ascii_lowercase();
+    match s.as_str() {
+        "pacto_gov" | "pacto-gov" => Ok("pacto_gov".to_string()),
+        "gnosis_safe" | "gnosis-safe" | "safe" => Ok("gnosis_safe".to_string()),
+        "bread_coop" | "bread-coop" | "bread" => Ok("bread_coop".to_string()),
+        _ => Err(format!("unknown governance provider: {}", raw.trim())),
+    }
+}
+
+const PARENT_GOVERNANCE_CANONICAL_REF_MAX: usize = 2048;
+const PARENT_GOVERNANCE_REVISION_MAX: usize = 64;
+const PARENT_GOVERNANCE_PAYLOAD_MAX: usize = 256_000;
+
 fn new_treasury_row_id(entry_id: Option<&str>) -> String {
     if let Some(s) = entry_id.map(str::trim).filter(|s| !s.is_empty()) {
         if s.len() >= 8
@@ -696,6 +710,175 @@ pub fn list_parent_treasury_safes<R: Runtime>(
     Ok(out)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParentGovernanceRow {
+    pub parent_id: String,
+    pub provider: String,
+    pub chain: String,
+    pub canonical_ref: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pacto_gov_revision: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_payload: Option<String>,
+    pub created_at_ms: i64,
+    pub updated_at_ms: i64,
+}
+
+#[command]
+pub fn get_parent_governance<R: Runtime>(
+    handle: AppHandle<R>,
+    parent_id: String,
+) -> Result<Option<ParentGovernanceRow>, String> {
+    let pid = parent_id.trim();
+    if pid.is_empty() {
+        return Ok(None);
+    }
+    let conn = crate::account_manager::get_db_connection(&handle)?;
+    let row = conn
+        .query_row(
+            "SELECT parent_id, provider, chain, canonical_ref, pacto_gov_revision, provider_payload, created_at_ms, updated_at_ms \
+             FROM parent_governance WHERE parent_id = ?1",
+            rusqlite::params![pid],
+            |row| {
+                Ok(ParentGovernanceRow {
+                    parent_id: row.get(0)?,
+                    provider: row.get(1)?,
+                    chain: row.get(2)?,
+                    canonical_ref: row.get(3)?,
+                    pacto_gov_revision: row.get(4)?,
+                    provider_payload: row.get(5)?,
+                    created_at_ms: row.get(6)?,
+                    updated_at_ms: row.get(7)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| format!("Failed to read parent_governance: {}", e))?;
+    crate::account_manager::return_db_connection(conn);
+    Ok(row)
+}
+
+fn upsert_parent_governance_inner<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+    provider: &str,
+    chain: Option<&str>,
+    canonical_ref: &str,
+    pacto_gov_revision: Option<&str>,
+    provider_payload: Option<&str>,
+) -> Result<(), String> {
+    let pid = parent_id.trim();
+    if pid.is_empty() {
+        return Err("parent_id is empty".to_string());
+    }
+    let prov = normalize_governance_provider(provider)?;
+    let chain_norm = normalize_treasury_chain(chain);
+    let cref = canonical_ref.trim();
+    if cref.is_empty() {
+        return Err("canonical_ref is empty".to_string());
+    }
+    if cref.len() > PARENT_GOVERNANCE_CANONICAL_REF_MAX {
+        return Err(format!(
+            "canonical_ref exceeds {} characters",
+            PARENT_GOVERNANCE_CANONICAL_REF_MAX
+        ));
+    }
+    let rev: Option<String> = pacto_gov_revision
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            if s.len() > PARENT_GOVERNANCE_REVISION_MAX {
+                s[..PARENT_GOVERNANCE_REVISION_MAX].to_string()
+            } else {
+                s.to_string()
+            }
+        });
+    let payload = provider_payload.map(str::trim).filter(|s| !s.is_empty());
+    if payload.map(|p| p.len()).unwrap_or(0) > PARENT_GOVERNANCE_PAYLOAD_MAX {
+        return Err(format!(
+            "provider_payload exceeds {} characters",
+            PARENT_GOVERNANCE_PAYLOAD_MAX
+        ));
+    }
+    let conn = crate::account_manager::get_db_connection(handle)?;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    let existing_created: Option<i64> = conn
+        .query_row(
+            "SELECT created_at_ms FROM parent_governance WHERE parent_id = ?1",
+            rusqlite::params![pid],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Failed to read parent_governance created_at: {}", e))?;
+    let created_ms = existing_created.unwrap_or(now_ms);
+    conn.execute(
+        "INSERT INTO parent_governance (parent_id, provider, chain, canonical_ref, pacto_gov_revision, provider_payload, created_at_ms, updated_at_ms) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) \
+         ON CONFLICT(parent_id) DO UPDATE SET \
+           provider = excluded.provider, \
+           chain = excluded.chain, \
+           canonical_ref = excluded.canonical_ref, \
+           pacto_gov_revision = excluded.pacto_gov_revision, \
+           provider_payload = excluded.provider_payload, \
+           updated_at_ms = excluded.updated_at_ms",
+        rusqlite::params![
+            pid,
+            prov,
+            chain_norm,
+            cref,
+            rev,
+            payload,
+            created_ms,
+            now_ms,
+        ],
+    )
+    .map_err(|e| format!("Failed to upsert parent_governance: {}", e))?;
+    crate::account_manager::return_db_connection(conn);
+    Ok(())
+}
+
+/// Insert or replace the single governance row for this parent. Preserves `created_at_ms` on update.
+#[command]
+pub fn upsert_parent_governance<R: Runtime>(
+    handle: AppHandle<R>,
+    parent_id: String,
+    provider: String,
+    chain: Option<String>,
+    canonical_ref: String,
+    pacto_gov_revision: Option<String>,
+    provider_payload: Option<String>,
+) -> Result<(), String> {
+    upsert_parent_governance_inner(
+        &handle,
+        parent_id.as_str(),
+        provider.as_str(),
+        chain.as_deref(),
+        canonical_ref.as_str(),
+        pacto_gov_revision.as_deref(),
+        provider_payload.as_deref(),
+    )
+}
+
+#[command]
+pub fn clear_parent_governance<R: Runtime>(handle: AppHandle<R>, parent_id: String) -> Result<(), String> {
+    let pid = parent_id.trim();
+    if pid.is_empty() {
+        return Err("parent_id is empty".to_string());
+    }
+    let conn = crate::account_manager::get_db_connection(&handle)?;
+    conn.execute(
+        "DELETE FROM parent_governance WHERE parent_id = ?1",
+        rusqlite::params![pid],
+    )
+    .map_err(|e| format!("Failed to delete parent_governance: {}", e))?;
+    crate::account_manager::return_db_connection(conn);
+    Ok(())
+}
+
 /// If content is a squad_safe_updated announce JSON, upsert a treasury row (idempotent per parent + address + chain).
 /// Wire format uses `squad_id` for the parent id. Optional: `chain`, `label`, `entry_id`.
 pub fn apply_parent_safe_announce<R: Runtime>(handle: &AppHandle<R>, content: &str) {
@@ -734,6 +917,70 @@ pub fn apply_parent_safe_announce<R: Runtime>(handle: &AppHandle<R>, content: &s
     };
     let entry_id = p.get("entry_id").and_then(|v| v.as_str());
     let _ = upsert_parent_treasury_row(handle, parent_id, &norm, chain.as_str(), lb, entry_id);
+}
+
+/// If content is a `governance_updated` announce JSON, upsert `parent_governance` (idempotent per parent).
+/// Wire format: `payload.parent_id`, `payload.provider`, `payload.canonical_ref`; optional `chain`, `pacto_gov_revision`, `provider_payload`.
+pub fn maybe_upsert_governance_from_announce<R: Runtime>(handle: &AppHandle<R>, content: &str) {
+    let parsed: serde_json::Value = match serde_json::from_str(content) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    if parsed.get("type").and_then(|v| v.as_str()) != Some("governance_updated") {
+        return;
+    }
+    let p = match parsed.get("payload") {
+        Some(v) => v,
+        None => return,
+    };
+    let parent_id = match p.get("parent_id").and_then(|v| v.as_str()) {
+        Some(s) if !s.trim().is_empty() => s.trim(),
+        _ => return,
+    };
+    let provider = match p.get("provider").and_then(|v| v.as_str()) {
+        Some(s) if !s.trim().is_empty() => s.trim(),
+        _ => return,
+    };
+    let canonical_ref = match p.get("canonical_ref").and_then(|v| v.as_str()) {
+        Some(s) if !s.trim().is_empty() => s.trim(),
+        _ => return,
+    };
+    let chain = p.get("chain").and_then(|v| v.as_str()).and_then(|s| {
+        let t = s.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(t)
+        }
+    });
+    let pacto_rev = p
+        .get("pacto_gov_revision")
+        .and_then(|v| v.as_str())
+        .and_then(|s| {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t)
+            }
+        });
+    let provider_payload_str = p.get("provider_payload").and_then(|v| v.as_str()).and_then(|s| {
+        let t = s.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(t)
+        }
+    });
+    let _ = upsert_parent_governance_inner(
+        handle,
+        parent_id,
+        provider,
+        chain,
+        canonical_ref,
+        pacto_rev,
+        provider_payload_str,
+    );
 }
 
 #[derive(Clone, Serialize)]

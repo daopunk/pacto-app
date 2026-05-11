@@ -25,8 +25,10 @@
   import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
   import { safeStateByTreasuryId, refreshSafeStateForTreasuryEntry } from '../../stores/safe';
+  import type { ParentGovernanceDto } from '../../lib/governance/api';
   import friendsIcon from '../../icons/friends.svg';
   import DeploySafeModal from './DeploySafeModal.svelte';
+  import GovernanceHub from './governance/GovernanceHub.svelte';
   import CreatePollModal from './CreatePollModal.svelte';
   import { showToast } from '../../stores/toast';
   import { listSquadMemberEvmInvokeArgs } from '../../lib/squad/squad-member-evm-share';
@@ -52,6 +54,9 @@
 
   /** Linked Safes for this parent (from store + backend). */
   export let treasurySafes: TreasurySafeEntry[] = [];
+
+  /** Governance row when loaded (`undefined` = not hydrated yet). */
+  export let governanceConfig: ParentGovernanceDto | null | undefined = undefined;
 
   /** Persist, announce, and refresh store. */
   export let onConfirmImportSafe:
@@ -532,13 +537,14 @@
     {/if}
   </section>
   {:else if dashboardView === 'governance'}
-  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="gov-heading">
-    <h3 id="gov-heading" class="section-heading">Governance</h3>
-    <p class="dashboard-placeholder-text">
-      Proposal and voting flows for this {parentType} will live here. Treasury and roles data will stay
-      available to governance widgets as the stack grows.
-    </p>
-  </section>
+  <GovernanceHub
+    {parentType}
+    governanceConfig={governanceConfig}
+    treasurySafes={treasurySafes ?? []}
+    hasAnnouncementsChannel={!!announcementsGroupId}
+    onOpenSafeDeploy={openDeploySafe}
+    onOpenSafeImport={openSetSafe}
+  />
   {:else if dashboardView === 'roles'}
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="roles-heading">
     <h3 id="roles-heading" class="section-heading">Roles</h3>

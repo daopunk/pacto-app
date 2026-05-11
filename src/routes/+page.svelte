@@ -37,7 +37,7 @@
     addParentTreasurySafe,
     type PendingMlsWelcome,
   } from '../lib/api/nostr';
-  import { buildAnnounceContent, ANNOUNCE_TYPE_SAFE_UPDATED, parseAnnouncement } from '../lib/announcements';
+  import { buildAnnounceContent, ANNOUNCE_TYPE_SAFE_UPDATED, ANNOUNCE_TYPE_GOVERNANCE_UPDATED, parseAnnouncement } from '../lib/announcements';
   import { getExplorerTxUrl } from '../lib/wallet/assets';
   import { parseSupportedChainId } from '../lib/wallet/chains';
   import {
@@ -106,8 +106,10 @@
     ANNOUNCEMENTS_CHANNEL_NAME,
     DASHBOARD_CHANNEL_ID,
     treasurySafesByParentId,
+    governanceConfigByParentId,
     dashboardPollReplicaNonceByParentId,
     type TreasurySafeEntry,
+    type ParentGovernanceDto,
     type DmMessage,
     type DmTab,
     type DmEntry,
@@ -121,6 +123,7 @@
     dmWalletPeerExchangeTick,
   } from '../stores/app';
   import { pendingReadyToast, showToast } from '../stores/toast';
+  import { getParentGovernance } from '../lib/governance/api';
   import { portal } from '../lib/utils/portal';
 
   const PAGE_SIZE = 100;
@@ -173,10 +176,24 @@
       /* ignore */
     }
   }
+
+  async function mergeGovernanceForParent(parentId: string) {
+    if (!parentId) return;
+    try {
+      const row = await getParentGovernance(parentId);
+      governanceConfigByParentId.update((m: Record<string, ParentGovernanceDto | null>) => ({
+        ...m,
+        [parentId]: row,
+      }));
+    } catch {
+      /* ignore */
+    }
+  }
   $: dashboardParentId = $activeChannelId === DASHBOARD_CHANNEL_ID ? ($activeTopNavTab === 'squads' ? $activeSquadId : $activeNetworkId) ?? null : null;
   $: if (dashboardParentId && !treasuryHydratedIds.has(dashboardParentId)) {
     treasuryHydratedIds.add(dashboardParentId);
     mergeTreasurySafesForParent(dashboardParentId);
+    mergeGovernanceForParent(dashboardParentId).catch(() => {});
   }
 
   /** After login, refresh embedded wallet balances in the background (cache only; no DM open). */
@@ -203,6 +220,7 @@
       if (!pid || treasuryHydratedIds.has(pid)) continue;
       treasuryHydratedIds.add(pid);
       mergeTreasurySafesForParent(pid).catch(() => {});
+      mergeGovernanceForParent(pid).catch(() => {});
     }
   }
 
@@ -1008,6 +1026,9 @@
           if (announce?.type === 'squad_safe_updated') {
             mergeTreasurySafesForParent(announce.payload.squad_id);
           }
+          if (announce?.type === ANNOUNCE_TYPE_GOVERNANCE_UPDATED) {
+            mergeGovernanceForParent(announce.payload.parent_id);
+          }
         }
       }
     );
@@ -1080,8 +1101,11 @@
       });
       const announce = parseAnnouncement(m.content);
       if (announce?.type === 'squad_safe_updated') {
-            mergeTreasurySafesForParent(announce.payload.squad_id);
-          }
+        mergeTreasurySafesForParent(announce.payload.squad_id);
+      }
+      if (announce?.type === ANNOUNCE_TYPE_GOVERNANCE_UPDATED) {
+        mergeGovernanceForParent(announce.payload.parent_id);
+      }
       if (group_name) updateChannelNameIfPlaceholder(group_id, group_name);
     });
 
@@ -1318,6 +1342,16 @@
                   ? $squads.find((s: Squad) => s.id === $activeSquadId)
                   : $networks.find((n: Network) => n.id === $activeNetworkId))?.id ?? ''
               ] ?? []}
+              governanceConfig={(() => {
+                const id =
+                  ($activeTopNavTab === 'squads'
+                    ? $squads.find((s: Squad) => s.id === $activeSquadId)
+                    : $networks.find((n: Network) => n.id === $activeNetworkId))?.id ?? '';
+                if (!id) return undefined;
+                return Object.prototype.hasOwnProperty.call($governanceConfigByParentId, id)
+                  ? $governanceConfigByParentId[id]
+                  : undefined;
+              })()}
               onConfirmImportSafe={async (params: {
                 safeAddress: string;
                 chain: string;

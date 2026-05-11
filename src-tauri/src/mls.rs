@@ -1241,6 +1241,7 @@ impl MlsService {
                                         });
                                         crate::db::try_apply_squad_member_evm_share(handle, &msg.content, msg.npub.as_deref());
                                         crate::db::apply_parent_safe_announce(handle, &msg.content);
+                                        crate::db::maybe_upsert_governance_from_announce(handle, &msg.content);
                                     }
                                     
                                     // Save the new message to database immediately

@@ -40,6 +40,8 @@ mod wallet_chain_config;
 mod wallet_security;
 mod wallet_ops;
 mod safe_deploy;
+mod contracts;
+mod nave_pirata_deploy;
 
 #[cfg(target_os = "android")]
 #[path = "android/mod.rs"]
@@ -2575,6 +2577,7 @@ async fn notifs() -> Result<bool, String> {
                             }));
                             db::try_apply_squad_member_evm_share(&handle, &record.content, record.npub.as_deref());
                             db::apply_parent_safe_announce(&handle, &record.content);
+                            db::maybe_upsert_governance_from_announce(&handle, &record.content);
                         }
                     }
                 }
@@ -6320,6 +6323,9 @@ pub fn run() {
             db::set_safe,
             db::list_parent_treasury_safes,
             db::add_parent_treasury_safe,
+            db::get_parent_governance,
+            db::upsert_parent_governance,
+            db::clear_parent_governance,
             dashboard_poll::list_dashboard_polls,
             dashboard_poll::send_dashboard_poll_create,
             dashboard_poll::send_dashboard_poll_vote,
@@ -6429,6 +6435,7 @@ pub fn run() {
             evm_accounts::set_active_evm_account,
             evm_accounts::set_default_shared_evm_account,
             safe_deploy::safe_deploy_proxy,
+            nave_pirata_deploy::deploy_nave_pirata_for_parent,
             regenerate_device_keypackage,
             // MLS core commands
             create_group_chat,
