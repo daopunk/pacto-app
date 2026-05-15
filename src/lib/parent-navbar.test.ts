@@ -6,7 +6,12 @@ vi.mock('./api/nostr', () => ({
 }));
 
 import { createGroupChat } from './api/nostr';
-import { createDefaultParentChannels, uniqueChannelsByGroupIdPreservingOrder, resolvePollsMlsGroupId } from './parent-navbar';
+import {
+  createDefaultParentChannels,
+  uniqueChannelsByGroupIdPreservingOrder,
+  resolvePollsMlsGroupId,
+  defaultParentInvitePhysicalGroupTargets,
+} from './parent-navbar';
 import {
   ANNOUNCEMENTS_CHANNEL_NAME,
   MONITOR_CHANNEL_NAME,
@@ -67,5 +72,28 @@ describe('uniqueChannelsByGroupIdPreservingOrder', () => {
     const b = { name: 'monitor', groupId: 'g', order: 1 };
     expect(uniqueChannelsByGroupIdPreservingOrder([a, b])).toEqual([a]);
     expect(uniqueChannelsByGroupIdPreservingOrder([{ ...a, groupId: 'creating-x' }])).toEqual([]);
+  });
+});
+
+describe('defaultParentInvitePhysicalGroupTargets', () => {
+  it('returns one MLS target when the default trio shares groupId', () => {
+    const ann = { name: ANNOUNCEMENTS_CHANNEL_NAME, groupId: 'g', order: 0 };
+    const mon = { name: MONITOR_CHANNEL_NAME, groupId: 'g', order: 1 };
+    const pol = { name: POLLS_CHANNEL_NAME, groupId: 'g', order: 2 };
+    expect(defaultParentInvitePhysicalGroupTargets({ channels: [ann, mon, pol] })).toEqual([ann]);
+  });
+
+  it('returns one MLS target per distinct default groupId when rows diverge', () => {
+    const channels = [
+      { name: ANNOUNCEMENTS_CHANNEL_NAME, groupId: 'a', order: 0 },
+      { name: MONITOR_CHANNEL_NAME, groupId: 'm', order: 1 },
+      { name: POLLS_CHANNEL_NAME, groupId: 'p', order: 2 },
+    ];
+    expect(defaultParentInvitePhysicalGroupTargets({ channels }).map((c) => c.groupId)).toEqual(['a', 'm', 'p']);
+  });
+
+  it('falls back to the announcements row when only defaults partial', () => {
+    const only = { name: ANNOUNCEMENTS_CHANNEL_NAME, groupId: 'solo', order: 0 };
+    expect(defaultParentInvitePhysicalGroupTargets({ channels: [only] })).toEqual([only]);
   });
 });

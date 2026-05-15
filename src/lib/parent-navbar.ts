@@ -57,6 +57,19 @@ export function orderedDefaultInviteChannels(parent: ParentWithChannels): Channe
     .filter((c): c is Channel => !!c);
 }
 
+/**
+ * Physical MLS groups to add an invitee to for this parent's default hub channels.
+ * When announcements, monitor, and polls share one `groupId`, this returns a single entry so the backend sends one MLS welcome for the whole default scope.
+ */
+export function defaultParentInvitePhysicalGroupTargets(parent: ParentWithChannels): Channel[] {
+  const announcementsChannel = getAnnouncementsChannel(parent);
+  const inviteChannels = orderedDefaultInviteChannels(parent);
+  if (inviteChannels.length > 0) {
+    return uniqueChannelsByGroupIdPreservingOrder(inviteChannels);
+  }
+  return [announcementsChannel];
+}
+
 /** One entry per physical MLS group id; keeps first channel row per id (announce → monitor → polls order). Skips `creating-*` placeholders. */
 export function uniqueChannelsByGroupIdPreservingOrder(channels: Channel[]): Channel[] {
   const seen = new Set<string>();

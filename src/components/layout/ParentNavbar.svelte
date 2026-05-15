@@ -37,9 +37,9 @@
   import {
     getAnnouncementsChannel,
     createDefaultParentChannels,
-    orderedDefaultInviteChannels,
     uniqueChannelsByGroupIdPreservingOrder,
     loadMembersForParent,
+    defaultParentInvitePhysicalGroupTargets,
   } from '../../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
   import { publishSquadMemberEvmShare } from '../../lib/squad/squad-member-evm-share';
@@ -610,9 +610,7 @@
     showInviteModal = false;
     inviting = true;
     const announcementsChannel = getAnnouncementsChannel(parent);
-    const inviteChannels = orderedDefaultInviteChannels(parent);
-    const inviteTargets =
-      inviteChannels.length > 0 ? uniqueChannelsByGroupIdPreservingOrder(inviteChannels) : [announcementsChannel];
+    const inviteTargets = defaultParentInvitePhysicalGroupTargets(parent);
     const groupId = announcementsChannel.groupId;
 
     ;(async () => {

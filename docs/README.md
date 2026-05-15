@@ -14,6 +14,8 @@ These docs are **tracked in git** and are the primary map for humans and coding 
 | **[audits/](./audits/)** | **Alpha / no external audit:** wallet and key-handling assurance posture ([README](./audits/README.md)) |
 | **[build/](./build/)** | Desktop build guides (macOS, Windows, Ubuntu) |
 
+**Design specs (`ai-docs/`):** governance + dashboard architecture notes live under [`../ai-docs/gov-core/`](../ai-docs/gov-core/README.md) (ModPol channels, single-group MLS virtual defaults, governance library).
+
 ## Conventions
 
 - **Code wins:** If this tree disagrees with `src-tauri/src/` or `src/`, treat the code as source of truth and update the doc.
