@@ -24,8 +24,11 @@
   import GovernanceHub from './governance/GovernanceHub.svelte';
   import { showToast } from '../../stores/toast';
   import { listSquadMemberEvmInvokeArgs } from '../../lib/squad/squad-member-evm-share';
+  import { buildDashboardProposalCards, dashboardProposalToolLabel } from '../../lib/dashboard/proposal-cards';
+  import { resolveDashboardStructureSummary } from '../../lib/dashboard/structure-summary';
+  import { resolveDashboardPermissionsContext } from '../../lib/dashboard/permissions-panel';
 
-  /** Sub-views under #dashboard (ModPol segments). */
+  /** Sub-views under #dashboard: Modules, Proposals, Structure, Permissions. */
   type ParentDashboardView = ParentDashboardChannelMode;
   const DASHBOARD_VIEWS: { id: ParentDashboardView; label: string }[] = [
     { id: 'modules', label: 'Modules' },
@@ -81,11 +84,20 @@
 
   $: displayedTreasurySafes = [...(treasurySafes ?? [])].slice(0, TREASURY_SAFE_UI_CAP);
   $: treasuryStateKey = displayedTreasurySafes.map((e) => e.id).join('|');
-  $: if (dashboardView === 'modules' && treasuryStateKey) {
+  $: if ((dashboardView === 'modules' || dashboardView === 'proposals') && treasuryStateKey) {
     displayedTreasurySafes.forEach((e) => {
       refreshSafeStateForTreasuryEntry(e);
     });
   }
+
+  $: proposalCards = buildDashboardProposalCards({
+    treasurySafes: displayedTreasurySafes,
+    governanceConfig,
+  });
+
+  $: structureSummary = resolveDashboardStructureSummary(governanceConfig);
+
+  $: permissionsCtx = resolveDashboardPermissionsContext(governanceConfig);
 
   $: announcementsGroupId =
     parent?.channels?.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.groupId ??
@@ -392,25 +404,107 @@
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="proposals-heading">
     <h3 id="proposals-heading" class="section-heading">Proposals</h3>
     <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-      Unified proposal cards (gov tools, Safe transfers, Nostr polls) will aggregate here. Open the
-      <strong>#polls</strong> channel for MLS-native polls until this feed ships.
+      Normalized feed for tools linked to this squad or network. Vote flows per tool come later. Nostr
+      polls stay in <strong>#polls</strong> until listed here.
     </p>
+    {#if proposalCards.length === 0}
+      <p class="dashboard-placeholder-text muted">No proposal sources yet. Link a Safe or deploy Pacto Gov from Modules.</p>
+    {:else}
+      <ul class="proposal-card-list" role="list">
+        {#each proposalCards as card (card.tool + ':' + card.ref + ':' + (card.treasuryEntryId ?? ''))}
+          {@const safeEntry =
+            card.tool === 'safe' && card.treasuryEntryId
+              ? displayedTreasurySafes.find((t) => t.id === card.treasuryEntryId)
+              : undefined}
+          <li class="proposal-card">
+            <div class="proposal-card-head">
+              <span class="proposal-card-tool">{dashboardProposalToolLabel(card.tool)}</span>
+              {#if card.chain}
+                <span class="proposal-card-chain">{card.chain}</span>
+              {/if}
+            </div>
+            {#if card.title}
+              <p class="proposal-card-title">{card.title}</p>
+            {/if}
+            <code class="proposal-card-ref">{card.ref}</code>
+            {#if card.tool === 'safe' && safeEntry}
+              <p class="proposal-card-actions">
+                <button type="button" class="btn-link treasury-explorer-link" on:click={() => openTreasuryExplorer(safeEntry)}>
+                  View on explorer
+                </button>
+              </p>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </section>
   {:else if dashboardView === 'structure'}
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="structure-heading">
     <h3 id="structure-heading" class="section-heading">Structure</h3>
-    <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-      Hat tree and on-chain structure visualization will live here (subgraph-first when Pacto Gov is deployed).
-    </p>
+    {#if structureSummary === undefined}
+      <p class="dashboard-placeholder-text muted">Loading structure context…</p>
+    {:else if structureSummary === null}
+      <p class="dashboard-placeholder-text dashboard-placeholder-lead">
+        Hat tree and role structure show here once this {parentType} has a <strong>Pacto Gov</strong> deployment
+        (Modules). Safe-only setups do not publish a Hats tree id yet.
+      </p>
+      <p class="dashboard-placeholder-text muted">
+        An in-app diagram will read the Hats subgraph first when we wire it; this tab stays summary-first until then.
+      </p>
+    {:else}
+      <p class="structure-summary-lead dashboard-placeholder-text">
+        Top hat for this {parentType} on <strong>{structureSummary.chainDisplayName}</strong> (chain id{' '}
+        <code class="structure-mono">{structureSummary.chainIdNumeric}</code>).
+      </p>
+      <dl class="structure-dl">
+        <dt>Tree / top hat id</dt>
+        <dd><code class="structure-mono">{structureSummary.treeIdRaw}</code></dd>
+      </dl>
+      {#if structureSummary.hatsExplorerUrl}
+        {@const hatsUrl = structureSummary.hatsExplorerUrl}
+        <p class="structure-actions">
+          <button type="button" class="btn-link treasury-explorer-link" on:click={() => openExternalUrl(hatsUrl)}>
+            Open in Hats tree explorer
+          </button>
+        </p>
+      {:else}
+        <p class="dashboard-placeholder-text muted">Explorer link could not be built for this hat id format.</p>
+      {/if}
+      <p class="structure-footnote muted">
+        Read-only in-app tree visualization is still out of scope for this scaffold (subgraph-backed layout comes next).
+      </p>
+    {/if}
   </section>
   {:else if dashboardView === 'permissions'}
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="permissions-heading">
     <h3 id="permissions-heading" class="section-heading">Permissions</h3>
-    <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-      Official on-chain roles, accountability NFTs, and Hats-style delegations for members will surface
-      here. Each member’s EVM address will be listed for squad/network-scoped features once addresses
-      are shared with the group automatically on join or creation.
-    </p>
+    {#if permissionsCtx.phase === 'loading'}
+      <p class="dashboard-placeholder-text muted">Loading permissions context…</p>
+    {:else}
+      <p class="dashboard-placeholder-text dashboard-placeholder-lead">{permissionsCtx.leadNote}</p>
+      {#if permissionsCtx.pactoGovRevision}
+        <p class="permissions-revision muted">
+          pacto-gov revision <code class="permissions-revision-code">{permissionsCtx.pactoGovRevision}</code>
+        </p>
+      {/if}
+      {#if permissionsCtx.catalogRows.length > 0}
+        <p class="roles-table-caption">Role model (scaffold)</p>
+        <ul class="permissions-catalog-list" role="list">
+          {#each permissionsCtx.catalogRows as row (row.id)}
+            <li class="permissions-catalog-card">
+              <h4 class="permissions-catalog-title">{row.title}</h4>
+              <p class="permissions-catalog-summary">{row.summary}</p>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#if permissionsCtx.showExecutorMappingPlaceholder}
+        <p class="permissions-executor-placeholder muted">
+          Executor ↔ module mappings will appear here once wired to contract or indexer reads.
+        </p>
+      {/if}
+    {/if}
     {#if announcementsGroupId}
       {#if loadingMembers && channelMembers.length === 0}
         <p class="roles-loading">Loading members…</p>
@@ -670,6 +764,153 @@
   .dashboard-placeholder-text.muted,
   .muted {
     color: var(--text-muted);
+  }
+
+  .proposal-card-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .proposal-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--bg-elevated);
+  }
+
+  .proposal-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .proposal-card-tool {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+  }
+
+  .proposal-card-chain {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .proposal-card-title {
+    margin: 0 0 6px 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .proposal-card-ref {
+    display: block;
+    font-family: ui-monospace, monospace;
+    font-size: 0.8125rem;
+    word-break: break-all;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .proposal-card-actions {
+    margin: 10px 0 0 0;
+  }
+
+  .structure-summary-lead {
+    margin-top: 0;
+  }
+
+  .structure-dl {
+    margin: 0 0 14px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 14px;
+    font-size: 0.875rem;
+  }
+
+  .structure-dl dt {
+    margin: 0;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .structure-dl dd {
+    margin: 0;
+    word-break: break-all;
+  }
+
+  .structure-mono {
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    font-family: ui-monospace, monospace;
+  }
+
+  .structure-actions {
+    margin: 0 0 12px;
+  }
+
+  .structure-footnote {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .permissions-revision {
+    margin: 0 0 14px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .permissions-revision-code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+  }
+
+  .permissions-catalog-list {
+    list-style: none;
+    margin: 0 0 16px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .permissions-catalog-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--bg-elevated);
+  }
+
+  .permissions-catalog-title {
+    margin: 0 0 6px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .permissions-catalog-summary {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+
+  .permissions-executor-placeholder {
+    margin: 0 0 16px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
   }
 
   .roles-loading {
