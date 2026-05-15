@@ -11,6 +11,7 @@ export function formatSquadMemberEvmShare(rosterParentId: string, evmAddress: st
     version: SQUAD_MEMBER_EVM_SHARE_VERSION,
     type: SQUAD_MEMBER_EVM_SHARE_TYPE,
     payload: { parent_id: rosterParentId, evm_address: evmAddress },
+    pacto_virtual_bucket: 'monitor',
   });
 }
 
@@ -61,7 +62,7 @@ export async function publishSquadMemberEvmShare(
   }
   const json = formatSquadMemberEvmShare(rosterId, fromWallet);
   try {
-    await sendDmMessage(rosterId, json);
+    await sendDmMessage(rosterId, json, '', { virtualBucket: 'monitor' });
   } catch (e) {
     console.warn('[squad-member-evm] sendDmMessage failed', e);
     return false;

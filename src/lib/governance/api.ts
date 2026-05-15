@@ -41,3 +41,34 @@ export async function upsertParentGovernance(params: {
 export async function clearParentGovernance(parentId: string): Promise<void> {
   await invoke('clear_parent_governance', { parentId });
 }
+
+/** Mirrors `NavePirataDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface NavePirataDeployResultDto {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  topHatId: string;
+  safeAddress: string;
+  quartermaster: string;
+  mutinyModule: string;
+  treasuryAuthority: string;
+  squadAdminProxy: string;
+  providerPayload: string;
+}
+
+/** Backend: `deploy_nave_pirata_for_parent`. */
+export async function deployNavePirataForParent(params: {
+  network: string;
+  parentId: string;
+  captain: string;
+  metadataUri: string;
+  saltNonce?: string | null;
+}): Promise<NavePirataDeployResultDto> {
+  return (await invoke('deploy_nave_pirata_for_parent', {
+    network: params.network,
+    parentId: params.parentId,
+    captain: params.captain,
+    metadataUri: params.metadataUri.trim(),
+    saltNonce: params.saltNonce?.trim() ? params.saltNonce.trim() : null,
+  })) as NavePirataDeployResultDto;
+}

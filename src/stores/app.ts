@@ -4,6 +4,7 @@ import type { SupportedChainId } from '../lib/wallet/chains';
 import type { TreasurySafeEntry } from '../lib/treasury/treasury-safes';
 import type { ParentGovernanceDto } from '../lib/governance/api';
 import { hydrateWalletSummaryCacheFromDisk } from '../lib/wallet/wallet-summary-cache';
+import { buildBackendGroupTimelineMessages } from '../lib/mls/virtual-channel-bucket';
 import {
   initInviteDecisionPersistence,
   getInviteDecisionLoadEntries,
@@ -54,6 +55,8 @@ export const activeSettingsAreaTab = writable<SettingsAreaTab>('profile');
 // UI state stores - what's currently selected
 export const activeSquadId = writable<string | null>(null);
 export const activeChannelId = writable<string | null>(null);
+/** Disambiguates the selected hub row when multiple channels share one MLS group id. */
+export const activeHubChannelName = writable<string | null>(null);
 
 // View state - which main view is active
 export type ViewType = 'hub' | 'profile';
@@ -334,6 +337,8 @@ export interface DmMessage {
   content: string;
   at: number;
   mine: boolean;
+  /** Normalized MLS virtual bucket from SQLite when loaded via `get_message_views` or live events. */
+  virtual_bucket?: string | null;
   /** Local-only row: block / unblock notice in the thread (not from relays). */
   is_local_announcement?: boolean;
   npub?: string;
@@ -394,6 +399,12 @@ export interface Channel {
 
 /** Canonical name for the first channel of every squad and network (announcements group). */
 export const ANNOUNCEMENTS_CHANNEL_NAME = 'announcements';
+
+/** Application / on-chain bot-style updates (users cannot compose here). */
+export const MONITOR_CHANNEL_NAME = 'monitor';
+
+/** Nostr-backed squad polls (MLS channel). */
+export const POLLS_CHANNEL_NAME = 'polls';
 
 /** Virtual channel id for the squad/network dashboard (not an MLS group; profile-like view). Shown above # announcements. */
 export const DASHBOARD_CHANNEL_ID = '__dashboard__';
@@ -519,6 +530,9 @@ export function updateChannelNameIfPlaceholder(groupId: string, newName: string)
 // Backend-backed group messages (get_message_views(groupId) + mls_message_new). Keyed by group_id. Reuse DmMessage shape.
 export const backendGroupMessages = writable<Record<string, DmMessage[]>>({});
 
+/** Timeline slices keyed by groupTimelineKey(mlsGroupId, virtualBucket); derived from backendGroupMessages. */
+export const backendGroupTimelineMessages = derived(backendGroupMessages, buildBackendGroupTimelineMessages);
+
 export const groupSendError = writable<string | null>(null);
 
 export const pendingMlsWelcomes = writable<PendingMlsWelcome[]>([]);
@@ -562,10 +576,13 @@ const LAST_SQUAD_ID_PREFIX = 'pacto_last_squad_id';
 const LAST_CHANNEL_ID_PREFIX = 'pacto_last_channel_id';
 // Per-squad last channel (squadId -> channelId) so returning to a squad restores its channel
 const LAST_CHANNEL_BY_SQUAD_PREFIX = 'pacto_last_channel_by_squad';
+const LAST_HUB_CHANNEL_NAME_BY_SQUAD_PREFIX = 'pacto_last_hub_channel_name_by_squad';
+const LAST_HUB_CHANNEL_NAME_BY_NETWORK_PREFIX = 'pacto_last_hub_channel_name_by_network';
 
 export const lastOpenedSquadId = writable<string | null>(null);
 export const lastOpenedChannelId = writable<string | null>(null);
 export const lastChannelBySquadId = writable<Record<string, string>>({});
+export const lastHubChannelNameBySquadId = writable<Record<string, string>>({});
 
 lastOpenedSquadId.subscribe((id) => {
   if (typeof localStorage === 'undefined') return;
@@ -591,6 +608,16 @@ lastChannelBySquadId.subscribe((map) => {
     // ignore quota
   }
 });
+lastHubChannelNameBySquadId.subscribe((map) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(LAST_HUB_CHANNEL_NAME_BY_SQUAD_PREFIX);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    // ignore quota
+  }
+});
 
 // Last opened network/channel for restore when switching to Networks view (npub-scoped)
 const LAST_NETWORK_ID_PREFIX = 'pacto_last_network_id';
@@ -602,6 +629,7 @@ export const activeNetworkId = writable<string | null>(null);
 export const lastOpenedNetworkId = writable<string | null>(null);
 export const lastOpenedNetworkChannelId = writable<string | null>(null);
 export const lastChannelByNetworkId = writable<Record<string, string>>({});
+export const lastHubChannelNameByNetworkId = writable<Record<string, string>>({});
 
 /** Monotonic version per MLS group id; increments when backend signals membership changes. */
 export const membershipVersionByGroupId = writable<Record<string, number>>({});
@@ -630,6 +658,16 @@ lastOpenedNetworkChannelId.subscribe((id) => {
 lastChannelByNetworkId.subscribe((map) => {
   if (typeof localStorage === 'undefined') return;
   const key = persistenceKey(LAST_CHANNEL_BY_NETWORK_PREFIX);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    // ignore quota
+  }
+});
+lastHubChannelNameByNetworkId.subscribe((map) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(LAST_HUB_CHANNEL_NAME_BY_NETWORK_PREFIX);
   if (!key) return;
   try {
     localStorage.setItem(key, JSON.stringify(map));
@@ -674,6 +712,17 @@ export function loadAccountState(npub: string): void {
         lastChannelBySquadId.set({});
       }
     }
+    const rawHubBySquad = localStorage.getItem(`${LAST_HUB_CHANNEL_NAME_BY_SQUAD_PREFIX}_${npub}`);
+    if (rawHubBySquad) {
+      try {
+        const parsed = JSON.parse(rawHubBySquad) as unknown;
+        lastHubChannelNameBySquadId.set(
+          typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {}
+        );
+      } catch {
+        lastHubChannelNameBySquadId.set({});
+      }
+    }
     const rawNetworks = localStorage.getItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
     if (rawNetworks) {
       const parsed = JSON.parse(rawNetworks) as unknown;
@@ -693,6 +742,17 @@ export function loadAccountState(npub: string): void {
         lastChannelByNetworkId.set(typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {});
       } catch {
         lastChannelByNetworkId.set({});
+      }
+    }
+    const rawHubByNetwork = localStorage.getItem(`${LAST_HUB_CHANNEL_NAME_BY_NETWORK_PREFIX}_${npub}`);
+    if (rawHubByNetwork) {
+      try {
+        const parsed = JSON.parse(rawHubByNetwork) as unknown;
+        lastHubChannelNameByNetworkId.set(
+          typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {}
+        );
+      } catch {
+        lastHubChannelNameByNetworkId.set({});
       }
     }
     for (const [key, setStore] of getInviteDecisionLoadEntries(npub)) {

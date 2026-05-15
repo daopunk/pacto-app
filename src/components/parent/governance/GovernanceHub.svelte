@@ -11,6 +11,7 @@
   export let governanceConfig: ParentGovernanceDto | null | undefined;
   export let treasurySafes: TreasurySafeEntry[] = [];
   export let hasAnnouncementsChannel = false;
+  export let onOpenPactoDeploy: () => void;
   export let onOpenSafeDeploy: () => void;
   export let onOpenSafeImport: () => void;
 
@@ -39,8 +40,9 @@
     parentDashboardChannelMode.set('treasury');
   }
 
-  function onPactoPick() {
-    showToast('Nave Pirata deploy wizard will open here in a later step.');
+  function handlePactoDeployClick() {
+    if (!hasAnnouncementsChannel) return;
+    onOpenPactoDeploy();
   }
 
   function guardedSafeDeploy() {
@@ -91,7 +93,7 @@
           type="button"
           class="btn-primary gov-card-btn"
           disabled={!hasAnnouncementsChannel}
-          on:click={onPactoPick}
+          on:click={handlePactoDeployClick}
         >
           Set up Pacto Gov
         </button>

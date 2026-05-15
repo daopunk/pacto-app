@@ -1081,6 +1081,22 @@ pub fn list_squad_member_evm<R: Runtime>(
     Ok(out)
 }
 
+/// Applies treasury (`squad_safe_updated`), governance (`governance_updated`), and roster EVM (`squad_member_evm_share`)
+/// side effects only when the MLS chat row is classified into the **monitor** virtual bucket (routing ADR).
+pub fn apply_monitor_virtual_bucket_side_effects<R: Runtime>(
+    handle: &AppHandle<R>,
+    virtual_bucket: Option<&str>,
+    content: &str,
+    author_npub: Option<&str>,
+) {
+    if virtual_bucket != Some("monitor") {
+        return;
+    }
+    try_apply_squad_member_evm_share(handle, content, author_npub);
+    apply_parent_safe_announce(handle, content);
+    maybe_upsert_governance_from_announce(handle, content);
+}
+
 /// If `content` is a `squad_member_evm_share` JSON from MLS, store a normalized address for `author_npub` only.
 pub fn try_apply_squad_member_evm_share<R: Runtime>(
     handle: &AppHandle<R>,
@@ -1724,6 +1740,10 @@ fn message_to_stored_event(message: &Message, chat_id: i64, user_id: Option<i64>
         }
     }
 
+    let virtual_bucket = message.virtual_bucket.clone().or_else(|| {
+        crate::virtual_channel_bucket::normalize_virtual_bucket_for_message(kind, &message.content, &tags)
+    });
+
     StoredEvent {
         id: message.id.clone(),
         kind,
@@ -1742,6 +1762,7 @@ fn message_to_stored_event(message: &Message, chat_id: i64, user_id: Option<i64>
         failed: message.failed,
         wrapper_event_id: message.wrapper_event_id.clone(),
         npub: message.npub.clone(),
+        virtual_bucket,
     }
 }
 
@@ -2123,7 +2144,7 @@ pub async fn get_chat_messages_paginated<R: Runtime>(
     // Get integer chat ID
     let chat_int_id = resolve_chat_id_for_message_load(handle, chat_id)?;
     // Use the events-based message views
-    get_message_views(handle, chat_int_id, limit, offset).await
+    get_message_views(handle, chat_int_id, limit, offset, None).await
 }
 
 /// Get the total message count for a chat
@@ -2137,7 +2158,7 @@ pub async fn get_chat_message_count<R: Runtime>(
 
     // Count message events (kind 14 = DM, kind 15 = file) from events table
     let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM events WHERE chat_id = ?1 AND kind IN (14, 15)",
+        "SELECT COUNT(*) FROM events WHERE chat_id = ?1 AND kind IN (14, 15, 30078)",
         rusqlite::params![chat_int_id],
         |row| row.get(0)
     ).map_err(|e| format!("Failed to count messages: {}", e))?;
@@ -2157,7 +2178,7 @@ pub async fn get_chat_last_messages<R: Runtime>(
     // Get integer chat ID
     let chat_int_id = resolve_chat_id_for_message_load(handle, chat_id)?;
     // Use the events-based message views
-    get_message_views(handle, chat_int_id, count, 0).await
+    get_message_views(handle, chat_int_id, count, 0, None).await
 }
 
 /// For DM chats: whether there is at least one message from us and one from them.
@@ -2223,7 +2244,7 @@ pub async fn get_messages_around_id<R: Runtime>(
     let older_count: i64 = {
         let conn = crate::account_manager::get_db_connection(handle)?;
         let count = conn.query_row(
-            "SELECT COUNT(*) FROM events WHERE chat_id = ?1 AND kind IN (14, 15) AND created_at < ?2",
+            "SELECT COUNT(*) FROM events WHERE chat_id = ?1 AND kind IN (14, 15, 30078) AND created_at < ?2",
             rusqlite::params![chat_int_id, target_timestamp],
             |row| row.get(0)
         ).map_err(|e| format!("Failed to count older messages: {}", e))?;
@@ -2244,7 +2265,7 @@ pub async fn get_messages_around_id<R: Runtime>(
     let limit = total_count.saturating_sub(start_position);
 
     // offset = 0 to start from the newest and get all messages back to start_position
-    get_message_views(handle, chat_int_id, limit, 0).await
+    get_message_views(handle, chat_int_id, limit, 0, None).await
 }
 
 /// Check if a message/event exists in the database by its ID
@@ -2558,8 +2579,8 @@ pub async fn save_event<R: Runtime>(
         r#"
         INSERT OR IGNORE INTO events (
             id, kind, chat_id, user_id, content, tags, reference_id,
-            created_at, received_at, mine, pending, failed, wrapper_event_id, npub
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            created_at, received_at, mine, pending, failed, wrapper_event_id, npub, virtual_bucket
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
         "#,
         rusqlite::params![
             event.id,
@@ -2576,6 +2597,7 @@ pub async fn save_event<R: Runtime>(
             event.failed as i32,
             event.wrapper_event_id,
             event.npub,
+            event.virtual_bucket,
         ],
     ).map_err(|e| format!("Failed to save event: {}", e))?;
 
@@ -2617,6 +2639,7 @@ pub async fn save_reaction_event<R: Runtime>(
         failed: false,
         wrapper_event_id: None,
         npub: Some(reaction.author_id.clone()),
+        virtual_bucket: None,
     };
 
     save_event(handle, &event).await
@@ -2662,6 +2685,7 @@ pub async fn save_edit_event<R: Runtime>(
         failed: false,
         wrapper_event_id: None,
         npub: Some(npub.to_string()),
+        virtual_bucket: None,
     };
 
     save_event(handle, &event).await
@@ -2730,7 +2754,7 @@ pub async fn get_events<R: Runtime>(
             let sql = format!(
                 r#"
                 SELECT id, kind, chat_id, user_id, content, tags, reference_id,
-                       created_at, received_at, mine, pending, failed, wrapper_event_id, npub
+                       created_at, received_at, mine, pending, failed, wrapper_event_id, npub, virtual_bucket
                 FROM events
                 WHERE chat_id = ?1 AND kind IN ({})
                 ORDER BY created_at DESC
@@ -2758,6 +2782,13 @@ pub async fn get_events<R: Runtime>(
                     ).map_err(|e| format!("Failed to query events: {}", e))?;
                     rows.filter_map(|r| r.ok()).collect()
                 },
+                3 => {
+                    let rows = stmt.query_map(
+                        rusqlite::params![chat_id, k[0] as i32, k[1] as i32, k[2] as i32, limit as i64, offset as i64],
+                        parse_event_row
+                    ).map_err(|e| format!("Failed to query events: {}", e))?;
+                    rows.filter_map(|r| r.ok()).collect()
+                },
                 _ => return Err("Unsupported number of kinds".to_string()),
             };
 
@@ -2766,7 +2797,7 @@ pub async fn get_events<R: Runtime>(
         } else {
             let sql = r#"
                 SELECT id, kind, chat_id, user_id, content, tags, reference_id,
-                       created_at, received_at, mine, pending, failed, wrapper_event_id, npub
+                       created_at, received_at, mine, pending, failed, wrapper_event_id, npub, virtual_bucket
                 FROM events
                 WHERE chat_id = ?1
                 ORDER BY created_at DESC
@@ -2823,6 +2854,7 @@ fn parse_event_row(row: &rusqlite::Row) -> rusqlite::Result<StoredEvent> {
         failed: row.get::<_, i32>(11)? != 0,
         wrapper_event_id: row.get(12)?,
         npub: row.get(13)?,
+        virtual_bucket: row.get(14)?,
     })
 }
 
@@ -2844,7 +2876,7 @@ pub async fn get_related_events<R: Runtime>(
     let sql = format!(
         r#"
         SELECT id, kind, chat_id, user_id, content, tags, reference_id,
-               created_at, received_at, mine, pending, failed, wrapper_event_id, npub
+               created_at, received_at, mine, pending, failed, wrapper_event_id, npub, virtual_bucket
         FROM events
         WHERE reference_id IN ({})
         ORDER BY created_at ASC
@@ -2878,6 +2910,7 @@ pub async fn get_related_events<R: Runtime>(
             failed: row.get::<_, i32>(11)? != 0,
             wrapper_event_id: row.get(12)?,
             npub: row.get(13)?,
+            virtual_bucket: row.get(14)?,
         })
     })
     .map_err(|e| format!("Failed to query related events: {}", e))?
@@ -3039,10 +3072,25 @@ pub async fn get_message_views<R: Runtime>(
     chat_id: i64,
     limit: usize,
     offset: usize,
+    virtual_bucket_filter: Option<String>,
 ) -> Result<Vec<Message>, String> {
-    // Step 1: Get message events (kind 14 and 15)
-    let message_kinds = [event_kind::PRIVATE_DIRECT_MESSAGE, event_kind::FILE_ATTACHMENT];
+    // Step 1: Timeline rows (text, file attachment, dashboard poll create)
+    let message_kinds = [
+        event_kind::PRIVATE_DIRECT_MESSAGE,
+        event_kind::FILE_ATTACHMENT,
+        event_kind::APPLICATION_SPECIFIC,
+    ];
     let message_events = get_events(handle, chat_id, Some(&message_kinds), limit, offset).await?;
+
+    let message_events: Vec<StoredEvent> = message_events
+        .into_iter()
+        .filter(|e| {
+            if e.kind != event_kind::APPLICATION_SPECIFIC {
+                return true;
+            }
+            crate::dashboard_poll::try_parse_vote(e.content.trim()).is_none()
+        })
+        .collect();
 
     if message_events.is_empty() {
         return Ok(Vec::new());
@@ -3146,14 +3194,21 @@ pub async fn get_message_views<R: Runtime>(
         // Get attachments from the lookup map (for kind=15 file messages)
         let attachments = attachments_by_msg.remove(&event.id).unwrap_or_default();
 
-        // Get original content (already decrypted by get_events())
+        // Get original content (already decrypted by get_events() where applicable)
         let original_content = if event.kind == event_kind::FILE_ATTACHMENT {
             // File attachment content is just an encrypted hash - don't display
             String::new()
         } else {
-            // Content already decrypted by get_events()
             event.content.clone()
         };
+
+        let virtual_bucket = event.virtual_bucket.clone().or_else(|| {
+            crate::virtual_channel_bucket::normalize_virtual_bucket_for_message(
+                event.kind,
+                &original_content,
+                &event.tags,
+            )
+        });
 
         // Check for edits and build edit history
         let (content, edited, edit_history) = if let Some(edits) = edits_by_msg.remove(&event.id) {
@@ -3202,7 +3257,11 @@ pub async fn get_message_views<R: Runtime>(
             wrapper_event_id: event.wrapper_event_id,
             edited,
             edit_history,
-            rumor_kind: None,
+            rumor_kind: match event.kind {
+                k if k == event_kind::APPLICATION_SPECIFIC => Some(k),
+                _ => None,
+            },
+            virtual_bucket,
         };
         messages.push(message);
     }
@@ -3228,6 +3287,13 @@ pub async fn get_message_views<R: Runtime>(
                     message.replied_to_has_attachment = Some(ctx.has_attachment);
                 }
             }
+        }
+    }
+
+    if let Some(want) = virtual_bucket_filter {
+        let w = want.trim();
+        if matches!(w, "announcements" | "monitor" | "polls") {
+            messages.retain(|m| m.virtual_bucket.as_deref() == Some(w));
         }
     }
 

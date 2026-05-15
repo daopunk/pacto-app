@@ -63,6 +63,8 @@ pub use chat::{Chat, ChatType, ChatMetadata};
 
 mod dashboard_poll;
 
+mod virtual_channel_bucket;
+
 mod rumor;
 pub use rumor::{RumorEvent, RumorContext, RumorProcessingResult, ConversationType, process_rumor};
 
@@ -1188,12 +1190,13 @@ async fn get_message_views<R: Runtime>(
     chat_id: String,
     limit: usize,
     offset: usize,
+    virtual_bucket_filter: Option<String>,
 ) -> Result<Vec<Message>, String> {
     // Convert chat identifier to database ID (MLS groups: create row if missing so new channels load)
     let chat_int_id = db::resolve_chat_id_for_message_load(&handle, &chat_id)?;
 
     // Get materialized message views from events
-    let messages = db::get_message_views(&handle, chat_int_id, limit, offset).await?;
+    let messages = db::get_message_views(&handle, chat_int_id, limit, offset, virtual_bucket_filter).await?;
 
     // Sync to backend state for cache compatibility (uses binary search for efficient insertion)
     if !messages.is_empty() {
@@ -2575,9 +2578,12 @@ async fn notifs() -> Result<bool, String> {
                                 "message": record,
                                 "group_name": group_name
                             }));
-                            db::try_apply_squad_member_evm_share(&handle, &record.content, record.npub.as_deref());
-                            db::apply_parent_safe_announce(&handle, &record.content);
-                            db::maybe_upsert_governance_from_announce(&handle, &record.content);
+                            db::apply_monitor_virtual_bucket_side_effects(
+                                &handle,
+                                record.virtual_bucket.as_deref(),
+                                &record.content,
+                                record.npub.as_deref(),
+                            );
                         }
                     }
                 }

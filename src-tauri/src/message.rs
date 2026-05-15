@@ -72,6 +72,9 @@ pub struct Message {
     /// When set, persist this Nostr kind in `events` instead of inferring from attachments (e.g. 30078 poll create).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub rumor_kind: Option<u16>,
+    /// Normalized MLS virtual bucket when this row is a timeline message in a group context.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub virtual_bucket: Option<String>,
 }
 
 impl Default for Message {
@@ -95,6 +98,7 @@ impl Default for Message {
             edited: false,
             edit_history: None,
             rumor_kind: None,
+            virtual_bucket: None,
         }
     }
 }
@@ -288,7 +292,13 @@ async fn mark_message_failed(pending_id: Arc<String>, receiver: &str) {
 }
 
 #[tauri::command]
-pub async fn message(receiver: String, content: String, replied_to: String, file: Option<AttachmentFile>) -> Result<bool, String> {
+pub async fn message(
+    receiver: String,
+    content: String,
+    replied_to: String,
+    file: Option<AttachmentFile>,
+    virtual_bucket: Option<String>,
+) -> Result<bool, String> {
     // Immediately add the message to our state as "Pending" with an ID derived from the current nanosecond, we'll update it as either Sent (non-pending) or Failed in the future
     let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -340,6 +350,15 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
         edited: false,
         edit_history: None,
         rumor_kind: None,
+        virtual_bucket: if is_group_chat {
+            virtual_bucket
+                .as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .filter(|s| matches!(s.as_str(), "announcements" | "monitor" | "polls"))
+        } else {
+            None
+        },
     };
     
     // Add message to appropriate chat type
@@ -368,16 +387,20 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
 
     // Prepare the rumor
     let handle = TAURI_APP.get().unwrap();
-    let mut rumor = if file.is_none() {
+    let had_attachment = file.is_some();
+    let mut rumor = if !had_attachment {
         // Send the text message to our frontend with appropriate event
         if is_group_chat {
             handle.emit("mls_message_new", serde_json::json!({
                 "group_id": &receiver,
                 "message": &msg
             })).unwrap();
-            db::try_apply_squad_member_evm_share(&handle, &msg.content, msg.npub.as_deref());
-            db::apply_parent_safe_announce(&handle, &msg.content);
-            db::maybe_upsert_governance_from_announce(&handle, &msg.content);
+            db::apply_monitor_virtual_bucket_side_effects(
+                &handle,
+                msg.virtual_bucket.as_deref(),
+                &msg.content,
+                msg.npub.as_deref(),
+            );
         } else {
             handle.emit("message_new", serde_json::json!({
                 "message": &msg,
@@ -734,6 +757,18 @@ pub async fn message(receiver: String, content: String, replied_to: String, file
         [milliseconds.to_string()],
     ));
 
+    if is_group_chat && !had_attachment {
+        if let Some(vb) = virtual_bucket
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+        {
+            if matches!(vb.as_str(), "announcements" | "monitor" | "polls") {
+                rumor = rumor.tag(Tag::custom(TagKind::custom("pacto_bucket"), [vb.as_str()]));
+            }
+        }
+    }
+
     // Build the rumor with our key (unsigned)
     let built_rumor = rumor.build(my_public_key);
     let rumor_id = built_rumor.id.unwrap();
@@ -962,7 +997,7 @@ pub async fn paste_message<R: Runtime>(handle: AppHandle<R>, receiver: String, r
     };
 
     // Message the file to the intended user
-    message(receiver, String::new(), replied_to, Some(attachment_file)).await
+    message(receiver, String::new(), replied_to, Some(attachment_file), None).await
 }
 
 #[tauri::command]
@@ -975,7 +1010,7 @@ pub async fn voice_message(receiver: String, replied_to: String, bytes: Vec<u8>)
     };
 
     // Message the file to the intended user
-    message(receiver, String::new(), replied_to, Some(attachment_file)).await
+    message(receiver, String::new(), replied_to, Some(attachment_file), None).await
 }
 
 /// Cache for bytes received from JavaScript (for Android file handling)
@@ -1188,7 +1223,7 @@ pub async fn send_cached_file(receiver: String, replied_to: String, use_compress
                 *JS_FILE_CACHE.lock().unwrap() = None;
                 *JS_COMPRESSION_CACHE.lock().await = None;
                 
-                return message(receiver, String::new(), replied_to, Some(attachment_file)).await;
+                return message(receiver, String::new(), replied_to, Some(attachment_file), None).await;
             }
         }
         drop(comp_cache);
@@ -1290,7 +1325,7 @@ pub async fn send_cached_file(receiver: String, replied_to: String, use_compress
         img_meta,
     };
     
-    message(receiver, String::new(), replied_to, Some(attachment_file)).await
+    message(receiver, String::new(), replied_to, Some(attachment_file), None).await
 }
 
 /// Clear cached file bytes
@@ -1359,7 +1394,7 @@ pub async fn send_file_bytes(
                         img_meta: compressed.img_meta,
                     };
                     
-                    return message(receiver, String::new(), replied_to, Some(attachment_file)).await;
+                    return message(receiver, String::new(), replied_to, Some(attachment_file), None).await;
                 }
             }
             Err(e) => {
@@ -1396,7 +1431,7 @@ pub async fn send_file_bytes(
         img_meta,
     };
     
-    message(receiver, String::new(), replied_to, Some(attachment_file)).await
+    message(receiver, String::new(), replied_to, Some(attachment_file), None).await
 }
 
 /// Internal function to compress bytes
@@ -1594,7 +1629,7 @@ pub async fn file_message(receiver: String, replied_to: String, file_path: Strin
     }
 
     // Message the file to the intended user
-    message(receiver, String::new(), replied_to, Some(attachment_file)).await
+    message(receiver, String::new(), replied_to, Some(attachment_file), None).await
 }
 
 /// File info structure for the frontend
@@ -2148,7 +2183,7 @@ pub async fn file_message_compressed(receiver: String, replied_to: String, file_
     }
 
     // Message the file to the intended user
-    message(receiver, String::new(), replied_to, Some(attachment_file)).await
+    message(receiver, String::new(), replied_to, Some(attachment_file), None).await
 }
 
 /// Compression estimate result
@@ -2264,7 +2299,7 @@ pub async fn send_cached_compressed_file(receiver: String, replied_to: String, f
                     extension: compressed.extension,
                     img_meta: compressed.img_meta,
                 };
-                message(receiver, String::new(), replied_to, Some(attachment_file)).await
+                message(receiver, String::new(), replied_to, Some(attachment_file), None).await
             } else {
                 // No significant savings - send original file
                 file_message(receiver, replied_to, file_path).await
@@ -2307,7 +2342,7 @@ pub async fn send_cached_compressed_file(receiver: String, replied_to: String, f
                         extension: compressed.extension,
                         img_meta: compressed.img_meta,
                     };
-                    message(receiver, String::new(), replied_to, Some(attachment_file)).await
+                    message(receiver, String::new(), replied_to, Some(attachment_file), None).await
                 } else {
                     // No significant savings - send original file
                     file_message(receiver, replied_to, file_path).await

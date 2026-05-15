@@ -16,6 +16,8 @@
   export let subheading: string | undefined = undefined;
   export let channels: ParentChannel[] = [];
   export let activeChannelId: string | null = null;
+  /** Disambiguates selection when multiple channels share the active MLS group id. */
+  export let activeHubChannelName: string | null = null;
   export let activeView = 'hub';
   export let creating = false;
   export let createError = '';
@@ -31,7 +33,7 @@
   export let errorBanners: { id: string; text: string }[] = [];
   export let onDismissBanner: ((id: string) => void) | undefined = undefined;
 
-  export let onSelectChannel: (groupId: string) => void = () => {};
+  export let onSelectChannel: (channel: ParentChannel) => void = () => {};
   export let onCreateChannel: () => void = () => {};
   export let onRetryCreate: () => void = () => {};
   export let onInvite: () => void = () => {};
@@ -48,6 +50,18 @@
 
   let menuOpen = false;
   const createErrorId = 'parent-create-error';
+
+  $: groupIdDupCount = channels.reduce<Record<string, number>>((acc, c) => {
+    acc[c.groupId] = (acc[c.groupId] ?? 0) + 1;
+    return acc;
+  }, {});
+  $: firstNameByGroupId = (() => {
+    const m: Record<string, string> = {};
+    for (const c of channels) {
+      if (!(c.groupId in m)) m[c.groupId] = c.name;
+    }
+    return m;
+  })();
 
   $: inviteLabel = type === 'squad' ? 'Invite to Squad' : 'Invite to Network';
   $: addJuiceLabel = 'Add Juice';
@@ -183,17 +197,22 @@
         />
       {:else}
         <div class="parent-channel-list">
-          {#each channels as channel (channel.groupId)}
+          {#each channels as channel (`${channel.groupId}:${channel.name}:${channel.order}`)}
             <div
-              on:click={() => onSelectChannel(channel.groupId)}
-              on:keydown={(e) => e.key === 'Enter' && onSelectChannel(channel.groupId)}
+              on:click={() => onSelectChannel(channel)}
+              on:keydown={(e) => e.key === 'Enter' && onSelectChannel(channel)}
               role="button"
               tabindex="0"
             >
               <Channel
                 name={channel.name}
                 type="text"
-                active={activeView === 'hub' && activeChannelId === channel.groupId}
+                active={activeView === 'hub' &&
+                  activeChannelId === channel.groupId &&
+                  (groupIdDupCount[channel.groupId] <= 1 ||
+                    activeHubChannelName === channel.name ||
+                    (activeHubChannelName == null &&
+                      firstNameByGroupId[channel.groupId] === channel.name))}
               />
             </div>
           {/each}

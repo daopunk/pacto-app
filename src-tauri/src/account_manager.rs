@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS events (
     failed INTEGER NOT NULL DEFAULT 0,
     wrapper_event_id TEXT,
     npub TEXT,
+    virtual_bucket TEXT,
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE SET NULL
 );
@@ -203,6 +204,7 @@ CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
 CREATE INDEX IF NOT EXISTS idx_events_reference ON events(reference_id) WHERE reference_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_wrapper ON events(wrapper_event_id) WHERE wrapper_event_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_chat_vbucket ON events(chat_id, virtual_bucket);
 "#;
 
 /// Get the profile directory for a given npub (full npub, no truncation)
@@ -758,6 +760,40 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         ).map_err(|e| format!("Failed to backfill event npubs: {}", e))?;
 
         println!("[Migration 6] Backfilled npub for {} events", updated);
+    }
+
+    // Virtual bucket column for MLS single-group routing (issue 6)
+    let events_has_vbucket: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='virtual_bucket'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    let events_table_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='events'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if events_table_exists && !events_has_vbucket {
+        println!("[Migration] Adding virtual_bucket column to events...");
+        conn.execute(
+            "ALTER TABLE events ADD COLUMN virtual_bucket TEXT",
+            [],
+        )
+        .map_err(|e| format!("Failed to add virtual_bucket column: {}", e))?;
+        println!("[Migration] virtual_bucket column added successfully");
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_chat_vbucket ON events(chat_id, virtual_bucket)",
+            [],
+        )
+        .map_err(|e| format!("Failed to create idx_events_chat_vbucket: {}", e))?;
     }
 
     // Migration: squad_safe table (squad/network id -> Safe address)

@@ -209,9 +209,11 @@ export function parseAnnouncement(content: string): AnnounceMessage | null {
 
 /**
  * Build content string for posting an announcement (e.g. from Set Safe flow or Create proposal).
+ * Includes `pacto_virtual_bucket` per routing ADR (`monitor` for governance automation; `polls` for poll-created wire).
  */
 export function buildAnnounceContent<T extends AnnounceMessage>(msg: T): string {
-  return JSON.stringify({ type: msg.type, payload: msg.payload });
+  const pacto_virtual_bucket = msg.type === ANNOUNCE_TYPE_DASHBOARD_POLL_CREATED ? 'polls' : 'monitor';
+  return JSON.stringify({ pacto_virtual_bucket, type: msg.type, payload: msg.payload });
 }
 
 /**
