@@ -62,18 +62,18 @@ export const activeHubChannelName = writable<string | null>(null);
 export type ViewType = 'hub' | 'profile';
 export const activeView = writable<ViewType>('hub');
 
-/** #dashboard segmented mode: one remembered tab for all squads and networks (per account). */
-export type ParentDashboardChannelMode = 'treasury' | 'governance' | 'roles' | 'polls';
+/** #dashboard segmented mode: one remembered tab per account; unknown persisted values reset to `modules`. */
+export type ParentDashboardChannelMode = 'modules' | 'proposals' | 'structure' | 'permissions';
 
 const PARENT_DASHBOARD_MODE_PREFIX = 'pacto_parent_dashboard_mode';
 
-function parseParentDashboardChannelMode(raw: string | null): ParentDashboardChannelMode {
+export function parseParentDashboardChannelMode(raw: string | null): ParentDashboardChannelMode {
   const v = raw?.trim();
-  if (v === 'treasury' || v === 'governance' || v === 'roles' || v === 'polls') return v;
-  return 'treasury';
+  if (v === 'modules' || v === 'proposals' || v === 'structure' || v === 'permissions') return v;
+  return 'modules';
 }
 
-export const parentDashboardChannelMode = writable<ParentDashboardChannelMode>('treasury');
+export const parentDashboardChannelMode = writable<ParentDashboardChannelMode>('modules');
 
 /** Bumped when the Rust SQLite poll replica changes for a parent (local or remote MLS ingest). */
 export const dashboardPollReplicaNonceByParentId = writable<Record<string, number>>({});

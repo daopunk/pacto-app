@@ -189,7 +189,7 @@ export function clearAccountState(npub?: string): void {
   activeSettingsAreaTab.set('profile');
   activeDmTab.set('friends');
   activeView.set('hub');
-  parentDashboardChannelMode.set('treasury');
+  parentDashboardChannelMode.set('modules');
   showMembersPanel.set(false);
   walletSidebarOpen.set(false);
   walletSendPrefillFromRequest.set(null);

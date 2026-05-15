@@ -18,5 +18,6 @@ These docs are **tracked in git** and are the primary map for humans and coding 
 
 ## Conventions
 
+- **Greenfield:** No public alpha yet — prefer **breaking, slim changes** over compatibility layers for superseded designs. Agents and contributors: [`.cursor/rules/greenfield-no-legacy.mdc`](../.cursor/rules/greenfield-no-legacy.mdc).
 - **Code wins:** If this tree disagrees with `src-tauri/src/` or `src/`, treat the code as source of truth and update the doc.
 - **Product name:** User-facing copy says **Pacto**. Some Rust comments still say “Vector” for historical reasons.

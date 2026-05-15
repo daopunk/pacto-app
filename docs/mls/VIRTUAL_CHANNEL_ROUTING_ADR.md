@@ -4,6 +4,8 @@
 
 **Scope:** Default squad/network conversation scope when **one MLS `groupId`** backs `#announcements`, `#monitor`, and `#polls`. User-created MLS channels that remain separate groups are out of scope unless explicitly migrated later.
 
+**Posture:** Greenfield / pre-release — describe **one** normative contract; do not extend this ADR with alternate routing trees for superseded layouts. See [`.cursor/rules/greenfield-no-legacy.mdc`](../../.cursor/rules/greenfield-no-legacy.mdc).
+
 ---
 
 ## Context

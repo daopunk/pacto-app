@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { ParentGovernanceDto } from '../../../lib/governance/api';
   import type { TreasurySafeEntry } from '../../../lib/treasury/treasury-safes';
-  import { parentDashboardChannelMode } from '../../../stores/app';
   import { explorerAddressUrl, parseSupportedChainId } from '../../../lib/wallet/chains';
   import { openExternalUrl } from '../../../lib/utils/open-external';
   import { showToast } from '../../../stores/toast';
@@ -36,8 +35,8 @@
     }
   }
 
-  function goToTreasuryTab() {
-    parentDashboardChannelMode.set('treasury');
+  function scrollToMultisigSection() {
+    document.getElementById('safe-heading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function handlePactoDeployClick() {
@@ -150,7 +149,7 @@
     <div class="governance-summary">
       <p class="gov-summary-lead">
         Governance is anchored on <strong>Gnosis Safe</strong> ({chainLabel(governanceConfig.chain)}). Linked
-        multisigs live under Treasury.
+        multisigs are listed above under Multisig.
       </p>
       {#if primaryTreasury}
         <p class="gov-safe-preview">
@@ -167,10 +166,10 @@
           {/if}
         </p>
       {:else}
-        <p class="muted">No Safe linked in Treasury yet. Open Treasury to deploy or import one.</p>
+        <p class="muted">No Safe linked yet. Deploy or import one using Multisig above.</p>
       {/if}
-      <button type="button" class="btn-secondary gov-treasury-link-btn" on:click={goToTreasuryTab}>
-        Open Treasury tab
+      <button type="button" class="btn-secondary gov-treasury-link-btn" on:click={scrollToMultisigSection}>
+        View Multisig section
       </button>
     </div>
   {:else}

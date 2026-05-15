@@ -22,18 +22,16 @@
   import DeploySafeModal from './DeploySafeModal.svelte';
   import DeployNavePirataWizard from './governance/DeployNavePirataWizard.svelte';
   import GovernanceHub from './governance/GovernanceHub.svelte';
-  import DashboardPollsPanel from './DashboardPollsPanel.svelte';
   import { showToast } from '../../stores/toast';
   import { listSquadMemberEvmInvokeArgs } from '../../lib/squad/squad-member-evm-share';
-  import { resolvePollsMlsGroupId } from '../../lib/parent-navbar';
 
-  /** Sub-views under #announcements dashboard; future: driven by configurable widgets per community. */
+  /** Sub-views under #dashboard (ModPol segments). */
   type ParentDashboardView = ParentDashboardChannelMode;
   const DASHBOARD_VIEWS: { id: ParentDashboardView; label: string }[] = [
-    { id: 'treasury', label: 'Treasury' },
-    { id: 'governance', label: 'Governance' },
-    { id: 'roles', label: 'Roles' },
-    { id: 'polls', label: 'Polls' },
+    { id: 'modules', label: 'Modules' },
+    { id: 'proposals', label: 'Proposals' },
+    { id: 'structure', label: 'Structure' },
+    { id: 'permissions', label: 'Permissions' },
   ];
 
   $: dashboardView = $parentDashboardChannelMode;
@@ -83,7 +81,7 @@
 
   $: displayedTreasurySafes = [...(treasurySafes ?? [])].slice(0, TREASURY_SAFE_UI_CAP);
   $: treasuryStateKey = displayedTreasurySafes.map((e) => e.id).join('|');
-  $: if (dashboardView === 'treasury' && treasuryStateKey) {
+  $: if (dashboardView === 'modules' && treasuryStateKey) {
     displayedTreasurySafes.forEach((e) => {
       refreshSafeStateForTreasuryEntry(e);
     });
@@ -93,8 +91,6 @@
     parent?.channels?.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.groupId ??
     parent?.channels?.[0]?.groupId ??
     null;
-
-  $: pollsGroupId = parent ? resolvePollsMlsGroupId(parent) : null;
 
   let channelMembers: string[] = [];
   let loadingMembers = false;
@@ -134,10 +130,10 @@
 
   function selectDashboardView(id: ParentDashboardView) {
     parentDashboardChannelMode.set(id);
-    if (id === 'roles' && announcementsGroupId) loadDashboardMembers();
+    if (id === 'permissions' && announcementsGroupId) loadDashboardMembers();
   }
 
-  $: if (dashboardView === 'roles' && parentId) {
+  $: if (dashboardView === 'permissions' && parentId) {
     loadSquadMemberEvm();
   }
 
@@ -285,8 +281,8 @@
         {/each}
       </div>
     </div>
-    <div class="parent-dashboard-body" class:parent-dashboard-body--polls={dashboardView === 'polls'}>
-      <div class="parent-dashboard" class:parent-dashboard--polls={dashboardView === 'polls'}>
+    <div class="parent-dashboard-body">
+      <div class="parent-dashboard">
   {#if parentType === 'network' && (parent as Network).memberSquads?.length}
     <div class="dashboard-header">
       <p class="dashboard-subtitle">
@@ -295,7 +291,7 @@
     </div>
   {/if}
 
-  {#if dashboardView === 'treasury'}
+  {#if dashboardView === 'modules'}
   <section class="dashboard-section" aria-labelledby="safe-heading">
     <div class="treasury-section-head">
       <h3 id="safe-heading" class="section-heading">Multisig (Safe)</h3>
@@ -381,7 +377,6 @@
       </ul>
     {/if}
   </section>
-  {:else if dashboardView === 'governance'}
   <GovernanceHub
     {parentType}
     governanceConfig={governanceConfig}
@@ -393,9 +388,24 @@
     onOpenSafeDeploy={openDeploySafe}
     onOpenSafeImport={openSetSafe}
   />
-  {:else if dashboardView === 'roles'}
-  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="roles-heading">
-    <h3 id="roles-heading" class="section-heading">Roles</h3>
+  {:else if dashboardView === 'proposals'}
+  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="proposals-heading">
+    <h3 id="proposals-heading" class="section-heading">Proposals</h3>
+    <p class="dashboard-placeholder-text dashboard-placeholder-lead">
+      Unified proposal cards (gov tools, Safe transfers, Nostr polls) will aggregate here. Open the
+      <strong>#polls</strong> channel for MLS-native polls until this feed ships.
+    </p>
+  </section>
+  {:else if dashboardView === 'structure'}
+  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="structure-heading">
+    <h3 id="structure-heading" class="section-heading">Structure</h3>
+    <p class="dashboard-placeholder-text dashboard-placeholder-lead">
+      Hat tree and on-chain structure visualization will live here (subgraph-first when Pacto Gov is deployed).
+    </p>
+  </section>
+  {:else if dashboardView === 'permissions'}
+  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="permissions-heading">
+    <h3 id="permissions-heading" class="section-heading">Permissions</h3>
     <p class="dashboard-placeholder-text dashboard-placeholder-lead">
       Official on-chain roles, accountability NFTs, and Hats-style delegations for members will surface
       here. Each member’s EVM address will be listed for squad/network-scoped features once addresses
@@ -442,8 +452,6 @@
       <p class="dashboard-placeholder-text muted">No announcements channel for this {parentType}.</p>
     {/if}
   </section>
-  {:else if dashboardView === 'polls'}
-    <DashboardPollsPanel parentId={parentId ?? ''} pollsMlsGroupId={pollsGroupId} variant="dashboard" />
   {/if}
       </div>
     </div>
@@ -584,25 +592,6 @@
     flex: 1;
     overflow-y: auto;
     min-height: 0;
-  }
-
-  .parent-dashboard-body--polls {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .parent-dashboard--polls {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    padding-bottom: 16px;
-  }
-
-  .parent-dashboard--polls .dashboard-header {
-    flex-shrink: 0;
   }
 
   .dashboard-view-nav {
