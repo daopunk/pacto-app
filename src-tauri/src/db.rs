@@ -879,6 +879,42 @@ fn upsert_squad_infra_inner<R: Runtime>(
     Ok(())
 }
 
+/// Stable SQLite row id for the sponsor infra entry for this parent.
+pub fn squad_sponsor_infra_row_id(parent_id: &str) -> String {
+    let pid = parent_id.trim();
+    let direct = format!("sponsor-{pid}");
+    if direct.len() <= SQUAD_INFRA_ID_MAX {
+        direct
+    } else {
+        format!(
+            "sp-{}",
+            hex::encode(alloy::primitives::keccak256(pid.as_bytes()).as_slice())
+        )
+    }
+}
+
+/// Persist or refresh the sponsor infra row after deploy (and for announce ingest).
+pub fn persist_sponsor_infra<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+    chain: &str,
+    sponsor_address: &str,
+    provider_payload: &str,
+) -> Result<(), String> {
+    let norm = crate::evm::normalize_hex_address(sponsor_address.trim())
+        .ok_or_else(|| "invalid sponsor address".to_string())?;
+    upsert_squad_infra_inner(
+        handle,
+        squad_sponsor_infra_row_id(parent_id).as_str(),
+        parent_id,
+        "sponsor",
+        Some(chain),
+        norm.as_str(),
+        None,
+        Some(provider_payload),
+    )
+}
+
 /// Insert or replace a squad infra row keyed by stable `id`. Preserves `created_at_ms` on update.
 #[command]
 pub fn upsert_squad_infra<R: Runtime>(

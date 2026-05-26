@@ -4,29 +4,22 @@
 //! Deployment infra addresses: `pacto_chain_config` (`PACTO_*` env vars; see `.env.example`).
 
 use alloy::network::TransactionBuilder;
-use alloy::primitives::{keccak256, Address, B256, U256};
-use alloy::providers::Provider;
+use alloy::primitives::U256;
 use alloy::sol_types::SolCall;
 use serde::Serialize;
 use serde_json::json;
 use tauri::{AppHandle, Runtime};
 
-use super::contracts::pacto_sponsor::SquadVariant;
-use super::contracts::pacto_sponsor::ISquadSponsorFactory::{
-    createSquadSponsorExtCall, squadsCall,
-};
+use super::contracts::pacto_sponsor::ISquadSponsorFactory::createSquadSponsorExtCall;
 use super::pacto_chain_config;
 use super::rpc::{
-    call::eth_call_decode, connect_read_provider, connect_signing_provider, contract_call_request,
-    send_and_confirm, wallet_err_json, wallet_err_json_with_tx_hash,
+    connect_read_provider, connect_signing_provider, contract_call_request, send_and_confirm,
+    wallet_err_json, wallet_err_json_with_tx_hash,
 };
 use super::rpc::signer::{load_embedded_signer, require_treasury_signing_allowed};
+use super::squad_sponsor_common::{read_squad_record, squad_id_from_parent_id, squad_variant_label};
 use super::wallet_chain_config;
-
-/// Deterministic on-chain squad key for a Pacto parent id (squad or network root).
-pub fn squad_id_from_parent_id(parent_id: &str) -> B256 {
-    B256::from(keccak256(parent_id.trim().as_bytes()))
-}
+use crate::db;
 
 fn parse_optional_deposit_wei(raw: Option<&str>) -> Result<U256, String> {
     let Some(s) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
@@ -40,31 +33,6 @@ fn parse_optional_deposit_wei(raw: Option<&str>) -> Result<U256, String> {
     }
 }
 
-fn squad_variant_label(v: SquadVariant) -> &'static str {
-    match v {
-        SquadVariant::NONE => "none",
-        SquadVariant::SPONSOR => "sponsor",
-        SquadVariant::EXT => "ext",
-        SquadVariant::__Invalid => "unknown",
-    }
-}
-
-async fn read_squad_record<P: Provider>(
-    provider: &P,
-    factory: Address,
-    squad_id: B256,
-) -> Result<(Address, SquadVariant), String> {
-    let call = squadsCall {
-        squadId: squad_id,
-    };
-    let decoded = eth_call_decode(provider, factory, &call).await?;
-    let sponsor = decoded.sponsor;
-    if sponsor.is_zero() {
-        return Err("sponsor clone address is zero after deploy".to_string());
-    }
-    Ok((sponsor, decoded.variant))
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SquadSponsorDeployResult {
@@ -76,8 +44,9 @@ pub struct SquadSponsorDeployResult {
     pub sponsor_address: String,
     pub paymaster_address: String,
     pub variant: String,
-    /// JSON for `squad_infra.provider_payload` / future announces.
+    /// JSON for `squad_infra.provider_payload` / announces.
     pub provider_payload: String,
+    pub infra_row_id: String,
 }
 
 #[tauri::command]
@@ -129,7 +98,7 @@ pub async fn deploy_squad_sponsor_for_parent<R: Runtime>(
     }
 
     require_treasury_signing_allowed(app.clone()).await?;
-    let (_signer, wallet) = load_embedded_signer(app).await?;
+    let (_signer, wallet) = load_embedded_signer(app.clone()).await?;
     let provider = connect_signing_provider(&urls, wallet).await?;
 
     let mut tx = contract_call_request(factory, calldata);
@@ -145,7 +114,7 @@ pub async fn deploy_squad_sponsor_for_parent<R: Runtime>(
     .await?;
 
     let read_provider = connect_read_provider(&urls).await?;
-    let (sponsor, variant) =
+    let (sponsor, variant, _top_hat) =
         read_squad_record(&read_provider, factory, squad_id).await.map_err(|e| {
             wallet_err_json_with_tx_hash(
                 "PARSE_DEPLOY",
@@ -157,26 +126,39 @@ pub async fn deploy_squad_sponsor_for_parent<R: Runtime>(
 
     let paymaster = addrs.pacto_sponsor_paymaster;
     let variant_str = squad_variant_label(variant).to_string();
+    let sponsor_hex = format!("{:#x}", sponsor);
     let payload = json!({
         "v": 1,
         "parentId": pid,
         "squadId": format!("{:#x}", squad_id),
-        "sponsor": format!("{:#x}", sponsor),
+        "sponsor": sponsor_hex,
         "paymaster": format!("{:#x}", paymaster),
         "entryPoint": format!("{:#x}", addrs.entry_point),
         "variant": variant_str,
+        "txHash": format!("0x{:x}", receipt.transaction_hash),
     })
     .to_string();
+
+    let infra_row_id = db::squad_sponsor_infra_row_id(pid);
+    db::persist_sponsor_infra(
+        &app,
+        pid,
+        net.key.as_str(),
+        sponsor_hex.as_str(),
+        payload.as_str(),
+    )
+    .map_err(|e| wallet_err_json("PERSIST_SPONSOR", e, None))?;
 
     Ok(SquadSponsorDeployResult {
         tx_hash: format!("0x{:x}", receipt.transaction_hash),
         chain: net.key.clone(),
         chain_id: net.chain_id,
         squad_id: format!("{:#x}", squad_id),
-        sponsor_address: format!("{:#x}", sponsor),
+        sponsor_address: sponsor_hex,
         paymaster_address: format!("{:#x}", paymaster),
         variant: variant_str,
         provider_payload: payload,
+        infra_row_id,
     })
 }
 

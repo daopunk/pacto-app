@@ -27,10 +27,12 @@ export const ANNOUNCE_TYPE_GOVERNANCE_UPDATED = 'governance_updated';
 /** Payload for `governance_updated`. `parent_id` is the squad or network root id. */
 export interface GovernanceUpdatedPayload {
   parent_id: string;
-  /** `pacto_gov` | `gnosis_safe` | `bread_coop` (normalized server-side where applicable). */
+  /** `pacto_gov` | `gnosis_safe` | `bread_coop` | `sponsor` (normalized server-side where applicable). */
   provider: string;
-  /** Hat tree id, Safe sentinel, etc.; required non-empty on wire. */
+  /** Hat tree id, sponsor clone address, Safe sentinel, etc.; required non-empty on wire. */
   canonical_ref: string;
+  /** Stable squad infra row id for multi-row merge (optional on wire until all clients emit it). */
+  entry_id?: string;
   /** `sepolia` | `mainnet` | `optimism` — defaults server-side when omitted. */
   chain?: string;
   /** Upstream pacto-gov git commit at deploy time (optional). */

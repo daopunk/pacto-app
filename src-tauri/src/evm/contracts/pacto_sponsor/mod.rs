@@ -38,4 +38,14 @@ sol! {
             address indexed addressOwner
         );
     }
+
+    interface ISquadSponsorBase {
+        function squadId() external view returns (bytes32 squadId);
+
+        function paymaster() external view returns (address paymaster);
+
+        function totalShares() external view returns (uint256 totalShares);
+
+        function sponsorShares(address sponsor) external view returns (uint256 shares);
+    }
 }

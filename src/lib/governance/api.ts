@@ -94,6 +94,7 @@ export interface SquadSponsorDeployResultDto {
   paymasterAddress: string;
   variant: string;
   providerPayload: string;
+  infraRowId: string;
 }
 
 /** Backend: `deploy_squad_sponsor_for_parent`. */
@@ -107,6 +108,58 @@ export async function deploySquadSponsorForParent(params: {
     parentId: params.parentId,
     initialDepositWei: params.initialDepositWei?.trim() ? params.initialDepositWei.trim() : null,
   })) as SquadSponsorDeployResultDto;
+}
+
+/** Mirrors `SquadSponsorSummary` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface SquadSponsorSummaryDto {
+  chain: string;
+  chainId: number;
+  parentId: string;
+  squadId: string;
+  sponsorAddress: string;
+  paymasterAddress: string;
+  variant: string;
+  topHatId: string;
+  poolBalanceWei: string;
+  totalShares: string;
+}
+
+/** Backend: `get_squad_sponsor_summary`. */
+export async function getSquadSponsorSummary(params: {
+  network: string;
+  parentId: string;
+  sponsorAddress?: string | null;
+}): Promise<SquadSponsorSummaryDto> {
+  return (await invoke('get_squad_sponsor_summary', {
+    network: params.network,
+    parentId: params.parentId,
+    sponsorAddress: params.sponsorAddress?.trim() ? params.sponsorAddress.trim() : null,
+  })) as SquadSponsorSummaryDto;
+}
+
+/** Wire payload for `governance_updated` when squad sponsor infra is deployed or refreshed. */
+export function buildSponsorGovernanceAnnouncePayload(params: {
+  parentId: string;
+  sponsorAddress: string;
+  chain: string;
+  providerPayload: string;
+  entryId: string;
+}): {
+  parent_id: string;
+  provider: 'sponsor';
+  canonical_ref: string;
+  chain: string;
+  entry_id: string;
+  provider_payload: string;
+} {
+  return {
+    parent_id: params.parentId,
+    provider: 'sponsor',
+    canonical_ref: params.sponsorAddress,
+    chain: params.chain,
+    entry_id: params.entryId,
+    provider_payload: params.providerPayload,
+  };
 }
 
 /** Mirrors `NavePirataDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */
