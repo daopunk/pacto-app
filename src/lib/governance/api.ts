@@ -79,6 +79,36 @@ export function infraTypeFromLegacyProvider(provider: string): string {
   return p;
 }
 
+/** Stable id for squad sponsor infra row per parent. */
+export function squadSponsorInfraId(parentId: string): string {
+  return `sponsor-${parentId}`;
+}
+
+/** Mirrors `SquadSponsorDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface SquadSponsorDeployResultDto {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  squadId: string;
+  sponsorAddress: string;
+  paymasterAddress: string;
+  variant: string;
+  providerPayload: string;
+}
+
+/** Backend: `deploy_squad_sponsor_for_parent`. */
+export async function deploySquadSponsorForParent(params: {
+  network: string;
+  parentId: string;
+  initialDepositWei?: string | null;
+}): Promise<SquadSponsorDeployResultDto> {
+  return (await invoke('deploy_squad_sponsor_for_parent', {
+    network: params.network,
+    parentId: params.parentId,
+    initialDepositWei: params.initialDepositWei?.trim() ? params.initialDepositWei.trim() : null,
+  })) as SquadSponsorDeployResultDto;
+}
+
 /** Mirrors `NavePirataDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */
 export interface NavePirataDeployResultDto {
   txHash: string;

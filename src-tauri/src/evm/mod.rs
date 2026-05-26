@@ -8,6 +8,7 @@ pub mod nave_pirata_deploy;
 pub mod pacto_chain_config;
 pub mod rpc;
 pub mod safe_deploy;
+pub mod squad_sponsor_deploy;
 pub mod wallet_chain_config;
 pub mod wallet_ops;
 pub mod wallet_prices;

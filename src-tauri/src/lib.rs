@@ -6432,6 +6432,7 @@ pub fn run() {
             evm::evm_accounts::set_default_shared_evm_account,
             evm::safe_deploy::safe_deploy_proxy,
             evm::nave_pirata_deploy::deploy_nave_pirata_for_parent,
+            evm::squad_sponsor_deploy::deploy_squad_sponsor_for_parent,
             regenerate_device_keypackage,
             // MLS core commands
             create_group_chat,
