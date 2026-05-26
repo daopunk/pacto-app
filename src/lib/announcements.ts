@@ -21,7 +21,7 @@ export const ANNOUNCE_TYPE_SAFE_PROPOSAL = 'safe_proposal';
 /** New dashboard poll posted to the announcements MLS group; vote in Dashboard → Polls. */
 export const ANNOUNCE_TYPE_DASHBOARD_POLL_CREATED = 'dashboard_poll_created';
 
-/** Squad/network governance library selection or deployment sync (`parent_governance` SQLite row). Wire: `governance_updated`. */
+/** Squad/network deployed infra sync (`squad_infra` SQLite rows). Wire: `governance_updated`. */
 export const ANNOUNCE_TYPE_GOVERNANCE_UPDATED = 'governance_updated';
 
 /** Payload for `governance_updated`. `parent_id` is the squad or network root id. */

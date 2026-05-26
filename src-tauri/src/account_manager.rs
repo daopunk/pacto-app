@@ -139,10 +139,11 @@ CREATE TABLE IF NOT EXISTS parent_treasury_safe (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_parent_treasury_unique ON parent_treasury_safe(parent_id, safe_address, chain);
 CREATE INDEX IF NOT EXISTS idx_parent_treasury_parent ON parent_treasury_safe(parent_id, created_at_ms);
 
--- Single governance provider per squad/network parent (pacto-gov hat tree id, Safe-as-governance marker, etc.).
-CREATE TABLE IF NOT EXISTS parent_governance (
-    parent_id TEXT PRIMARY KEY NOT NULL,
-    provider TEXT NOT NULL,
+-- Deployed squad infra per parent (sponsor, pacto-gov stack, standalone Safes, etc.). Multiple rows per parent.
+CREATE TABLE IF NOT EXISTS squad_infra (
+    id TEXT PRIMARY KEY NOT NULL,
+    parent_id TEXT NOT NULL,
+    infra_type TEXT NOT NULL,
     chain TEXT NOT NULL,
     canonical_ref TEXT NOT NULL,
     pacto_gov_revision TEXT,
@@ -150,6 +151,7 @@ CREATE TABLE IF NOT EXISTS parent_governance (
     created_at_ms INTEGER NOT NULL,
     updated_at_ms INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_squad_infra_parent ON squad_infra(parent_id, created_at_ms);
 
 -- Squad/network parent id + member npub -> EVM payout address (from MLS squad_member_evm_share)
 CREATE TABLE IF NOT EXISTS squad_member_evm (
@@ -864,31 +866,36 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         println!("[Migration] squad_safe → parent_treasury_safe copy done");
     }
 
-    let has_parent_governance: bool = conn
+    let has_squad_infra: bool = conn
         .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='parent_governance'",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='squad_infra'",
             [],
             |row| row.get::<_, i32>(0),
         )
         .map(|c| c > 0)
         .unwrap_or(false);
 
-    if !has_parent_governance {
-        println!("[Migration] Creating parent_governance table...");
+    if !has_squad_infra {
+        // TODO: delete after pre-alpha — drop disposable single-row governance table.
+        println!("[Migration] Replacing parent_governance with squad_infra…");
+        conn.execute("DROP TABLE IF EXISTS parent_governance", [])
+            .map_err(|e| format!("Failed to drop parent_governance: {}", e))?;
         conn.execute_batch(
-            r#"CREATE TABLE IF NOT EXISTS parent_governance (
-                parent_id TEXT PRIMARY KEY NOT NULL,
-                provider TEXT NOT NULL,
+            r#"CREATE TABLE IF NOT EXISTS squad_infra (
+                id TEXT PRIMARY KEY NOT NULL,
+                parent_id TEXT NOT NULL,
+                infra_type TEXT NOT NULL,
                 chain TEXT NOT NULL,
                 canonical_ref TEXT NOT NULL,
                 pacto_gov_revision TEXT,
                 provider_payload TEXT,
                 created_at_ms INTEGER NOT NULL,
                 updated_at_ms INTEGER NOT NULL
-            );"#,
+            );
+            CREATE INDEX IF NOT EXISTS idx_squad_infra_parent ON squad_infra(parent_id, created_at_ms);"#,
         )
-        .map_err(|e| format!("Failed to create parent_governance table: {}", e))?;
-        println!("[Migration] parent_governance table created");
+        .map_err(|e| format!("Failed to create squad_infra table: {}", e))?;
+        println!("[Migration] squad_infra table created");
     }
 
     let has_dm_peer_evm: bool = conn

@@ -93,7 +93,7 @@ pub struct NavePirataDeployResult {
     pub mutiny_module: String,
     pub treasury_authority: String,
     pub squad_admin_proxy: String,
-    /// JSON string for `parent_governance.provider_payload` / announces (`v`, addresses, parent id).
+    /// JSON string for `squad_infra.provider_payload` / announces (`v`, addresses, parent id).
     pub provider_payload: String,
 }
 

@@ -1,9 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 
-/** Mirrors `ParentGovernanceRow` from Tauri (`serde(rename_all = "camelCase")`). */
-export interface ParentGovernanceDto {
+/** Mirrors `SquadInfraRow` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface SquadInfraDto {
+  id: string;
   parentId: string;
-  provider: string;
+  infraType: string;
   chain: string;
   canonicalRef: string;
   pactoGovRevision?: string;
@@ -12,24 +13,51 @@ export interface ParentGovernanceDto {
   updatedAtMs: number;
 }
 
-/** Backend: `get_parent_governance`. */
-export async function getParentGovernance(parentId: string): Promise<ParentGovernanceDto | null> {
-  const row = (await invoke('get_parent_governance', { parentId })) as ParentGovernanceDto | null | undefined;
-  return row ?? null;
+/** Dashboard compat until all surfaces use `infraType` directly. */
+export function squadInfraLegacyProvider(infraType: string): string {
+  if (infraType === 'standalone_safe') return 'gnosis_safe';
+  return infraType;
 }
 
-/** Backend: `upsert_parent_governance`. */
-export async function upsertParentGovernance(params: {
+export type ParentGovernanceDto = SquadInfraDto & { provider: string };
+
+export function withLegacyProvider(row: SquadInfraDto): ParentGovernanceDto {
+  return { ...row, provider: squadInfraLegacyProvider(row.infraType) };
+}
+
+/** Primary row for legacy single-row dashboard surfaces (prefers pacto_gov). */
+export function primaryGovernanceView(
+  rows: SquadInfraDto[] | undefined,
+): ParentGovernanceDto | null | undefined {
+  if (rows === undefined) return undefined;
+  if (rows.length === 0) return null;
+  const row =
+    rows.find((r) => r.infraType === 'pacto_gov') ??
+    rows.find((r) => r.infraType === 'standalone_safe') ??
+    rows[0];
+  return withLegacyProvider(row);
+}
+
+/** Backend: `list_squad_infra`. */
+export async function listSquadInfra(parentId: string): Promise<SquadInfraDto[]> {
+  const rows = (await invoke('list_squad_infra', { parentId })) as SquadInfraDto[] | null | undefined;
+  return rows ?? [];
+}
+
+/** Backend: `upsert_squad_infra`. */
+export async function upsertSquadInfra(params: {
+  id: string;
   parentId: string;
-  provider: string;
+  infraType: string;
   chain?: string | null;
   canonicalRef: string;
   pactoGovRevision?: string | null;
   providerPayload?: string | null;
 }): Promise<void> {
-  await invoke('upsert_parent_governance', {
+  await invoke('upsert_squad_infra', {
+    id: params.id,
     parentId: params.parentId,
-    provider: params.provider,
+    infraType: params.infraType,
     chain: params.chain ?? null,
     canonicalRef: params.canonicalRef,
     pactoGovRevision: params.pactoGovRevision ?? null,
@@ -37,9 +65,18 @@ export async function upsertParentGovernance(params: {
   });
 }
 
-/** Backend: `clear_parent_governance`. */
-export async function clearParentGovernance(parentId: string): Promise<void> {
-  await invoke('clear_parent_governance', { parentId });
+/** Stable id for pacto-gov infra row per parent. */
+export function pactoGovInfraId(parentId: string): string {
+  return `pacto-gov-${parentId}`;
+}
+
+/** Maps legacy announce / UI provider strings to squad infra types. */
+export function infraTypeFromLegacyProvider(provider: string): string {
+  const p = provider.trim().toLowerCase();
+  if (p === 'gnosis_safe' || p === 'gnosis-safe' || p === 'safe') return 'standalone_safe';
+  if (p === 'pacto-gov') return 'pacto_gov';
+  if (p === 'squad_sponsor') return 'sponsor';
+  return p;
 }
 
 /** Mirrors `NavePirataDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */

@@ -1,4 +1,4 @@
-import type { ParentGovernanceDto } from '$lib/governance/api';
+import type { SquadInfraDto } from '$lib/governance/api';
 import { SUPPORTED_CHAINS, parseSupportedChainId, type SupportedChainId } from '$lib/wallet/chains';
 
 const HATS_TREE_APP_ORIGIN = 'https://app.hatsprotocol.xyz';
@@ -53,10 +53,10 @@ export interface DashboardStructureSummary {
  * `undefined`: row still hydrating; `null`: no Pacto Gov hat tree to show.
  */
 export function resolveDashboardStructureSummary(
-  governanceConfig: ParentGovernanceDto | null | undefined,
+  governanceConfig: SquadInfraDto | null | undefined,
 ): DashboardStructureSummary | null | undefined {
   if (governanceConfig === undefined) return undefined;
-  if (!governanceConfig || governanceConfig.provider !== 'pacto_gov') return null;
+  if (!governanceConfig || governanceConfig.infraType !== 'pacto_gov') return null;
   const treeIdRaw = governanceConfig.canonicalRef?.trim();
   if (!treeIdRaw) return null;
   const chainKey = parseSupportedChainId(governanceConfig.chain);

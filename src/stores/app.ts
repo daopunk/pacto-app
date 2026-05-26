@@ -2,7 +2,7 @@ import { writable, derived, get } from 'svelte/store';
 import type { PendingMlsWelcome } from '../lib/api/nostr';
 import type { SupportedChainId } from '../lib/wallet/chains';
 import type { TreasurySafeEntry } from '../lib/treasury/treasury-safes';
-import type { ParentGovernanceDto } from '../lib/governance/api';
+import type { SquadInfraDto } from '../lib/governance/api';
 import { hydrateWalletSummaryCacheFromDisk } from '../lib/wallet/wallet-summary-cache';
 import { buildBackendGroupTimelineMessages } from '../lib/mls/virtual-channel-bucket';
 import {
@@ -411,10 +411,10 @@ export const DASHBOARD_CHANNEL_ID = '__dashboard__';
 export const DASHBOARD_CHANNEL_NAME = 'dashboard';
 
 /**
- * Governance row per parent id (squad or network). Updated from SQLite and when
- * `governance_updated` announce-cards arrive in #announcements.
+ * Squad infra rows per parent id (sponsor, pacto-gov, standalone Safe markers, …).
+ * Updated from SQLite and when `governance_updated` announce-cards arrive.
  */
-export const governanceConfigByParentId = writable<Record<string, ParentGovernanceDto | null>>({});
+export const squadInfraByParentId = writable<Record<string, SquadInfraDto[]>>({});
 
 /**
  * Treasury Safe rows per parent id (squad or network). Updated from SQLite and when
@@ -423,7 +423,7 @@ export const governanceConfigByParentId = writable<Record<string, ParentGovernan
 export const treasurySafesByParentId = writable<Record<string, TreasurySafeEntry[]>>({});
 
 export type { TreasurySafeEntry };
-export type { ParentGovernanceDto };
+export type { SquadInfraDto };
 
 /** Normalize a channel from storage (drops legacy `id` if present). */
 function normalizeChannel(ch: { name: string; groupId: string; order: number }): Channel {

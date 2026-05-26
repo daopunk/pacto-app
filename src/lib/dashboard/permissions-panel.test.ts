@@ -22,7 +22,9 @@ describe('resolveDashboardPermissionsContext', () => {
 
   it('pacto_gov includes catalog and revision', () => {
     const row: ParentGovernanceDto = {
+      id: 'pacto-gov-p1',
       parentId: 'p1',
+      infraType: 'pacto_gov',
       provider: 'pacto_gov',
       chain: 'sepolia',
       canonicalRef: '1',
@@ -39,7 +41,9 @@ describe('resolveDashboardPermissionsContext', () => {
 
   it('gnosis_safe uses treasury catalog', () => {
     const row: ParentGovernanceDto = {
+      id: 'standalone-safe-p1',
       parentId: 'p1',
+      infraType: 'standalone_safe',
       provider: 'gnosis_safe',
       chain: 'sepolia',
       canonicalRef: '0xsafe',

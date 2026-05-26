@@ -110,10 +110,10 @@
     ANNOUNCEMENTS_CHANNEL_NAME,
     DASHBOARD_CHANNEL_ID,
     treasurySafesByParentId,
-    governanceConfigByParentId,
+    squadInfraByParentId,
     dashboardPollReplicaNonceByParentId,
     type TreasurySafeEntry,
-    type ParentGovernanceDto,
+    type SquadInfraDto,
     type DmMessage,
     type DmTab,
     type DmEntry,
@@ -127,7 +127,12 @@
     dmWalletPeerExchangeTick,
   } from '../stores/app';
   import { pendingReadyToast, showToast } from '../stores/toast';
-  import { getParentGovernance, upsertParentGovernance } from '../lib/governance/api';
+  import {
+    listSquadInfra,
+    upsertSquadInfra,
+    pactoGovInfraId,
+    primaryGovernanceView,
+  } from '../lib/governance/api';
   import { resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../lib/mls/virtual-channel-bucket';
   import { portal } from '../lib/utils/portal';
@@ -183,13 +188,13 @@
     }
   }
 
-  async function mergeGovernanceForParent(parentId: string) {
+  async function mergeSquadInfraForParent(parentId: string) {
     if (!parentId) return;
     try {
-      const row = await getParentGovernance(parentId);
-      governanceConfigByParentId.update((m: Record<string, ParentGovernanceDto | null>) => ({
+      const rows = await listSquadInfra(parentId);
+      squadInfraByParentId.update((m: Record<string, SquadInfraDto[]>) => ({
         ...m,
-        [parentId]: row,
+        [parentId]: rows,
       }));
     } catch {
       /* ignore */
@@ -209,8 +214,8 @@
     p: Squad | Network,
     params: { safeAddress: string; chain: string; entryId: string; txHash?: string },
   ) {
-    const gov = await getParentGovernance(p.id);
-    if (gov != null && gov.provider !== 'gnosis_safe') {
+    const rows = await listSquadInfra(p.id);
+    if (rows.some((r) => r.infraType === 'pacto_gov')) {
       return;
     }
     const canonicalRef = governanceCanonicalSafeRef(params.safeAddress);
@@ -220,9 +225,10 @@
       tx_hash: params.txHash,
       safe_address: canonicalRef,
     });
-    await upsertParentGovernance({
+    await upsertSquadInfra({
+      id: params.entryId,
       parentId: p.id,
-      provider: 'gnosis_safe',
+      infraType: 'standalone_safe',
       chain: params.chain,
       canonicalRef,
       providerPayload,
@@ -254,9 +260,10 @@
     topHatId: string;
     providerPayload: string;
   }) {
-    await upsertParentGovernance({
+    await upsertSquadInfra({
+      id: pactoGovInfraId(params.parentId),
       parentId: params.parentId,
-      provider: 'pacto_gov',
+      infraType: 'pacto_gov',
       chain: params.chain,
       canonicalRef: params.topHatId,
       providerPayload: params.providerPayload,
@@ -283,14 +290,14 @@
         { virtualBucket: 'monitor' },
       );
     }
-    await mergeGovernanceForParent(params.parentId);
+    await mergeSquadInfraForParent(params.parentId);
   }
 
   $: dashboardParentId = $activeChannelId === DASHBOARD_CHANNEL_ID ? ($activeTopNavTab === 'squads' ? $activeSquadId : $activeNetworkId) ?? null : null;
   $: if (dashboardParentId && !treasuryHydratedIds.has(dashboardParentId)) {
     treasuryHydratedIds.add(dashboardParentId);
     mergeTreasurySafesForParent(dashboardParentId);
-    mergeGovernanceForParent(dashboardParentId).catch(() => {});
+    mergeSquadInfraForParent(dashboardParentId).catch(() => {});
   }
 
   /** After login, refresh embedded wallet balances in the background (cache only; no DM open). */
@@ -317,7 +324,7 @@
       if (!pid || treasuryHydratedIds.has(pid)) continue;
       treasuryHydratedIds.add(pid);
       mergeTreasurySafesForParent(pid).catch(() => {});
-      mergeGovernanceForParent(pid).catch(() => {});
+      mergeSquadInfraForParent(pid).catch(() => {});
     }
   }
 
@@ -1202,7 +1209,7 @@
             mergeTreasurySafesForParent(announce.payload.squad_id);
           }
           if (announce?.type === ANNOUNCE_TYPE_GOVERNANCE_UPDATED) {
-            mergeGovernanceForParent(announce.payload.parent_id);
+            mergeSquadInfraForParent(announce.payload.parent_id);
           }
         }
       }
@@ -1280,7 +1287,7 @@
         mergeTreasurySafesForParent(announce.payload.squad_id);
       }
       if (announce?.type === ANNOUNCE_TYPE_GOVERNANCE_UPDATED) {
-        mergeGovernanceForParent(announce.payload.parent_id);
+        mergeSquadInfraForParent(announce.payload.parent_id);
       }
       if (group_name) updateChannelNameIfPlaceholder(group_id, group_name);
     });
@@ -1524,8 +1531,9 @@
                     ? $squads.find((s: Squad) => s.id === $activeSquadId)
                     : $networks.find((n: Network) => n.id === $activeNetworkId))?.id ?? '';
                 if (!id) return undefined;
-                return Object.prototype.hasOwnProperty.call($governanceConfigByParentId, id)
-                  ? $governanceConfigByParentId[id]
+                const rows = $squadInfraByParentId[id];
+                return Object.prototype.hasOwnProperty.call($squadInfraByParentId, id)
+                  ? primaryGovernanceView(rows)
                   : undefined;
               })()}
               onConfirmImportSafe={async (params: {
@@ -1579,7 +1587,7 @@
                   );
                 }
                 await mergeTreasurySafesForParent(p.id);
-                await mergeGovernanceForParent(p.id);
+                await mergeSquadInfraForParent(p.id);
               }}
               onPactoGovDeployComplete={finalizePactoGovDeploy}
             />

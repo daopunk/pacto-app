@@ -59,7 +59,7 @@ import {
   dmSendError,
   setCurrentNpubForPersistence,
   treasurySafesByParentId,
-  governanceConfigByParentId,
+  squadInfraByParentId,
   parentDashboardChannelMode,
   dashboardPollReplicaNonceByParentId,
 } from '../../stores/app';
@@ -138,7 +138,7 @@ export function clearAccountState(npub?: string): void {
   clearAccountLocalStorage(npub);
 
   treasurySafesByParentId.set({});
-  governanceConfigByParentId.set({});
+  squadInfraByParentId.set({});
   dashboardPollReplicaNonceByParentId.set({});
   safeStateByTreasuryId.set({});
   squads.set([]);

@@ -1,4 +1,4 @@
-import type { ParentGovernanceDto } from '$lib/governance/api';
+import type { SquadInfraDto } from '$lib/governance/api';
 import { describe, expect, it } from 'vitest';
 import {
   hatsTreeExplorerUrl,
@@ -6,9 +6,10 @@ import {
   resolveDashboardStructureSummary,
 } from './structure-summary';
 
-const pactoGovRow: ParentGovernanceDto = {
+const pactoGovRow: SquadInfraDto = {
+  id: 'pacto-gov-p1',
   parentId: 'p1',
-  provider: 'pacto_gov',
+  infraType: 'pacto_gov',
   chain: 'optimism',
   canonicalRef: '298',
   createdAtMs: 1,
@@ -55,7 +56,7 @@ describe('resolveDashboardStructureSummary', () => {
     expect(
       resolveDashboardStructureSummary({
         ...pactoGovRow,
-        provider: 'gnosis_safe',
+        infraType: 'standalone_safe',
         canonicalRef: '0xabc',
       }),
     ).toBe(null);

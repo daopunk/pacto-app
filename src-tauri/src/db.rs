@@ -493,19 +493,40 @@ fn normalize_treasury_chain(raw: Option<&str>) -> String {
     }
 }
 
-fn normalize_governance_provider(raw: &str) -> Result<String, String> {
+fn normalize_infra_type(raw: &str) -> Result<String, String> {
     let s = raw.trim().to_ascii_lowercase();
     match s.as_str() {
+        "sponsor" | "squad_sponsor" => Ok("sponsor".to_string()),
         "pacto_gov" | "pacto-gov" => Ok("pacto_gov".to_string()),
-        "gnosis_safe" | "gnosis-safe" | "safe" => Ok("gnosis_safe".to_string()),
+        "standalone_safe" | "gnosis_safe" | "gnosis-safe" | "safe" => Ok("standalone_safe".to_string()),
         "bread_coop" | "bread-coop" | "bread" => Ok("bread_coop".to_string()),
-        _ => Err(format!("unknown governance provider: {}", raw.trim())),
+        _ => Err(format!("unknown squad infra type: {}", raw.trim())),
     }
 }
 
-const PARENT_GOVERNANCE_CANONICAL_REF_MAX: usize = 2048;
-const PARENT_GOVERNANCE_REVISION_MAX: usize = 64;
-const PARENT_GOVERNANCE_PAYLOAD_MAX: usize = 256_000;
+const SQUAD_INFRA_CANONICAL_REF_MAX: usize = 2048;
+const SQUAD_INFRA_REVISION_MAX: usize = 64;
+const SQUAD_INFRA_PAYLOAD_MAX: usize = 256_000;
+const SQUAD_INFRA_ID_MAX: usize = 72;
+
+fn new_squad_infra_id(entry_id: Option<&str>) -> String {
+    if let Some(s) = entry_id.map(str::trim).filter(|s| !s.is_empty()) {
+        if s.len() >= 8
+            && s.len() <= SQUAD_INFRA_ID_MAX
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return s.to_string();
+        }
+    }
+    format!(
+        "si-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    )
+}
 
 fn new_treasury_row_id(entry_id: Option<&str>) -> String {
     if let Some(s) = entry_id.map(str::trim).filter(|s| !s.is_empty()) {
@@ -712,9 +733,10 @@ pub fn list_parent_treasury_safes<R: Runtime>(
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ParentGovernanceRow {
+pub struct SquadInfraRow {
+    pub id: String,
     pub parent_id: String,
-    pub provider: String,
+    pub infra_type: String,
     pub chain: String,
     pub canonical_ref: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -726,79 +748,93 @@ pub struct ParentGovernanceRow {
 }
 
 #[command]
-pub fn get_parent_governance<R: Runtime>(
+pub fn list_squad_infra<R: Runtime>(
     handle: AppHandle<R>,
     parent_id: String,
-) -> Result<Option<ParentGovernanceRow>, String> {
+) -> Result<Vec<SquadInfraRow>, String> {
     let pid = parent_id.trim();
     if pid.is_empty() {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     let conn = crate::account_manager::get_db_connection(&handle)?;
-    let row = conn
-        .query_row(
-            "SELECT parent_id, provider, chain, canonical_ref, pacto_gov_revision, provider_payload, created_at_ms, updated_at_ms \
-             FROM parent_governance WHERE parent_id = ?1",
-            rusqlite::params![pid],
-            |row| {
-                Ok(ParentGovernanceRow {
-                    parent_id: row.get(0)?,
-                    provider: row.get(1)?,
-                    chain: row.get(2)?,
-                    canonical_ref: row.get(3)?,
-                    pacto_gov_revision: row.get(4)?,
-                    provider_payload: row.get(5)?,
-                    created_at_ms: row.get(6)?,
-                    updated_at_ms: row.get(7)?,
-                })
-            },
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, parent_id, infra_type, chain, canonical_ref, pacto_gov_revision, provider_payload, created_at_ms, updated_at_ms \
+             FROM squad_infra WHERE parent_id = ?1 ORDER BY created_at_ms ASC",
         )
-        .optional()
-        .map_err(|e| format!("Failed to read parent_governance: {}", e))?;
+        .map_err(|e| format!("Failed to list squad_infra: {}", e))?;
+    let rows = stmt
+        .query_map(rusqlite::params![pid], |row| {
+            Ok(SquadInfraRow {
+                id: row.get(0)?,
+                parent_id: row.get(1)?,
+                infra_type: row.get(2)?,
+                chain: row.get(3)?,
+                canonical_ref: row.get(4)?,
+                pacto_gov_revision: row.get(5)?,
+                provider_payload: row.get(6)?,
+                created_at_ms: row.get(7)?,
+                updated_at_ms: row.get(8)?,
+            })
+        })
+        .map_err(|e| format!("Failed to query squad_infra: {}", e))?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    drop(stmt);
     crate::account_manager::return_db_connection(conn);
-    Ok(row)
+    Ok(out)
 }
 
-fn upsert_parent_governance_inner<R: Runtime>(
+fn upsert_squad_infra_inner<R: Runtime>(
     handle: &AppHandle<R>,
+    id: &str,
     parent_id: &str,
-    provider: &str,
+    infra_type: &str,
     chain: Option<&str>,
     canonical_ref: &str,
     pacto_gov_revision: Option<&str>,
     provider_payload: Option<&str>,
 ) -> Result<(), String> {
+    let row_id = id.trim();
+    if row_id.is_empty() {
+        return Err("id is empty".to_string());
+    }
+    if row_id.len() > SQUAD_INFRA_ID_MAX {
+        return Err(format!("id exceeds {} characters", SQUAD_INFRA_ID_MAX));
+    }
     let pid = parent_id.trim();
     if pid.is_empty() {
         return Err("parent_id is empty".to_string());
     }
-    let prov = normalize_governance_provider(provider)?;
+    let kind = normalize_infra_type(infra_type)?;
     let chain_norm = normalize_treasury_chain(chain);
     let cref = canonical_ref.trim();
     if cref.is_empty() {
         return Err("canonical_ref is empty".to_string());
     }
-    if cref.len() > PARENT_GOVERNANCE_CANONICAL_REF_MAX {
+    if cref.len() > SQUAD_INFRA_CANONICAL_REF_MAX {
         return Err(format!(
             "canonical_ref exceeds {} characters",
-            PARENT_GOVERNANCE_CANONICAL_REF_MAX
+            SQUAD_INFRA_CANONICAL_REF_MAX
         ));
     }
     let rev: Option<String> = pacto_gov_revision
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(|s| {
-            if s.len() > PARENT_GOVERNANCE_REVISION_MAX {
-                s[..PARENT_GOVERNANCE_REVISION_MAX].to_string()
+            if s.len() > SQUAD_INFRA_REVISION_MAX {
+                s[..SQUAD_INFRA_REVISION_MAX].to_string()
             } else {
                 s.to_string()
             }
         });
     let payload = provider_payload.map(str::trim).filter(|s| !s.is_empty());
-    if payload.map(|p| p.len()).unwrap_or(0) > PARENT_GOVERNANCE_PAYLOAD_MAX {
+    if payload.map(|p| p.len()).unwrap_or(0) > SQUAD_INFRA_PAYLOAD_MAX {
         return Err(format!(
             "provider_payload exceeds {} characters",
-            PARENT_GOVERNANCE_PAYLOAD_MAX
+            SQUAD_INFRA_PAYLOAD_MAX
         ));
     }
     let conn = crate::account_manager::get_db_connection(handle)?;
@@ -808,26 +844,28 @@ fn upsert_parent_governance_inner<R: Runtime>(
         .unwrap_or(0);
     let existing_created: Option<i64> = conn
         .query_row(
-            "SELECT created_at_ms FROM parent_governance WHERE parent_id = ?1",
-            rusqlite::params![pid],
+            "SELECT created_at_ms FROM squad_infra WHERE id = ?1",
+            rusqlite::params![row_id],
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("Failed to read parent_governance created_at: {}", e))?;
+        .map_err(|e| format!("Failed to read squad_infra created_at: {}", e))?;
     let created_ms = existing_created.unwrap_or(now_ms);
     conn.execute(
-        "INSERT INTO parent_governance (parent_id, provider, chain, canonical_ref, pacto_gov_revision, provider_payload, created_at_ms, updated_at_ms) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) \
-         ON CONFLICT(parent_id) DO UPDATE SET \
-           provider = excluded.provider, \
+        "INSERT INTO squad_infra (id, parent_id, infra_type, chain, canonical_ref, pacto_gov_revision, provider_payload, created_at_ms, updated_at_ms) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+         ON CONFLICT(id) DO UPDATE SET \
+           parent_id = excluded.parent_id, \
+           infra_type = excluded.infra_type, \
            chain = excluded.chain, \
            canonical_ref = excluded.canonical_ref, \
            pacto_gov_revision = excluded.pacto_gov_revision, \
            provider_payload = excluded.provider_payload, \
            updated_at_ms = excluded.updated_at_ms",
         rusqlite::params![
+            row_id,
             pid,
-            prov,
+            kind,
             chain_norm,
             cref,
             rev,
@@ -836,47 +874,33 @@ fn upsert_parent_governance_inner<R: Runtime>(
             now_ms,
         ],
     )
-    .map_err(|e| format!("Failed to upsert parent_governance: {}", e))?;
+    .map_err(|e| format!("Failed to upsert squad_infra: {}", e))?;
     crate::account_manager::return_db_connection(conn);
     Ok(())
 }
 
-/// Insert or replace the single governance row for this parent. Preserves `created_at_ms` on update.
+/// Insert or replace a squad infra row keyed by stable `id`. Preserves `created_at_ms` on update.
 #[command]
-pub fn upsert_parent_governance<R: Runtime>(
+pub fn upsert_squad_infra<R: Runtime>(
     handle: AppHandle<R>,
+    id: String,
     parent_id: String,
-    provider: String,
+    infra_type: String,
     chain: Option<String>,
     canonical_ref: String,
     pacto_gov_revision: Option<String>,
     provider_payload: Option<String>,
 ) -> Result<(), String> {
-    upsert_parent_governance_inner(
+    upsert_squad_infra_inner(
         &handle,
+        id.as_str(),
         parent_id.as_str(),
-        provider.as_str(),
+        infra_type.as_str(),
         chain.as_deref(),
         canonical_ref.as_str(),
         pacto_gov_revision.as_deref(),
         provider_payload.as_deref(),
     )
-}
-
-#[command]
-pub fn clear_parent_governance<R: Runtime>(handle: AppHandle<R>, parent_id: String) -> Result<(), String> {
-    let pid = parent_id.trim();
-    if pid.is_empty() {
-        return Err("parent_id is empty".to_string());
-    }
-    let conn = crate::account_manager::get_db_connection(&handle)?;
-    conn.execute(
-        "DELETE FROM parent_governance WHERE parent_id = ?1",
-        rusqlite::params![pid],
-    )
-    .map_err(|e| format!("Failed to delete parent_governance: {}", e))?;
-    crate::account_manager::return_db_connection(conn);
-    Ok(())
 }
 
 /// If content is a squad_safe_updated announce JSON, upsert a treasury row (idempotent per parent + address + chain).
@@ -919,8 +943,8 @@ pub fn apply_parent_safe_announce<R: Runtime>(handle: &AppHandle<R>, content: &s
     let _ = upsert_parent_treasury_row(handle, parent_id, &norm, chain.as_str(), lb, entry_id);
 }
 
-/// If content is a `governance_updated` announce JSON, upsert `parent_governance` (idempotent per parent).
-/// Wire format: `payload.parent_id`, `payload.provider`, `payload.canonical_ref`; optional `chain`, `pacto_gov_revision`, `provider_payload`.
+/// If content is a `governance_updated` announce JSON, upsert `squad_infra` (merge by `entry_id` or generated id).
+/// Wire format: `payload.parent_id`, `payload.provider`, `payload.canonical_ref`; optional `chain`, `pacto_gov_revision`, `provider_payload`, `entry_id`.
 pub fn maybe_upsert_governance_from_announce<R: Runtime>(handle: &AppHandle<R>, content: &str) {
     let parsed: serde_json::Value = match serde_json::from_str(content) {
         Ok(v) => v,
@@ -972,8 +996,11 @@ pub fn maybe_upsert_governance_from_announce<R: Runtime>(handle: &AppHandle<R>, 
             Some(t)
         }
     });
-    let _ = upsert_parent_governance_inner(
+    let entry_id = p.get("entry_id").and_then(|v| v.as_str());
+    let row_id = new_squad_infra_id(entry_id);
+    let _ = upsert_squad_infra_inner(
         handle,
+        row_id.as_str(),
         parent_id,
         provider,
         chain,
