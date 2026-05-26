@@ -15,7 +15,7 @@ These files are **tracked in git** and are intended for references from **source
 | [HD_DERIVATION_V1.md](./HD_DERIVATION_V1.md) | BIP-44 EVM path `m/44'/60'/0'/0/i`; mnemonic scope; golden vector. |
 | [EVM_ADDRESS_DERIVATION.md](./EVM_ADDRESS_DERIVATION.md) | HD v1 + legacy SHA256-of-nostr note; canonical pubkey hash; legacy 0x04 repair. |
 | [ONCHAIN_READ_PATTERN.md](./ONCHAIN_READ_PATTERN.md) | Shared pattern: persist / hydrate / background refresh / stale-while-revalidate for WalletBar + Safe-style hub reads. |
-| [PACTO_GOV_SUBMODULE.md](./PACTO_GOV_SUBMODULE.md) | **`third_party/pacto-gov`** git submodule: clone/init, bump policy, pinned revision for Alloy ABI bindings. |
+| [PACTO_GOV.md](./PACTO_GOV.md) | Upstream [covenant-gov/pacto-gov](https://github.com/covenant-gov/pacto-gov); in-app Alloy bindings and env-based deploy addresses. |
 
 **Maintainers — alpha-only migrations (remove before beta / public v1):** WalletBar token-dropdown → watched-token list — [`docs/legacy-fixes/LF-002-wallet-bar-token-filter-migration.md`](../legacy-fixes/LF-002-wallet-bar-token-filter-migration.md). EVM address repair — [`docs/legacy-fixes/LF-001-evm-address-repair.md`](../legacy-fixes/LF-001-evm-address-repair.md). Full catalog: [`docs/legacy-fixes/CATALOG.md`](../legacy-fixes/CATALOG.md).
 

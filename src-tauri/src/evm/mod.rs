@@ -1,0 +1,19 @@
+//! Blockchain / EVM layer: key derivation, RPC, contract bindings, wallet, governance deploy.
+//! Kept separate from core messaging, MLS, and Nostr sync logic in the crate root.
+
+pub mod contracts;
+pub mod evm_accounts;
+pub mod evm_keys;
+pub mod nave_pirata_deploy;
+pub mod pacto_chain_config;
+pub mod rpc;
+pub mod safe_deploy;
+pub mod wallet_chain_config;
+pub mod wallet_ops;
+pub mod wallet_prices;
+pub mod wallet_security;
+
+pub use evm_keys::{
+    address_from_evm_secret_32, derive_eth_bip44_v1_from_mnemonic_phrase,
+    derive_evm_hex_from_nostr_secret, normalize_hex_address,
+};

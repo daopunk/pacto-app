@@ -9,7 +9,9 @@ use tauri::{AppHandle, Emitter, Runtime};
 use crate::account_manager;
 use crate::crypto;
 use crate::db;
-use crate::evm;
+use super::{
+    address_from_evm_secret_32, derive_eth_bip44_v1_from_mnemonic_phrase, normalize_hex_address,
+};
 
 pub const SCHEME_BIP44_V1: &str = "bip44_v1";
 pub const SCHEME_IMPORTED: &str = "imported_private_key";
@@ -154,9 +156,9 @@ async fn resolve_private_key_hex_for_account_id<R: Runtime>(
         SCHEME_BIP44_V1 => {
             let idx = hd_index.ok_or_else(|| "Derived account missing index.".to_string())? as u32;
             let phrase = get_mnemonic_for_hd(handle.clone()).await?;
-            let (key_hex, addr2) = evm::derive_eth_bip44_v1_from_mnemonic_phrase(&phrase, idx)?;
-            let norm = evm::normalize_hex_address(&addr2).unwrap_or(addr2);
-            let stored = evm::normalize_hex_address(address.trim()).unwrap_or(address);
+            let (key_hex, addr2) = derive_eth_bip44_v1_from_mnemonic_phrase(&phrase, idx)?;
+            let norm = normalize_hex_address(&addr2).unwrap_or(addr2);
+            let stored = normalize_hex_address(address.trim()).unwrap_or(address);
             if stored.to_lowercase() != norm.to_lowercase() {
                 return Err("Derived account address mismatch (data may be corrupt).".to_string());
             }
@@ -176,7 +178,7 @@ async fn resolve_private_key_hex_for_account_id<R: Runtime>(
                 return Err("Imported EVM key has invalid length.".to_string());
             }
             let norm =
-                evm::normalize_hex_address(address.trim()).unwrap_or_else(|| address.trim().to_string());
+                normalize_hex_address(address.trim()).unwrap_or_else(|| address.trim().to_string());
             Ok((format!("0x{}", h.to_lowercase()), norm, SCHEME_IMPORTED.to_string()))
         }
         _ => Err("Unknown EVM account scheme.".to_string()),
@@ -291,7 +293,7 @@ pub async fn ensure_ready<R: Runtime>(handle: AppHandle<R>) -> Result<(), String
     };
 
     if let Some(p) = phrase {
-        let (key_hex, addr) = evm::derive_eth_bip44_v1_from_mnemonic_phrase(&p, 0)?;
+        let (key_hex, addr) = derive_eth_bip44_v1_from_mnemonic_phrase(&p, 0)?;
         let id = hd_row_id(0);
         let conn = account_manager::get_db_connection(&handle)?;
         conn.execute(
@@ -432,7 +434,7 @@ pub async fn add_evm_account<R: Runtime>(
     let next = (max_idx.unwrap_or(-1) + 1) as u32;
     account_manager::return_db_connection(conn);
 
-    let (_key_hex, addr) = evm::derive_eth_bip44_v1_from_mnemonic_phrase(&phrase, next)?;
+    let (_key_hex, addr) = derive_eth_bip44_v1_from_mnemonic_phrase(&phrase, next)?;
     let id = hd_row_id(next);
 
     let conn = account_manager::get_db_connection(&handle)?;
@@ -495,7 +497,7 @@ pub async fn import_evm_account<R: Runtime>(
         sk[i] = u8::from_str_radix(&h[i * 2..i * 2 + 2], 16)
             .map_err(|_| "Invalid hex in private key.".to_string())?;
     }
-    let addr = evm::address_from_evm_secret_32(&sk)?;
+    let addr = address_from_evm_secret_32(&sk)?;
     let conn = account_manager::get_db_connection(&handle)?;
     let dup: i64 = conn
         .query_row(

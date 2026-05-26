@@ -1,34 +1,22 @@
 //! Embedded wallet: balances (`get_wallet_summary`) and send (`wallet_build_and_send_transaction`).
 //! Chain/asset table: `wallet_chain_config` (compile-time `wallet-assets.json` + chain IDs + default RPC).
 
-use alloy::network::{EthereumWallet, ReceiptResponse, TransactionBuilder};
+use alloy::network::{ReceiptResponse, TransactionBuilder};
 use alloy::primitives::{utils::parse_units, Address, Bytes, U256};
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::rpc::types::TransactionRequest;
-use alloy::signers::local::PrivateKeySigner;
-use alloy::sol;
 use alloy::sol_types::SolCall;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::time::Duration;
 use tauri::{AppHandle, Runtime};
 
-use crate::crypto;
 use crate::db;
-use crate::evm_accounts;
-use crate::wallet_chain_config;
-use crate::wallet_prices;
-use crate::wallet_security;
-
-sol! {
-    interface IERC20 {
-        function balanceOf(address account) external view returns (uint256);
-        function transfer(address to, uint256 amount) external returns (bool);
-    }
-}
-
-/// How long to wait for `eth_getTransactionReceipt` after broadcast (mainnet can exceed 20s).
-const RECEIPT_WAIT_TIMEOUT: Duration = Duration::from_secs(180);
+use super::contracts::erc20::IERC20;
+use super::evm_accounts;
+use super::rpc::signer::load_embedded_signer;
+use super::wallet_chain_config;
+use super::wallet_prices;
+use super::wallet_security;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -81,41 +69,8 @@ pub struct Erc20TransferSpec {
     pub decimals: u8,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct WalletOpError {
-    code: String,
-    message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    npub: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tx_hash: Option<String>,
-}
-
-pub(crate) fn wallet_err_json(code: &str, message: impl Into<String>, npub: Option<String>) -> String {
-    serde_json::to_string(&WalletOpError {
-        code: code.to_string(),
-        message: message.into(),
-        npub,
-        tx_hash: None,
-    })
-    .unwrap_or_else(|_| r#"{"code":"INTERNAL","message":"serialize"}"#.to_string())
-}
-
-pub(crate) fn wallet_err_json_with_tx_hash(
-    code: &str,
-    message: impl Into<String>,
-    npub: Option<String>,
-    tx_hash: String,
-) -> String {
-    serde_json::to_string(&WalletOpError {
-        code: code.to_string(),
-        message: message.into(),
-        npub,
-        tx_hash: Some(tx_hash),
-    })
-    .unwrap_or_else(|_| r#"{"code":"INTERNAL","message":"serialize"}"#.to_string())
-}
+pub(crate) use super::rpc::{parse_address, wallet_err_json};
+use super::rpc::{connect_signing_provider, send_and_confirm};
 
 fn decode_balance_of_return(data: &[u8]) -> Result<U256, String> {
     if data.len() < 32 {
@@ -147,20 +102,6 @@ async fn erc20_balance(
             wallet_security::redact_urls_in_text(&format!("eth_call balanceOf: {}", e))
         })?;
     decode_balance_of_return(out.as_ref())
-}
-
-pub(crate) fn parse_address(s: &str) -> Result<Address, String> {
-    let t = s.trim();
-    let h = t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")).unwrap_or(t);
-    if h.len() != 40 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("invalid EVM address".into());
-    }
-    let mut b = [0u8; 20];
-    for i in 0..20 {
-        b[i] = u8::from_str_radix(&h[i * 2..i * 2 + 2], 16)
-            .map_err(|_| "invalid hex in address")?;
-    }
-    Ok(Address::from(b))
 }
 
 /// Public RPCs often return HTTP 522 / gateway errors or time out; caller should try the next URL.
@@ -429,76 +370,16 @@ pub async fn wallet_build_and_send_transaction<R: Runtime>(
 
     let _ = evm_accounts::ensure_ready(app.clone()).await;
 
-    let enc = db::get_evm_pkey(app.clone())
-        .map_err(|e| wallet_err_json("DB_ERROR", e, None))?
-        .ok_or_else(|| wallet_err_json("NO_EVM_KEY", "EVM key not set for this account", None))?;
+    let (_signer, wallet) = load_embedded_signer(app.clone()).await?;
+    let provider = connect_signing_provider(&urls, wallet).await?;
 
-    // Never log or return decrypted EVM key hex; use only to build the signer.
-    let evm_private_key = crypto::internal_decrypt(enc, None)
-        .await
-        .map_err(|_| wallet_err_json("DECRYPT_FAILED", "Could not decrypt EVM key", None))?;
-
-    let signer: PrivateKeySigner = evm_private_key
-        .parse()
-        .map_err(|_| {
-            // Do not echo parse errors — may reflect key material length/format.
-            wallet_err_json("INVALID_KEY", "Invalid EVM key format", None)
-        })?;
-
-    let wallet = EthereumWallet::from(signer);
-    let mut provider_opt = None;
-    let mut connect_last = String::new();
-    for url_s in &urls {
-        if url_s.parse::<url::Url>().is_err() {
-            connect_last = "invalid RPC URL".to_string();
-            continue;
-        }
-        match ProviderBuilder::new()
-            .wallet(wallet.clone())
-            .connect(url_s.as_str())
-            .await
-        {
-            Ok(p) => {
-                provider_opt = Some(p);
-                break;
-            }
-            Err(e) => {
-                connect_last = wallet_security::redact_urls_in_text(&e.to_string());
-            }
-        }
-    }
-    let provider = match provider_opt {
-        Some(p) => p,
-        None => {
-            return Err(wallet_err_json(
-                "RPC_CONNECT",
-                format!(
-                    "tried {} URL(s), last error: {}",
-                    urls.len(),
-                    connect_last
-                ),
-                None,
-            ));
-        }
-    };
-
-    let pending = if asset_up == "ETH" && erc20_transfer.is_none() {
+    let tx = if asset_up == "ETH" && erc20_transfer.is_none() {
         let v = parse_units(&amount, net.native_decimals).map_err(|e| {
             wallet_err_json("INVALID_AMOUNT", format!("{}", e), None)
         })?;
-        let tx = TransactionRequest::default()
+        TransactionRequest::default()
             .with_to(to_addr.into())
-            .with_value(v.into());
-        provider
-            .send_transaction(tx)
-            .await
-            .map_err(|e| {
-                wallet_err_json(
-                    "SEND_FAILED",
-                    wallet_security::redact_urls_in_text(&e.to_string()),
-                    None,
-                )
-            })?
+            .with_value(v.into())
     } else {
         let (token_addr_s, dec) = if let Some(spec) = &erc20_transfer {
             (&spec.address[..], spec.decimals)
@@ -524,42 +405,17 @@ pub async fn wallet_build_and_send_transaction<R: Runtime>(
             amount: v.into(),
         };
         let input = call.abi_encode();
-        let tx = TransactionRequest::default()
+        TransactionRequest::default()
             .with_to(token.into())
-            .with_input(Bytes::from(input));
-        provider
-            .send_transaction(tx)
-            .await
-            .map_err(|e| {
-                wallet_err_json(
-                    "SEND_FAILED",
-                    wallet_security::redact_urls_in_text(&e.to_string()),
-                    None,
-                )
-            })?
+            .with_input(Bytes::from(input))
     };
 
-    let submitted_tx_hash = format!("0x{:x}", *pending.tx_hash());
-    let receipt = pending
-        .with_timeout(Some(RECEIPT_WAIT_TIMEOUT))
-        .get_receipt()
-        .await
-        .map_err(|_| {
-            wallet_err_json_with_tx_hash(
-                "RECEIPT_TIMEOUT",
-                "Timed out waiting for confirmation. The transaction may still complete; check a block explorer using the hash below.",
-                None,
-                submitted_tx_hash,
-            )
-        })?;
-
-    if !receipt.status() {
-        return Err(wallet_err_json(
-            "TX_REVERTED",
-            "Transaction was mined but reverted",
-            None,
-        ));
-    }
+    let receipt = send_and_confirm(
+        &provider,
+        tx,
+        "Timed out waiting for confirmation. The transaction may still complete; check a block explorer using the hash below.",
+    )
+    .await?;
 
     Ok(WalletSendResult {
         tx_hash: format!("0x{:x}", receipt.transaction_hash),

@@ -33,15 +33,6 @@ mod util;
 use util::{get_file_type_description, calculate_file_hash, format_bytes};
 
 mod evm;
-mod evm_accounts;
-
-mod wallet_prices;
-mod wallet_chain_config;
-mod wallet_security;
-mod wallet_ops;
-mod safe_deploy;
-mod contracts;
-mod nave_pirata_deploy;
 
 #[cfg(target_os = "android")]
 #[path = "android/mod.rs"]
@@ -4012,7 +4003,7 @@ async fn complete_login_from_keys(keys: Keys) -> Result<LoginKeyPair, String> {
             if profile_db.exists() {
                 let _ = crate::account_manager::set_current_account(npub.clone());
                 println!("[Login] Set current account for SQL mode: {}", npub);
-                let _ = evm_accounts::ensure_ready(handle.clone()).await;
+                let _ = evm::evm_accounts::ensure_ready(handle.clone()).await;
             } else if let Err(e) = account_manager::init_profile_database(handle, &npub).await {
                 eprintln!("[Login] Failed to initialize profile database: {}", e);
             } else if let Err(e) = account_manager::set_current_account(npub.clone()) {
@@ -4485,18 +4476,18 @@ async fn export_keys() -> Result<serde_json::Value, String> {
     };
     
     // Active EVM account (when resolvable): same decryption path as wallet send.
-    let evm_private_key = match evm_accounts::decrypt_active_evm_private_key_plaintext(handle.clone()).await {
+    let evm_private_key = match evm::evm_accounts::decrypt_active_evm_private_key_plaintext(handle.clone()).await {
         Ok(k) => Some(k),
         Err(_) => None,
     };
 
-    let evm_accounts = evm_accounts::export_all_evm_account_keys_plaintext(handle.clone()).await?;
+    let exported_evm_accounts = evm::evm_accounts::export_all_evm_account_keys_plaintext(handle.clone()).await?;
 
     let response = serde_json::json!({
         "nsec": nsec,
         "seed_phrase": seed_phrase,
         "evm_private_key": evm_private_key,
-        "evm_accounts": evm_accounts
+        "evm_accounts": exported_evm_accounts
     });
 
     Ok(response)
@@ -4517,7 +4508,7 @@ async fn sign_evm_hash<R: Runtime>(handle: AppHandle<R>, hash_hex: String) -> Re
         return Err("Hash must be exactly 32 bytes".to_string());
     }
 
-    let evm_private_key = evm_accounts::decrypt_active_evm_private_key_plaintext(handle.clone())
+    let evm_private_key = evm::evm_accounts::decrypt_active_evm_private_key_plaintext(handle.clone())
         .await
         .map_err(|_| "Failed to resolve EVM signing key".to_string())?;
 
@@ -6431,17 +6422,17 @@ pub fn run() {
             load_mls_keypackages,
             export_keys,
             sign_evm_hash,
-            wallet_prices::wallet_get_usd_spot_prices,
-            wallet_ops::get_wallet_summary,
-            wallet_ops::wallet_build_and_send_transaction,
-            evm_accounts::list_evm_accounts,
-            evm_accounts::add_evm_account,
-            evm_accounts::import_evm_account,
-            evm_accounts::update_evm_account,
-            evm_accounts::set_active_evm_account,
-            evm_accounts::set_default_shared_evm_account,
-            safe_deploy::safe_deploy_proxy,
-            nave_pirata_deploy::deploy_nave_pirata_for_parent,
+            evm::wallet_prices::wallet_get_usd_spot_prices,
+            evm::wallet_ops::get_wallet_summary,
+            evm::wallet_ops::wallet_build_and_send_transaction,
+            evm::evm_accounts::list_evm_accounts,
+            evm::evm_accounts::add_evm_account,
+            evm::evm_accounts::import_evm_account,
+            evm::evm_accounts::update_evm_account,
+            evm::evm_accounts::set_active_evm_account,
+            evm::evm_accounts::set_default_shared_evm_account,
+            evm::safe_deploy::safe_deploy_proxy,
+            evm::nave_pirata_deploy::deploy_nave_pirata_for_parent,
             regenerate_device_keypackage,
             // MLS core commands
             create_group_chat,

@@ -1,5 +1,5 @@
 /**
- * Tauri: EVM multi-account (derived from recovery phrase + imported). Commands defined in `src-tauri/src/evm_accounts.rs`.
+ * Tauri: EVM multi-account (derived from recovery phrase + imported). Commands defined in `src-tauri/src/evm/evm_accounts.rs`.
  */
 
 import { invoke } from '@tauri-apps/api/core';

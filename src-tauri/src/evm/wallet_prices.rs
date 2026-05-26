@@ -13,7 +13,7 @@ use serde_json::json;
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::wallet_security;
+use crate::evm::wallet_security;
 
 /// Ethereum mainnet — ETH / USD (8 decimals typical; always read `decimals()`).
 const FEED_ETH_USD: &str = "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419";

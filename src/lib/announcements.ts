@@ -33,7 +33,7 @@ export interface GovernanceUpdatedPayload {
   canonical_ref: string;
   /** `sepolia` | `mainnet` | `optimism` — defaults server-side when omitted. */
   chain?: string;
-  /** Git commit of pinned pacto-gov submodule at deploy time (optional). */
+  /** Upstream pacto-gov git commit at deploy time (optional). */
   pacto_gov_revision?: string;
   /** JSON string metadata (tx hash, addresses map, etc.). */
   provider_payload?: string;
