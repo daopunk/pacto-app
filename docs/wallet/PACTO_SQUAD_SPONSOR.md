@@ -9,7 +9,7 @@ Squad-scoped **ERC-4337** gas sponsorship (paymaster + per-squad clone factory).
 | Concern | Where in Pacto |
 |---------|----------------|
 | Alloy bindings | `src-tauri/src/evm/contracts/pacto_sponsor/mod.rs` |
-| Deploy + read | `src-tauri/src/evm/squad_sponsor_deploy.rs`, `squad_sponsor_read.rs` |
+| Deploy + read | `src-tauri/src/evm/squad_sponsor_deploy.rs`, `squad_sponsor_deposit.rs`, `squad_sponsor_read.rs` |
 | Deployed factory / paymaster | Runtime env (`PACTO_*` in [`.env.example`](../../.env.example)); Sepolia reference in [`ai-docs/INHOUSE_GOV.md`](../../ai-docs/INHOUSE_GOV.md) |
 | Persistence | `squad_infra` SQLite rows (`infra_type: sponsor`) via `list_squad_infra` / `upsert_squad_infra` |
 

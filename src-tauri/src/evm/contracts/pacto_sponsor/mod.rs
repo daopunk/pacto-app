@@ -40,6 +40,10 @@ sol! {
     }
 
     interface ISquadSponsorBase {
+        function deposit() external payable;
+
+        function depositFor(address sponsor) external payable;
+
         function squadId() external view returns (bytes32 squadId);
 
         function paymaster() external view returns (address paymaster);

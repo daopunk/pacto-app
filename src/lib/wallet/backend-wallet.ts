@@ -166,7 +166,8 @@ export async function safeDeployProxy(
   network: SupportedChainId,
   owners: string[],
   threshold: number,
-  saltNonce?: string | null
+  saltNonce?: string | null,
+  parentId?: string | null,
 ): Promise<SafeDeployProxyOutcome> {
   if (!isTauri()) {
     return { ok: false, message: 'Deploy is only available in the desktop app.' };
@@ -177,6 +178,7 @@ export async function safeDeployProxy(
       owners,
       threshold,
       saltNonce: saltNonce ?? null,
+      parentId: parentId?.trim() ? parentId.trim() : null,
     });
     return { ok: true, result };
   } catch (e) {

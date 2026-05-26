@@ -747,6 +747,27 @@ pub struct SquadInfraRow {
     pub updated_at_ms: i64,
 }
 
+/// True when a persisted `sponsor` infra row exists for this parent.
+pub fn parent_has_sponsor_infra<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+) -> Result<bool, String> {
+    let pid = parent_id.trim();
+    if pid.is_empty() {
+        return Ok(false);
+    }
+    let conn = crate::account_manager::get_db_connection(handle)?;
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM squad_infra WHERE parent_id = ?1 AND infra_type = 'sponsor'",
+            rusqlite::params![pid],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to query sponsor infra: {}", e))?;
+    crate::account_manager::return_db_connection(conn);
+    Ok(count > 0)
+}
+
 #[command]
 pub fn list_squad_infra<R: Runtime>(
     handle: AppHandle<R>,

@@ -10,6 +10,7 @@ pub mod rpc;
 pub mod safe_deploy;
 pub mod squad_sponsor_common;
 pub mod squad_sponsor_deploy;
+pub mod squad_sponsor_deposit;
 pub mod squad_sponsor_read;
 pub mod wallet_chain_config;
 pub mod wallet_ops;

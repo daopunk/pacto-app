@@ -17,10 +17,14 @@
   import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
   import { safeStateByTreasuryId, refreshSafeStateForTreasuryEntry } from '../../stores/safe';
-  import type { ParentGovernanceDto } from '../../lib/governance/api';
+  import type { ParentGovernanceDto, SquadInfraDto } from '../../lib/governance/api';
+  import { hasSponsorInfra, sponsorInfraRow } from '../../lib/governance/api';
   import friendsIcon from '../../icons/friends.svg';
   import DeploySafeModal from './DeploySafeModal.svelte';
   import DeployNavePirataWizard from './governance/DeployNavePirataWizard.svelte';
+  import DeploySquadSponsorModal from './governance/DeploySquadSponsorModal.svelte';
+  import LaunchpadModal from './governance/LaunchpadModal.svelte';
+  import SquadSponsorTreasuryPanel from './governance/SquadSponsorTreasuryPanel.svelte';
   import GovernanceHub from './governance/GovernanceHub.svelte';
   import { showToast } from '../../stores/toast';
   import { listSquadMemberEvmInvokeArgs } from '../../lib/squad/squad-member-evm-share';
@@ -48,6 +52,21 @@
   /** Governance row when loaded (`undefined` = not hydrated yet). */
   export let governanceConfig: ParentGovernanceDto | null | undefined = undefined;
 
+  /** All infra rows for this parent (`undefined` = not hydrated yet). */
+  export let squadInfraRows: SquadInfraDto[] | undefined = undefined;
+
+  /** Persist, announce, and refresh store after sponsor deploy. */
+  export let onSponsorDeployComplete:
+    | ((params: {
+        parentId: string;
+        announcementsGroupId: string;
+        chain: string;
+        sponsorAddress: string;
+        providerPayload: string;
+        infraRowId: string;
+      }) => Promise<void>)
+    | undefined = undefined;
+
   /** Persist, announce, and refresh store. */
   export let onConfirmImportSafe:
     | ((params: {
@@ -73,6 +92,8 @@
   let showSetSafeModal = false;
   let showDeploySafeModal = false;
   let showNaveWizard = false;
+  let showLaunchpad = false;
+  let showSponsorDeploy = false;
 
   let setSafeInput = '';
   let setSafeChain: 'sepolia' | 'mainnet' | 'optimism' = 'sepolia';
@@ -81,6 +102,9 @@
   let setSafeSaving = false;
 
   $: parentId = parent?.id;
+
+  $: sponsorRow = sponsorInfraRow(squadInfraRows);
+  $: hasSponsor = hasSponsorInfra(squadInfraRows);
 
   $: displayedTreasurySafes = [...(treasurySafes ?? [])].slice(0, TREASURY_SAFE_UI_CAP);
   $: treasuryStateKey = displayedTreasurySafes.map((e) => e.id).join('|');
@@ -183,16 +207,43 @@
     return addr.slice(0, 6) + '…' + addr.slice(-4);
   }
 
+  function openLaunchpad() {
+    showLaunchpad = true;
+  }
+
+  function requireSponsorForInfra(action: () => void) {
+    if (!hasSponsor) {
+      showToast('Deploy squad sponsor first.');
+      showLaunchpad = true;
+      return;
+    }
+    action();
+  }
+
   function openSetSafe() {
-    showSetSafeModal = true;
-    setSafeInput = '';
-    setSafeChain = 'sepolia';
-    setSafeLabel = '';
-    setSafeError = '';
+    requireSponsorForInfra(() => {
+      showSetSafeModal = true;
+      setSafeInput = '';
+      setSafeChain = 'sepolia';
+      setSafeLabel = '';
+      setSafeError = '';
+    });
   }
 
   function openDeploySafe() {
-    showDeploySafeModal = true;
+    requireSponsorForInfra(() => {
+      showDeploySafeModal = true;
+    });
+  }
+
+  function openPactoGovDeploy() {
+    requireSponsorForInfra(() => {
+      if (parentId?.trim()) showNaveWizard = true;
+    });
+  }
+
+  function openSponsorDeploy() {
+    if (parentId?.trim()) showSponsorDeploy = true;
   }
 
   function closeDeploySafeModal() {
@@ -304,6 +355,11 @@
   {/if}
 
   {#if dashboardView === 'modules'}
+  <SquadSponsorTreasuryPanel
+    parentId={parentId ?? ''}
+    {sponsorRow}
+    onOpenDeploy={openSponsorDeploy}
+  />
   <section class="dashboard-section" aria-labelledby="safe-heading">
     <div class="treasury-section-head">
       <h3 id="safe-heading" class="section-heading">Multisig (Safe)</h3>
@@ -391,16 +447,21 @@
   </section>
   <GovernanceHub
     {parentType}
+    {hasSponsor}
     governanceConfig={governanceConfig}
     treasurySafes={treasurySafes ?? []}
     hasAnnouncementsChannel={!!announcementsGroupId}
-    onOpenPactoDeploy={() => {
-      if (parentId?.trim()) showNaveWizard = true;
-    }}
-    onOpenSafeDeploy={openDeploySafe}
-    onOpenSafeImport={openSetSafe}
+    onOpenLaunchpad={openLaunchpad}
   />
   {:else if dashboardView === 'proposals'}
+  {#if squadInfraRows !== undefined && !hasSponsor}
+    <div class="sponsor-empty-banner" role="status">
+      <p class="sponsor-empty-banner-text">
+        Deploy squad sponsor first — it funds gas sponsorship and unlocks Pacto Gov and Safe deploy paths.
+      </p>
+      <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
+    </div>
+  {/if}
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="proposals-heading">
     <h3 id="proposals-heading" class="section-heading">Proposals</h3>
     <p class="dashboard-placeholder-text dashboard-placeholder-lead">
@@ -440,6 +501,12 @@
     {/if}
   </section>
   {:else if dashboardView === 'structure'}
+  {#if squadInfraRows !== undefined && !hasSponsor}
+    <div class="sponsor-empty-banner" role="status">
+      <p class="sponsor-empty-banner-text">Deploy squad sponsor first using the Deploy button below.</p>
+      <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
+    </div>
+  {/if}
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="structure-heading">
     <h3 id="structure-heading" class="section-heading">Structure</h3>
     {#if structureSummary === undefined}
@@ -477,6 +544,12 @@
     {/if}
   </section>
   {:else if dashboardView === 'permissions'}
+  {#if squadInfraRows !== undefined && !hasSponsor}
+    <div class="sponsor-empty-banner" role="status">
+      <p class="sponsor-empty-banner-text">Deploy squad sponsor first using the Deploy button below.</p>
+      <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
+    </div>
+  {/if}
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="permissions-heading">
     <h3 id="permissions-heading" class="section-heading">Permissions</h3>
     {#if permissionsCtx.phase === 'loading'}
@@ -549,6 +622,9 @@
   {/if}
       </div>
     </div>
+    <div class="dashboard-deploy-bar">
+      <button type="button" class="btn-primary dashboard-deploy-btn" on:click={openLaunchpad}>Deploy</button>
+    </div>
   </div>
   {#if $showMembersPanel}
     <aside class="members-panel" aria-label="Channel members">
@@ -620,6 +696,42 @@
   />
 {/if}
 
+{#if showLaunchpad && parentId}
+  <LaunchpadModal
+    {parentType}
+    {hasSponsor}
+    hasAnnouncementsChannel={!!announcementsGroupId}
+    onClose={() => {
+      showLaunchpad = false;
+    }}
+    onDeploySponsor={openSponsorDeploy}
+    onDeployPactoGov={openPactoGovDeploy}
+    onDeploySafe={openDeploySafe}
+    onImportSafe={openSetSafe}
+  />
+{/if}
+
+{#if showSponsorDeploy && parentId?.trim()}
+  <DeploySquadSponsorModal
+    parentId={parentId.trim()}
+    {parentType}
+    onClose={() => {
+      showSponsorDeploy = false;
+    }}
+    onComplete={async (out) => {
+      await onSponsorDeployComplete?.({
+        parentId: parentId.trim(),
+        announcementsGroupId: announcementsGroupId?.trim() ?? '',
+        chain: out.chain,
+        sponsorAddress: out.sponsorAddress,
+        providerPayload: out.providerPayload,
+        infraRowId: out.infraRowId,
+      });
+      showToast('Squad sponsor deployed and saved.');
+    }}
+  />
+{/if}
+
 {#if showSetSafeModal}
   <div class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="set-safe-title">
     <div class="modal-content">
@@ -686,6 +798,39 @@
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+  }
+
+  .dashboard-deploy-bar {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+  }
+
+  .dashboard-deploy-btn {
+    min-width: 120px;
+  }
+
+  .sponsor-empty-banner {
+    margin: 0 16px 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+  }
+
+  .sponsor-empty-banner-text {
+    margin: 0;
+    flex: 1;
+    min-width: 200px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
   }
 
   .dashboard-view-nav {

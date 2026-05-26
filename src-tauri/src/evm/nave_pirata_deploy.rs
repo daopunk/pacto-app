@@ -18,6 +18,7 @@ use super::rpc::{
     send_and_confirm, wallet_err_json, wallet_err_json_with_tx_hash,
 };
 use super::rpc::signer::{load_embedded_signer, require_treasury_signing_allowed};
+use super::squad_sponsor_common::require_sponsor_infra_for_parent;
 use super::wallet_chain_config;
 
 /// Matches `script/Constants.sol` production-style defaults (`CREW_CHANGE_DELAY`, `PROPOSAL_EXPIRY`, etc.).
@@ -106,6 +107,16 @@ pub async fn deploy_nave_pirata_for_parent<R: Runtime>(
     metadata_uri: String,
     salt_nonce: Option<String>,
 ) -> Result<NavePirataDeployResult, String> {
+    let pid = parent_id.trim();
+    if pid.is_empty() {
+        return Err(wallet_err_json(
+            "INVALID_PARENT",
+            "parent_id must be non-empty",
+            None,
+        ));
+    }
+    require_sponsor_infra_for_parent(&app, pid)?;
+
     let net_key = network.to_lowercase();
     let Some(net) = wallet_chain_config::network_by_key(&net_key) else {
         return Err(wallet_err_json(

@@ -4,7 +4,6 @@
 //! Deployment infra addresses: `pacto_chain_config` (`PACTO_*` env vars; see `.env.example`).
 
 use alloy::network::TransactionBuilder;
-use alloy::primitives::U256;
 use alloy::sol_types::SolCall;
 use serde::Serialize;
 use serde_json::json;
@@ -17,19 +16,16 @@ use super::rpc::{
     wallet_err_json, wallet_err_json_with_tx_hash,
 };
 use super::rpc::signer::{load_embedded_signer, require_treasury_signing_allowed};
-use super::squad_sponsor_common::{read_squad_record, squad_id_from_parent_id, squad_variant_label};
+use super::squad_sponsor_common::{
+    parse_deposit_wei, read_squad_record, squad_id_from_parent_id, squad_variant_label,
+};
 use super::wallet_chain_config;
 use crate::db;
 
-fn parse_optional_deposit_wei(raw: Option<&str>) -> Result<U256, String> {
-    let Some(s) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
-        return Ok(U256::ZERO);
-    };
-    if s.starts_with("0x") || s.starts_with("0X") {
-        U256::from_str_radix(s.trim_start_matches("0x").trim_start_matches("0X"), 16)
-            .map_err(|e| format!("invalid hex deposit: {e}"))
-    } else {
-        U256::from_str_radix(s, 10).map_err(|e| format!("invalid decimal deposit: {e}"))
+fn parse_optional_deposit_wei(raw: Option<&str>) -> Result<alloy::primitives::U256, String> {
+    match raw.map(str::trim).filter(|s| !s.is_empty()) {
+        None => Ok(alloy::primitives::U256::ZERO),
+        Some(s) => parse_deposit_wei(Some(s)),
     }
 }
 

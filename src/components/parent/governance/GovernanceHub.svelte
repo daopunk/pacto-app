@@ -3,16 +3,15 @@
   import type { TreasurySafeEntry } from '../../../lib/treasury/treasury-safes';
   import { explorerAddressUrl, parseSupportedChainId } from '../../../lib/wallet/chains';
   import { openExternalUrl } from '../../../lib/utils/open-external';
-  import { showToast } from '../../../stores/toast';
 
   export let parentType: 'squad' | 'network';
+  /** When false, non-sponsor deploy paths stay locked. */
+  export let hasSponsor = false;
   /** `undefined` while hydrating; `null` when no SQLite row. */
   export let governanceConfig: ParentGovernanceDto | null | undefined;
   export let treasurySafes: TreasurySafeEntry[] = [];
   export let hasAnnouncementsChannel = false;
-  export let onOpenPactoDeploy: () => void;
-  export let onOpenSafeDeploy: () => void;
-  export let onOpenSafeImport: () => void;
+  export let onOpenLaunchpad: () => void;
 
   function chainLabel(chain: string): string {
     const c = chain?.toLowerCase() ?? '';
@@ -39,27 +38,6 @@
     document.getElementById('safe-heading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function handlePactoDeployClick() {
-    if (!hasAnnouncementsChannel) return;
-    onOpenPactoDeploy();
-  }
-
-  function guardedSafeDeploy() {
-    if (!hasAnnouncementsChannel) {
-      showToast(`Add an announcements channel for this ${parentType} before linking a Safe.`);
-      return;
-    }
-    onOpenSafeDeploy();
-  }
-
-  function guardedSafeImport() {
-    if (!hasAnnouncementsChannel) {
-      showToast(`Add an announcements channel for this ${parentType} before linking a Safe.`);
-      return;
-    }
-    onOpenSafeImport();
-  }
-
   function openPrimarySafeExplorer(entry: TreasurySafeEntry) {
     const url = explorerAddressUrl(parseSupportedChainId(entry.chain), entry.safeAddress);
     if (url) openExternalUrl(url);
@@ -75,58 +53,32 @@
     <p class="dashboard-placeholder-text muted">Loading governance settings…</p>
   {:else if governanceConfig === null}
     <p class="gov-intro dashboard-placeholder-text">
-      Choose how this {parentType} coordinates treasury decisions and upgrades on-chain.
+      {#if !hasSponsor}
+        Deploy a <strong>squad sponsor</strong> first — use the <strong>Deploy</strong> button at the bottom of the
+        dashboard. Pacto Gov and Safe paths unlock after the sponsor row is saved.
+      {:else}
+        Choose how this {parentType} coordinates treasury decisions and upgrades on-chain. Use the
+        <strong>Deploy</strong> button below for Pacto Gov or Safe.
+      {/if}
     </p>
     {#if !hasAnnouncementsChannel}
       <p class="gov-channel-note muted" role="status">
         Deploy and announcement flows need an #announcements channel on this {parentType}.
       </p>
     {/if}
-    <ul class="governance-picker" role="list">
-      <li class="governance-picker-card governance-picker-card--primary">
-        <h4 class="gov-card-title">Pacto Gov</h4>
-        <p class="gov-card-desc">
-          Deploy the Nave Pirata stack from our pinned factory (Hats-compatible roles and squads).
-        </p>
-        <button
-          type="button"
-          class="btn-primary gov-card-btn"
-          disabled={!hasAnnouncementsChannel}
-          on:click={handlePactoDeployClick}
-        >
-          Set up Pacto Gov
-        </button>
-      </li>
-      <li class="governance-picker-card">
-        <h4 class="gov-card-title">Gnosis Safe</h4>
-        <p class="gov-card-desc">
-          Reuse Treasury: deploy a new multisig or import an existing Safe address.
-        </p>
-        <div class="gov-card-actions">
-          <button
-            type="button"
-            class="btn-primary gov-card-btn"
-            disabled={!hasAnnouncementsChannel}
-            on:click={guardedSafeDeploy}
-          >
-            Deploy Safe
-          </button>
-          <button
-            type="button"
-            class="btn-secondary gov-card-btn"
-            disabled={!hasAnnouncementsChannel}
-            on:click={guardedSafeImport}
-          >
-            Import Safe
-          </button>
-        </div>
-      </li>
-      <li class="governance-picker-card governance-picker-card--muted">
-        <h4 class="gov-card-title">Bread Cooperative</h4>
-        <p class="gov-card-desc muted">Reserved for cooperative governance. Not available in this release.</p>
-        <button type="button" class="btn-secondary gov-card-btn" disabled>Coming later</button>
-      </li>
-    </ul>
+    <button type="button" class="btn-primary gov-launchpad-btn" on:click={onOpenLaunchpad}>Open Deploy</button>
+  {:else if governanceConfig.provider === 'sponsor'}
+    <div class="governance-summary">
+      <p class="gov-summary-lead">
+        Squad sponsor is active on <strong>{chainLabel(governanceConfig.chain)}</strong>. Deploy Pacto Gov or a Safe from
+        the launchpad when ready.
+      </p>
+      <dl class="gov-summary-dl">
+        <dt>Sponsor clone</dt>
+        <dd><code class="gov-mono">{governanceConfig.canonicalRef}</code></dd>
+      </dl>
+      <button type="button" class="btn-secondary gov-launchpad-btn" on:click={onOpenLaunchpad}>Open Deploy</button>
+    </div>
   {:else if governanceConfig.provider === 'pacto_gov'}
     <div class="governance-summary">
       <p class="gov-summary-lead">
@@ -201,57 +153,8 @@
     max-width: 52ch;
   }
 
-  .governance-picker {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 14px;
-  }
-
-  .governance-picker-card {
-    border: 1px solid var(--border-subtle);
-    border-radius: 10px;
-    padding: 16px;
-    background: var(--bg-elevated);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-height: 0;
-  }
-
-  .governance-picker-card--primary {
-    border-color: var(--border-strong, var(--border-subtle));
-  }
-
-  .governance-picker-card--muted {
-    opacity: 0.85;
-  }
-
-  .gov-card-title {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .gov-card-desc {
-    margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.45;
-    color: var(--text-secondary);
-    flex: 1;
-  }
-
-  .gov-card-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .gov-card-btn {
-    align-self: flex-start;
+  .gov-launchpad-btn {
+    margin-top: 4px;
   }
 
   .governance-summary {

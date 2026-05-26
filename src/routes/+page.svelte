@@ -131,6 +131,8 @@
     listSquadInfra,
     upsertSquadInfra,
     pactoGovInfraId,
+    squadSponsorInfraId,
+    buildSponsorGovernanceAnnouncePayload,
     primaryGovernanceView,
   } from '../lib/governance/api';
   import { resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
@@ -285,6 +287,48 @@
             chain: params.chain,
             provider_payload: params.providerPayload,
           },
+        }),
+        '',
+        { virtualBucket: 'monitor' },
+      );
+    }
+    await mergeSquadInfraForParent(params.parentId);
+  }
+
+  async function finalizeSponsorDeploy(params: {
+    parentId: string;
+    announcementsGroupId: string;
+    chain: string;
+    sponsorAddress: string;
+    providerPayload: string;
+    infraRowId: string;
+  }) {
+    await upsertSquadInfra({
+      id: params.infraRowId || squadSponsorInfraId(params.parentId),
+      parentId: params.parentId,
+      infraType: 'sponsor',
+      chain: params.chain,
+      canonicalRef: params.sponsorAddress,
+      providerPayload: params.providerPayload,
+    });
+    const row =
+      get(squads).find((s: Squad) => s.id === params.parentId) ??
+      get(networks).find((n: Network) => n.id === params.parentId);
+    const gid =
+      (row ? resolveAutomatedAnnounceGroupId(row) : null) ?? params.announcementsGroupId.trim();
+    const entryId = params.infraRowId || squadSponsorInfraId(params.parentId);
+    if (gid) {
+      await sendDmMessage(
+        gid,
+        buildAnnounceContent({
+          type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
+          payload: buildSponsorGovernanceAnnouncePayload({
+            parentId: params.parentId,
+            sponsorAddress: params.sponsorAddress,
+            chain: params.chain,
+            providerPayload: params.providerPayload,
+            entryId,
+          }),
         }),
         '',
         { virtualBucket: 'monitor' },
@@ -1536,6 +1580,16 @@
                   ? primaryGovernanceView(rows)
                   : undefined;
               })()}
+              squadInfraRows={(() => {
+                const id =
+                  ($activeTopNavTab === 'squads'
+                    ? $squads.find((s: Squad) => s.id === $activeSquadId)
+                    : $networks.find((n: Network) => n.id === $activeNetworkId))?.id ?? '';
+                if (!id) return undefined;
+                return Object.prototype.hasOwnProperty.call($squadInfraByParentId, id)
+                  ? ($squadInfraByParentId[id] ?? [])
+                  : undefined;
+              })()}
               onConfirmImportSafe={async (params: {
                 safeAddress: string;
                 chain: string;
@@ -1590,6 +1644,7 @@
                 await mergeSquadInfraForParent(p.id);
               }}
               onPactoGovDeployComplete={finalizePactoGovDeploy}
+              onSponsorDeployComplete={finalizeSponsorDeploy}
             />
           {:else}
             <ChatView />

@@ -28,7 +28,7 @@ pub struct SquadSponsorSummary {
     pub total_shares: String,
 }
 
-async fn read_sponsor_pool<P: Provider>(
+pub(crate) async fn read_sponsor_pool<P: Provider>(
     provider: &P,
     sponsor: Address,
 ) -> Result<(U256, U256, Address, B256), String> {

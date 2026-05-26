@@ -84,6 +84,43 @@ export function squadSponsorInfraId(parentId: string): string {
   return `sponsor-${parentId}`;
 }
 
+/** Sponsor infra row for a parent, if any. */
+export function sponsorInfraRow(rows: SquadInfraDto[] | undefined): SquadInfraDto | null {
+  return rows?.find((r) => r.infraType === 'sponsor') ?? null;
+}
+
+export function hasSponsorInfra(rows: SquadInfraDto[] | undefined): boolean {
+  return sponsorInfraRow(rows) != null;
+}
+
+/** Warn when pool balance falls below this wei threshold (0.005 ETH). */
+export const SPONSOR_LOW_BALANCE_WEI = 5_000_000_000_000_000n;
+
+/** Mirrors `SquadSponsorDepositResult` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface SquadSponsorDepositResultDto {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  sponsorAddress: string;
+  amountWei: string;
+  poolBalanceWei: string;
+}
+
+/** Backend: `deposit_squad_sponsor`. */
+export async function depositSquadSponsor(params: {
+  network: string;
+  parentId: string;
+  amountWei: string;
+  sponsorAddress?: string | null;
+}): Promise<SquadSponsorDepositResultDto> {
+  return (await invoke('deposit_squad_sponsor', {
+    network: params.network,
+    parentId: params.parentId,
+    amountWei: params.amountWei.trim(),
+    sponsorAddress: params.sponsorAddress?.trim() ? params.sponsorAddress.trim() : null,
+  })) as SquadSponsorDepositResultDto;
+}
+
 /** Mirrors `SquadSponsorDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */
 export interface SquadSponsorDeployResultDto {
   txHash: string;

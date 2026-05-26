@@ -234,7 +234,7 @@
     deploySaving = true;
     deployError = '';
     try {
-      const out = await safeDeployProxy(deployNetwork, owners, th, null);
+      const out = await safeDeployProxy(deployNetwork, owners, th, null, parentId);
       if (!out.ok) {
         const parsed = out.parsed ?? parseWalletOpError(out.message);
         let msg = parsed ? userFacingDeploySafeMessage(parsed) : out.message;
