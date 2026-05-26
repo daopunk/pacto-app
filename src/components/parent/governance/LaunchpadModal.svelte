@@ -33,7 +33,7 @@
       <h3 class="launchpad-card-title">Squad sponsor</h3>
       <p class="launchpad-card-desc">
         {#if hasSponsor}
-          Sponsor clone is deployed. Top up balance from Modules or deposit again after deploy.
+          Sponsor clone is deployed. Top up balance from the Treasury tab or deposit again after deploy.
         {:else}
           Required first deploy — ERC-4337 gas pool for this {parentType}.
         {/if}

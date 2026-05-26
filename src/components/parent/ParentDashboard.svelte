@@ -25,20 +25,19 @@
   import DeploySquadSponsorModal from './governance/DeploySquadSponsorModal.svelte';
   import LaunchpadModal from './governance/LaunchpadModal.svelte';
   import SquadSponsorTreasuryPanel from './governance/SquadSponsorTreasuryPanel.svelte';
-  import GovernanceHub from './governance/GovernanceHub.svelte';
   import { showToast } from '../../stores/toast';
   import { listSquadMemberEvmInvokeArgs } from '../../lib/squad/squad-member-evm-share';
   import { buildDashboardProposalCards, dashboardProposalToolLabel } from '../../lib/dashboard/proposal-cards';
   import { resolveDashboardStructureSummary } from '../../lib/dashboard/structure-summary';
   import { resolveDashboardPermissionsContext } from '../../lib/dashboard/permissions-panel';
 
-  /** Sub-views under #dashboard: Modules, Proposals, Structure, Permissions. */
+  /** Sub-views under #dashboard: Governance, Roles Tree, Treasury, Settings. */
   type ParentDashboardView = ParentDashboardChannelMode;
   const DASHBOARD_VIEWS: { id: ParentDashboardView; label: string }[] = [
-    { id: 'modules', label: 'Modules' },
-    { id: 'proposals', label: 'Proposals' },
-    { id: 'structure', label: 'Structure' },
-    { id: 'permissions', label: 'Permissions' },
+    { id: 'governance', label: 'Governance' },
+    { id: 'roles_tree', label: 'Roles Tree' },
+    { id: 'treasury', label: 'Treasury' },
+    { id: 'settings', label: 'Settings' },
   ];
 
   $: dashboardView = $parentDashboardChannelMode;
@@ -108,7 +107,7 @@
 
   $: displayedTreasurySafes = [...(treasurySafes ?? [])].slice(0, TREASURY_SAFE_UI_CAP);
   $: treasuryStateKey = displayedTreasurySafes.map((e) => e.id).join('|');
-  $: if ((dashboardView === 'modules' || dashboardView === 'proposals') && treasuryStateKey) {
+  $: if ((dashboardView === 'treasury' || dashboardView === 'governance') && treasuryStateKey) {
     displayedTreasurySafes.forEach((e) => {
       refreshSafeStateForTreasuryEntry(e);
     });
@@ -166,10 +165,10 @@
 
   function selectDashboardView(id: ParentDashboardView) {
     parentDashboardChannelMode.set(id);
-    if (id === 'permissions' && announcementsGroupId) loadDashboardMembers();
+    if (id === 'settings' && announcementsGroupId) loadDashboardMembers();
   }
 
-  $: if (dashboardView === 'permissions' && parentId) {
+  $: if (dashboardView === 'settings' && parentId) {
     loadSquadMemberEvm();
   }
 
@@ -354,7 +353,97 @@
     </div>
   {/if}
 
-  {#if dashboardView === 'modules'}
+  {#if dashboardView === 'governance'}
+  {#if squadInfraRows !== undefined && !hasSponsor}
+    <div class="sponsor-empty-banner" role="status">
+      <p class="sponsor-empty-banner-text">
+        Deploy squad sponsor first — it funds gas sponsorship and unlocks Pacto Gov and Safe deploy paths.
+      </p>
+      <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
+    </div>
+  {/if}
+  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="governance-heading">
+    <h3 id="governance-heading" class="section-heading">Governance</h3>
+    <p class="dashboard-placeholder-text dashboard-placeholder-lead">
+      Normalized feed for tools linked to this squad or network. Vote flows per tool come later. Nostr
+      polls stay in <strong>#polls</strong> until listed here.
+    </p>
+    {#if proposalCards.length === 0}
+      <p class="dashboard-placeholder-text muted">No proposal sources yet. Link a Safe or deploy Pacto Gov from Deploy.</p>
+    {:else}
+      <ul class="proposal-card-list" role="list">
+        {#each proposalCards as card (card.tool + ':' + card.ref + ':' + (card.treasuryEntryId ?? ''))}
+          {@const safeEntry =
+            card.tool === 'safe' && card.treasuryEntryId
+              ? displayedTreasurySafes.find((t) => t.id === card.treasuryEntryId)
+              : undefined}
+          <li class="proposal-card">
+            <div class="proposal-card-head">
+              <span class="proposal-card-tool">{dashboardProposalToolLabel(card.tool)}</span>
+              {#if card.chain}
+                <span class="proposal-card-chain">{card.chain}</span>
+              {/if}
+            </div>
+            {#if card.title}
+              <p class="proposal-card-title">{card.title}</p>
+            {/if}
+            <code class="proposal-card-ref">{card.ref}</code>
+            {#if card.tool === 'safe' && safeEntry}
+              <p class="proposal-card-actions">
+                <button type="button" class="btn-link treasury-explorer-link" on:click={() => openTreasuryExplorer(safeEntry)}>
+                  View on explorer
+                </button>
+              </p>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+  {:else if dashboardView === 'roles_tree'}
+  {#if squadInfraRows !== undefined && !hasSponsor}
+    <div class="sponsor-empty-banner" role="status">
+      <p class="sponsor-empty-banner-text">Deploy squad sponsor first using the Deploy button below.</p>
+      <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
+    </div>
+  {/if}
+  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="roles-tree-heading">
+    <h3 id="roles-tree-heading" class="section-heading">Roles Tree</h3>
+    {#if structureSummary === undefined}
+      <p class="dashboard-placeholder-text muted">Loading roles tree context…</p>
+    {:else if structureSummary === null}
+      <p class="dashboard-placeholder-text dashboard-placeholder-lead">
+        Hat tree and role structure show here once this {parentType} has a <strong>Pacto Gov</strong> deployment
+        (Deploy). Safe-only setups do not publish a Hats tree id yet.
+      </p>
+      <p class="dashboard-placeholder-text muted">
+        An in-app diagram will read the Hats subgraph first when we wire it; this tab stays summary-first until then.
+      </p>
+    {:else}
+      <p class="structure-summary-lead dashboard-placeholder-text">
+        Top hat for this {parentType} on <strong>{structureSummary.chainDisplayName}</strong> (chain id{' '}
+        <code class="structure-mono">{structureSummary.chainIdNumeric}</code>).
+      </p>
+      <dl class="structure-dl">
+        <dt>Tree / top hat id</dt>
+        <dd><code class="structure-mono">{structureSummary.treeIdRaw}</code></dd>
+      </dl>
+      {#if structureSummary.hatsExplorerUrl}
+        {@const hatsUrl = structureSummary.hatsExplorerUrl}
+        <p class="structure-actions">
+          <button type="button" class="btn-link treasury-explorer-link" on:click={() => openExternalUrl(hatsUrl)}>
+            Open in Hats tree explorer
+          </button>
+        </p>
+      {:else}
+        <p class="dashboard-placeholder-text muted">Explorer link could not be built for this hat id format.</p>
+      {/if}
+      <p class="structure-footnote muted">
+        Read-only in-app tree visualization is still out of scope for this scaffold (subgraph-backed layout comes next).
+      </p>
+    {/if}
+  </section>
+  {:else if dashboardView === 'treasury'}
   <SquadSponsorTreasuryPanel
     parentId={parentId ?? ''}
     {sponsorRow}
@@ -362,7 +451,7 @@
   />
   <section class="dashboard-section" aria-labelledby="safe-heading">
     <div class="treasury-section-head">
-      <h3 id="safe-heading" class="section-heading">Multisig (Safe)</h3>
+      <h3 id="safe-heading" class="section-heading">Vault: Multisig (Safe)</h3>
       {#if (treasurySafes?.length ?? 0) < TREASURY_SAFE_UI_CAP}
         <div class="treasury-action-btns">
           <button type="button" class="btn-primary treasury-deploy-btn" on:click={openDeploySafe}>Deploy Safe</button>
@@ -445,113 +534,15 @@
       </ul>
     {/if}
   </section>
-  <GovernanceHub
-    {parentType}
-    {hasSponsor}
-    governanceConfig={governanceConfig}
-    treasurySafes={treasurySafes ?? []}
-    hasAnnouncementsChannel={!!announcementsGroupId}
-    onOpenLaunchpad={openLaunchpad}
-  />
-  {:else if dashboardView === 'proposals'}
-  {#if squadInfraRows !== undefined && !hasSponsor}
-    <div class="sponsor-empty-banner" role="status">
-      <p class="sponsor-empty-banner-text">
-        Deploy squad sponsor first — it funds gas sponsorship and unlocks Pacto Gov and Safe deploy paths.
-      </p>
-      <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
-    </div>
-  {/if}
-  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="proposals-heading">
-    <h3 id="proposals-heading" class="section-heading">Proposals</h3>
-    <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-      Normalized feed for tools linked to this squad or network. Vote flows per tool come later. Nostr
-      polls stay in <strong>#polls</strong> until listed here.
-    </p>
-    {#if proposalCards.length === 0}
-      <p class="dashboard-placeholder-text muted">No proposal sources yet. Link a Safe or deploy Pacto Gov from Modules.</p>
-    {:else}
-      <ul class="proposal-card-list" role="list">
-        {#each proposalCards as card (card.tool + ':' + card.ref + ':' + (card.treasuryEntryId ?? ''))}
-          {@const safeEntry =
-            card.tool === 'safe' && card.treasuryEntryId
-              ? displayedTreasurySafes.find((t) => t.id === card.treasuryEntryId)
-              : undefined}
-          <li class="proposal-card">
-            <div class="proposal-card-head">
-              <span class="proposal-card-tool">{dashboardProposalToolLabel(card.tool)}</span>
-              {#if card.chain}
-                <span class="proposal-card-chain">{card.chain}</span>
-              {/if}
-            </div>
-            {#if card.title}
-              <p class="proposal-card-title">{card.title}</p>
-            {/if}
-            <code class="proposal-card-ref">{card.ref}</code>
-            {#if card.tool === 'safe' && safeEntry}
-              <p class="proposal-card-actions">
-                <button type="button" class="btn-link treasury-explorer-link" on:click={() => openTreasuryExplorer(safeEntry)}>
-                  View on explorer
-                </button>
-              </p>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </section>
-  {:else if dashboardView === 'structure'}
+  {:else if dashboardView === 'settings'}
   {#if squadInfraRows !== undefined && !hasSponsor}
     <div class="sponsor-empty-banner" role="status">
       <p class="sponsor-empty-banner-text">Deploy squad sponsor first using the Deploy button below.</p>
       <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
     </div>
   {/if}
-  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="structure-heading">
-    <h3 id="structure-heading" class="section-heading">Structure</h3>
-    {#if structureSummary === undefined}
-      <p class="dashboard-placeholder-text muted">Loading structure context…</p>
-    {:else if structureSummary === null}
-      <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-        Hat tree and role structure show here once this {parentType} has a <strong>Pacto Gov</strong> deployment
-        (Modules). Safe-only setups do not publish a Hats tree id yet.
-      </p>
-      <p class="dashboard-placeholder-text muted">
-        An in-app diagram will read the Hats subgraph first when we wire it; this tab stays summary-first until then.
-      </p>
-    {:else}
-      <p class="structure-summary-lead dashboard-placeholder-text">
-        Top hat for this {parentType} on <strong>{structureSummary.chainDisplayName}</strong> (chain id{' '}
-        <code class="structure-mono">{structureSummary.chainIdNumeric}</code>).
-      </p>
-      <dl class="structure-dl">
-        <dt>Tree / top hat id</dt>
-        <dd><code class="structure-mono">{structureSummary.treeIdRaw}</code></dd>
-      </dl>
-      {#if structureSummary.hatsExplorerUrl}
-        {@const hatsUrl = structureSummary.hatsExplorerUrl}
-        <p class="structure-actions">
-          <button type="button" class="btn-link treasury-explorer-link" on:click={() => openExternalUrl(hatsUrl)}>
-            Open in Hats tree explorer
-          </button>
-        </p>
-      {:else}
-        <p class="dashboard-placeholder-text muted">Explorer link could not be built for this hat id format.</p>
-      {/if}
-      <p class="structure-footnote muted">
-        Read-only in-app tree visualization is still out of scope for this scaffold (subgraph-backed layout comes next).
-      </p>
-    {/if}
-  </section>
-  {:else if dashboardView === 'permissions'}
-  {#if squadInfraRows !== undefined && !hasSponsor}
-    <div class="sponsor-empty-banner" role="status">
-      <p class="sponsor-empty-banner-text">Deploy squad sponsor first using the Deploy button below.</p>
-      <button type="button" class="btn-primary" on:click={openLaunchpad}>Open Deploy</button>
-    </div>
-  {/if}
-  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="permissions-heading">
-    <h3 id="permissions-heading" class="section-heading">Permissions</h3>
+  <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="settings-heading">
+    <h3 id="settings-heading" class="section-heading">Settings</h3>
     {#if permissionsCtx.phase === 'loading'}
       <p class="dashboard-placeholder-text muted">Loading permissions context…</p>
     {:else}

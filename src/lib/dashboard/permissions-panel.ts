@@ -80,7 +80,7 @@ export function resolveDashboardPermissionsContext(
     return {
       phase: 'mls_only',
       leadNote:
-        'On-chain role catalog and executor mappings appear after you deploy Pacto Gov from Modules. Until then, use this roster for membership and shared EVM addresses.',
+        'On-chain role catalog and executor mappings appear after you deploy Pacto Gov from Deploy. Until then, use this roster for membership and shared EVM addresses.',
       catalogRows: [],
       showExecutorMappingPlaceholder: false,
     };

@@ -1,8 +1,8 @@
 # Manual smoke — squad sponsor (Sepolia)
 
-Sprint-1 exit check: **deploy sponsor → read pool balance → confirm `squad_infra` row**. Deposit + Treasury UI are step 6 ([INHOUSE_GOV.md](../../ai-docs/INHOUSE_GOV.md) steps 6–7).
+Operator checklist for verifying sponsor deploy, balance read, and SQLite persistence on **desktop (Tauri)**. Product flows live in the app: **Deploy** launchpad → squad sponsor, then **Treasury** tab for balance and deposit.
 
-Run on **desktop (Tauri)** with a logged-in profile that has **Sepolia ETH** for gas.
+Run with a logged-in profile that has **Sepolia ETH** for gas.
 
 ## Prerequisites
 
@@ -15,41 +15,14 @@ Run on **desktop (Tauri)** with a logged-in profile that has **Sepolia ETH** for
 - [ ] App profile has embedded EVM key with Sepolia ETH (see [MANUAL_E2E_CHECKLIST.md](./MANUAL_E2E_CHECKLIST.md) prerequisites).
 - [ ] Pick a **test squad or network `parentId`** (use a throwaway squad — deploy is **one clone per parent id** on-chain).
 
-## A. One-shot smoke (recommended)
+## In-app path (preferred)
 
-From the Tauri webview devtools console (Vite dev) after opening any squad dashboard:
+1. Open squad/network **#dashboard**.
+2. **Deploy** (bottom bar) → **Deploy squad sponsor** (Sepolia).
+3. **Treasury** tab — confirm sponsor row shows pool balance; optional **Deposit**.
+4. Reload app — sponsor row still present (`list_squad_infra` / store hydrate).
 
-```javascript
-import { runSquadSponsorSepoliaSmoke } from '/src/lib/governance/squad-sponsor-smoke.ts';
-
-const parentId = 'YOUR_SQUAD_OR_NETWORK_ID';
-const result = await runSquadSponsorSepoliaSmoke({ parentId });
-console.log(result);
-// expect result.passed === true
-```
-
-Optional initial pool funding on deploy (payable factory):
-
-```javascript
-await runSquadSponsorSepoliaSmoke({
-  parentId,
-  initialDepositWei: '1000000000000000', // 0.001 ETH
-});
-```
-
-**Pass criteria (`result.checks`):**
-
-| Check | Meaning |
-|-------|---------|
-| `infraRowPresent` | `list_squad_infra` returned a `sponsor` row |
-| `infraRowIdMatches` | Row id matches `deploy.infraRowId` |
-| `canonicalRefMatchesDeploy` | Row `canonicalRef` is the sponsor clone address |
-| `summarySponsorMatchesDeploy` | `get_squad_sponsor_summary` agrees on clone address |
-| `poolBalanceReadable` | `poolBalanceWei` is a decimal wei string |
-
-**Pass:** `result.passed === true`.
-
-## B. Step-by-step (debug)
+## Step-by-step (devtools / debug)
 
 1. **Deploy**
 
@@ -82,11 +55,20 @@ await runSquadSponsorSepoliaSmoke({
    console.log(rows.filter((r) => r.infraType === 'sponsor'));
    ```
 
-4. **Explorer** — open Sepolia explorer for `deploy.txHash`; confirm success and factory `SquadCreated` / registry update.
+4. **Deposit (optional)**
 
-5. **Reload app** — `list_squad_infra` row still present (SQLite).
+   ```javascript
+   import { depositSquadSponsor } from '/src/lib/governance/api.ts';
+   await depositSquadSponsor({
+     network: 'sepolia',
+     parentId: 'YOUR_PARENT_ID',
+     amountWei: '1000000000000000', // 0.001 ETH
+   });
+   ```
 
-## C. Failure notes
+5. **Explorer** — open Sepolia explorer for `deploy.txHash`; confirm success and factory registry update.
+
+## Failure notes
 
 | Symptom | Likely cause |
 |---------|----------------|
@@ -94,18 +76,10 @@ await runSquadSponsorSepoliaSmoke({
 | `RPC_CONFIG` | `PACTO_WALLET_RPC_SEPOLIA` unset and defaults blocked |
 | `SS_SquadAlreadyExists` (revert) | Same `parentId` already has a sponsor clone — use a new test parent |
 | `SPONSOR_LOOKUP` on summary | Deploy tx failed or wrong network |
-| `passed` false on `infraRowPresent` | Deploy succeeded but persist failed — check Tauri logs for `PERSIST_SPONSOR` |
-
-## D. Not in this smoke (step 6)
-
-- [ ] `deposit_squad_sponsor` command
-- [ ] Treasury tab sponsor row
-- [ ] Launchpad gating
-- [ ] `#announcements` `governance_updated` with `provider: sponsor` (helper: `buildSponsorGovernanceAnnouncePayload` in `src/lib/governance/api.ts`)
-
----
+| `SPONSOR_REQUIRED` on Pacto Gov / Safe deploy | Deploy sponsor first (launchpad) |
 
 ## See also
 
 - [PACTO_SQUAD_SPONSOR.md](./PACTO_SQUAD_SPONSOR.md) — upstream + app wiring
 - [PACTO_GOV.md](./PACTO_GOV.md) — Nave Pirata (deploy **after** sponsor in product order)
+- [INHOUSE_GOV.md](../../ai-docs/INHOUSE_GOV.md) — execution plan
