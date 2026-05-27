@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import backIcon from '../../icons/chevron-double-left.svg';
+  import { setSettingsSectionCollapsed, settingsSectionCollapsed } from '../../lib/settings/settings-section-collapse';
 
   export let onBack: () => void;
 
@@ -11,29 +12,67 @@
     { id: 'settings-app', label: 'App' },
   ] as const;
 
+  const SCROLL_MARKER_OFFSET_PX = 48;
+  const SCROLL_BOTTOM_TOLERANCE_PX = 8;
+
   let activeSectionId: (typeof SECTION_LINKS)[number]['id'] = SECTION_LINKS[0].id;
+  let settingsMainEl: HTMLElement | undefined;
+
+  function openSection(sectionId: (typeof SECTION_LINKS)[number]['id']) {
+    setSettingsSectionCollapsed(sectionId, false);
+  }
+
+  function updateActiveSection() {
+    const scrollRoot = settingsMainEl;
+    if (!scrollRoot) return;
+
+    if (
+      scrollRoot.scrollTop + scrollRoot.clientHeight >=
+      scrollRoot.scrollHeight - SCROLL_BOTTOM_TOLERANCE_PX
+    ) {
+      activeSectionId = SECTION_LINKS[SECTION_LINKS.length - 1].id;
+      return;
+    }
+
+    const markerY = scrollRoot.getBoundingClientRect().top + SCROLL_MARKER_OFFSET_PX;
+    let next = SECTION_LINKS[0].id;
+
+    for (const link of SECTION_LINKS) {
+      const el = document.getElementById(link.id);
+      if (!el) continue;
+      if (el.getBoundingClientRect().top <= markerY) {
+        next = link.id;
+      }
+    }
+
+    activeSectionId = next;
+  }
 
   onMount(() => {
-    const sections = SECTION_LINKS.map((link) => document.getElementById(link.id)).filter(
-      (el): el is HTMLElement => el instanceof HTMLElement,
-    );
-    if (sections.length === 0) return;
+    const scrollRoot = settingsMainEl;
+    if (!scrollRoot) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        const top = visible[0]?.target.id;
-        if (top && SECTION_LINKS.some((link) => link.id === top)) {
-          activeSectionId = top as (typeof SECTION_LINKS)[number]['id'];
-        }
-      },
-      { rootMargin: '-12% 0px -55% 0px', threshold: [0, 0.1, 0.35, 0.6, 1] },
-    );
+    updateActiveSection();
 
-    for (const section of sections) observer.observe(section);
-    return () => observer.disconnect();
+    const onScroll = () => updateActiveSection();
+    scrollRoot.addEventListener('scroll', onScroll, { passive: true });
+
+    const resizeObserver = new ResizeObserver(() => updateActiveSection());
+    resizeObserver.observe(scrollRoot);
+    for (const link of SECTION_LINKS) {
+      const el = document.getElementById(link.id);
+      if (el) resizeObserver.observe(el);
+    }
+
+    const unsubscribeCollapse = settingsSectionCollapsed.subscribe(() => {
+      requestAnimationFrame(updateActiveSection);
+    });
+
+    return () => {
+      scrollRoot.removeEventListener('scroll', onScroll);
+      resizeObserver.disconnect();
+      unsubscribeCollapse();
+    };
   });
 </script>
 
@@ -56,6 +95,7 @@
               class:active={activeSectionId === link.id}
               href={`#${link.id}`}
               aria-current={activeSectionId === link.id ? 'location' : undefined}
+              on:click={() => openSection(link.id)}
             >
               {link.label}
             </a>
@@ -64,7 +104,7 @@
       </ul>
     </nav>
 
-    <div class="settings-main">
+    <div class="settings-main" bind:this={settingsMainEl}>
       <div class="settings-sections">
         <slot />
       </div>
@@ -75,7 +115,8 @@
 <style>
   .settings-page {
     width: 100%;
-    min-height: 100%;
+    height: 100%;
+    min-height: 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -134,16 +175,14 @@
 
   .settings-body {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     flex: 1;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
   }
 
   .settings-sidebar {
-    position: sticky;
-    top: 0;
-    align-self: flex-start;
     width: 200px;
     flex-shrink: 0;
     padding: 20px 12px 32px 16px;
@@ -191,6 +230,8 @@
   .settings-main {
     flex: 1;
     min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
     padding: 24px 32px 64px;
     box-sizing: border-box;
   }
@@ -198,23 +239,16 @@
   .settings-sections {
     display: flex;
     flex-direction: column;
-    gap: 48px;
+    gap: 24px;
     width: 100%;
-  }
-
-  :global(.settings-section:not(.settings-section--evm)) {
-    max-width: 720px;
   }
 
   :global(.settings-section) {
     scroll-margin-top: 24px;
   }
 
-  :global(.settings-section-title) {
-    margin: 0 0 16px 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text-primary);
+  :global(.settings-section:not(.settings-section--evm)) {
+    max-width: 720px;
   }
 
   :global(.settings-section-stub) {
@@ -227,11 +261,5 @@
   :global(.settings-section--evm) {
     max-width: none;
     width: 100%;
-  }
-
-  :global(.settings-section--evm .wallet-view) {
-    border-radius: 8px;
-    border: 1px solid var(--border-subtle);
-    overflow: hidden;
   }
 </style>

@@ -103,6 +103,7 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_pinned_dm_npubs',
   'pacto_wallet_summary_cache_v1',
   'pacto_wallet_ui_enabled_chains_v1',
+  'pacto_wallet_preferred_network_v1',
   'pacto_wallet_tx_request_accepted',
   ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;

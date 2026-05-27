@@ -13,6 +13,7 @@
   } from '../../lib/api/relays';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { showToast } from '../../stores/toast';
+  import SettingsCollapsibleSection from './SettingsCollapsibleSection.svelte';
 
   let relays: RelayInfo[] = [];
   let loading = true;
@@ -70,15 +71,13 @@
     if (busyUrl) return;
     busyUrl = relay.url;
     const previous = relay.enabled;
-    relay.enabled = enabled;
-    relays = relays;
+    relays = relays.map((r) => (r.url === relay.url ? { ...r, enabled } : r));
 
     try {
       await setRelayEnabled(relay, enabled);
       await refreshRelays();
     } catch (e) {
-      relay.enabled = previous;
-      relays = relays;
+      relays = relays.map((r) => (r.url === relay.url ? { ...r, enabled: previous } : r));
       showToast(getInvokeErrorMessage(e, 'Could not update relay.'));
     } finally {
       busyUrl = null;
@@ -113,8 +112,7 @@
   }
 </script>
 
-<section id="settings-nostr" class="settings-section" aria-labelledby="settings-nostr-heading">
-  <h2 id="settings-nostr-heading" class="settings-section-title">Nostr settings</h2>
+<SettingsCollapsibleSection sectionId="settings-nostr" title="Nostr settings">
 
   <p class="nostr-settings-lead">
     Relays power your Kind 0 profile, direct messages, and squad channels. Defaults ship with the app; add your own
@@ -213,7 +211,7 @@
       </ul>
     {/if}
   </div>
-</section>
+</SettingsCollapsibleSection>
 
 <style>
   .nostr-settings-lead {

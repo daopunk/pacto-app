@@ -223,7 +223,7 @@
   <p class="smart-contract-security-lead muted">
     Only curated Pacto contracts until your squad adds allowlisted addresses. Members sign unofficial protocol calls with
     <strong>squad EVM keys</strong> to explicit allowlist targets only (plus implicit deploy infra). Arbitrary calls use
-    Settings → Wallet → Advanced.
+    Settings → EVM → Advanced.
   </p>
 
   {#if loading}
@@ -275,7 +275,7 @@
   <div class="allowlist-call">
     <h5 class="allowlist-subhead">Squad contract call</h5>
     {#if !squadSigner}
-      <p class="smart-contract-security-note muted">Set an active squad signer under Settings → Wallet.</p>
+      <p class="smart-contract-security-note muted">Set an active squad signer under Settings → EVM.</p>
     {:else}
       <p class="smart-contract-security-note muted">Signing as {shortAddr(squadSigner)}. Simulate before send.</p>
       <label class="allowlist-field-label" for="call-chain">Chain</label>

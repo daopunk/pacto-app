@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly MODE: string;
   readonly PROD: boolean;
   readonly SSR: boolean;
+  readonly VITE_WALLET_RPC_ARBITRUM?: string;
   readonly VITE_WALLET_RPC_MAINNET?: string;
   readonly VITE_WALLET_RPC_OPTIMISM?: string;
   readonly VITE_WALLET_RPC_SEPOLIA?: string;

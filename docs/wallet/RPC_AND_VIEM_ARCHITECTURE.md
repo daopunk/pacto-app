@@ -8,7 +8,7 @@ This document describes **RPC endpoints** (frontend and future backend) and **wh
 
 ### Frontend (Svelte + Vite)
 
-- **Variables:** `VITE_WALLET_RPC_MAINNET`, `VITE_WALLET_RPC_OPTIMISM`, `VITE_WALLET_RPC_SEPOLIA`.
+- **Variables:** `VITE_WALLET_RPC_ARBITRUM`, `VITE_WALLET_RPC_MAINNET`, `VITE_WALLET_RPC_OPTIMISM`, `VITE_WALLET_RPC_SEPOLIA`.
 - **Format:** One or more URLs separated by commas. The first entry is the primary endpoint; additional entries are used as fallbacks (same semantics as viem `fallback` transport in `createWalletPublicClient`).
 - **Unset:** Built-in public RPC lists in `src/lib/wallet/chains.ts` apply.
 - **Resolution:** `getEffectiveRpcUrlsForChain(chainId)` in `chains.ts` is the single place that merges env and defaults.

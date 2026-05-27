@@ -6,6 +6,7 @@
   import ProfileSection from '../settings/ProfileSection.svelte';
   import NostrSettingsSection from '../settings/NostrSettingsSection.svelte';
   import WalletView from '../wallet/WalletView.svelte';
+  import SettingsCollapsibleSection from '../settings/SettingsCollapsibleSection.svelte';
 
   function goBack() {
     $activeView = 'hub';
@@ -21,13 +22,15 @@
     {#if userNpub}
       <NostrSettingsSection />
 
-      <section id="settings-evm" class="settings-section settings-section--evm" aria-labelledby="settings-evm-heading">
-        <h2 id="settings-evm-heading" class="settings-section-title">EVM settings</h2>
+      <SettingsCollapsibleSection
+        sectionId="settings-evm"
+        title="EVM settings"
+        sectionClass="settings-section--evm"
+      >
         <WalletView embeddedInSettings />
-      </section>
+      </SettingsCollapsibleSection>
 
-      <section id="settings-app" class="settings-section" aria-labelledby="settings-app-heading">
-        <h2 id="settings-app-heading" class="settings-section-title">App settings</h2>
+      <SettingsCollapsibleSection sectionId="settings-app" title="App settings">
         <div class="theme-section" aria-labelledby="theme-heading">
           <h3 id="theme-heading" class="theme-subheading">Appearance</h3>
           <span class="theme-label">Theme</span>
@@ -46,7 +49,7 @@
             {/each}
           </div>
         </div>
-      </section>
+      </SettingsCollapsibleSection>
     {/if}
   </SettingsPage>
 </div>
@@ -58,7 +61,8 @@
     flex-direction: column;
     background: var(--bg-panel);
     height: 100%;
-    overflow-y: auto;
+    min-height: 0;
+    overflow: hidden;
     border-left: 1px solid var(--border-subtle);
   }
 

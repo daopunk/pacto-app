@@ -39,7 +39,7 @@ export interface WalletAssetsFile {
 
 export const WALLET_ASSETS = walletAssetsJson as WalletAssetsFile;
 
-const CHAIN_KEYS = ['mainnet', 'optimism', 'sepolia'] as const satisfies readonly SupportedChainId[];
+const CHAIN_KEYS = ['arbitrum', 'mainnet', 'optimism', 'sepolia'] as const satisfies readonly SupportedChainId[];
 
 /** Chains that have a row in wallet-assets.json (must match SupportedChainId). */
 export const WALLET_ASSETS_CHAIN_IDS: readonly SupportedChainId[] = CHAIN_KEYS;

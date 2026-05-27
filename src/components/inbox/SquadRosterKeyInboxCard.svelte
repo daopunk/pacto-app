@@ -18,7 +18,7 @@
     try {
       const ok = await bindDefaultSquadSigner(announcementsGroupId);
       if (!ok) {
-        showToast('Could not bind default squad signer. Check Settings → Wallet.');
+        showToast('Could not bind default squad signer. Check Settings → EVM.');
         return;
       }
       clearDeferredSquadRosterKeyChoice(parentId);

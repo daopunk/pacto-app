@@ -10,6 +10,7 @@
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
   import { showToast } from '../../stores/toast';
+  import SettingsCollapsibleSection from './SettingsCollapsibleSection.svelte';
   $: userNpub = $currentUser?.npub || '';
   $: profile = userNpub ? $profiles[userNpub] : null;
   $: loading = userNpub ? ($profileLoadingStates[userNpub] || false) : false;
@@ -331,8 +332,7 @@
 
 </script>
 
-<section id="settings-profile" class="settings-section" aria-labelledby="settings-profile-heading">
-      <h2 id="settings-profile-heading" class="settings-section-title">Profile</h2>
+<SettingsCollapsibleSection sectionId="settings-profile" title="Profile">
 
       {#if loading}
         <div class="loading-state">
@@ -511,7 +511,7 @@
           <p>No profile loaded</p>
         </div>
       {/if}
-    </section>
+</SettingsCollapsibleSection>
 
 <!-- Logout confirmation modal -->
 {#if showLogoutConfirm}

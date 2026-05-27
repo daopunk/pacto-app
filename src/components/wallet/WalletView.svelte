@@ -28,15 +28,13 @@
     importEvmAccountRow,
     setActiveEvmAccount,
     setActiveAdvancedEvmAccount,
-    evmAccountSchemeLabel,
-    evmAccountPurposeLabel,
     squadEvmAccounts,
-    advancedEvmAccounts,
     type EvmAccountPurpose,
     type EvmAccountRow,
   } from '../../lib/wallet/evm-accounts';
-  import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
   import WalletAdvancedPanel from './WalletAdvancedPanel.svelte';
+  import DefaultWalletConfig from '../settings/DefaultWalletConfig.svelte';
+  import EvmAccountsSection from '../settings/EvmAccountsSection.svelte';
 
   /** When true, omit the standalone page title (embedded under Settings → EVM). */
   export let embeddedInSettings = false;
@@ -139,23 +137,6 @@
     }
   }
 
-  function onBuyCryptoClick() {
-    showToast('Buying crypto in the app is not available yet.');
-  }
-
-  function shortAddr(a: string): string {
-    const t = a.trim();
-    if (t.length < 18) return t;
-    return `${t.slice(0, 10)}…${t.slice(-8)}`;
-  }
-
-  async function copyAccountAddress(address: string) {
-    const t = address.trim();
-    if (!t) return;
-    const ok = await copyTextToClipboard(t);
-    showToast(ok ? 'Address copied' : 'Could not copy address');
-  }
-
   function resetAccountFormFields() {
     accountFormLabel = '';
     accountFormSetSigning = false;
@@ -207,11 +188,22 @@
         }
       } else if (editId) {
         const isAdvanced = accountFormPurpose === 'advanced';
+        const existing = evmAccountList.find((a) => a.id === editId);
+        const setSigning = embeddedInSettings
+          ? (existing?.isActive ?? false)
+          : isAdvanced
+            ? false
+            : accountFormSetSigning;
+        const setShared = embeddedInSettings
+          ? (existing?.isDefaultShared ?? false)
+          : isAdvanced
+            ? false
+            : accountFormSetReceiving;
         await updateEvmAccountRow({
           accountId: editId,
           label: accountFormLabel,
-          setActiveSigner: isAdvanced ? false : accountFormSetSigning,
-          setDefaultShared: isAdvanced ? false : accountFormSetReceiving,
+          setActiveSigner: setSigning,
+          setDefaultShared: setShared,
         });
         if (setReceiving) {
           showToast('Receiving address saved. Publishing profile metadata…');
@@ -276,11 +268,10 @@
   $: profileDefaultEvmAddress = evmAccountList.find((a) => a.isDefaultShared)?.address?.trim() || null;
   $: displayReceivingAddress = profileDefaultEvmAddress ?? evmAddress;
   $: squadAccountList = squadEvmAccounts(evmAccountList);
-  $: advancedAccountList = advancedEvmAccounts(evmAccountList);
   $: accountFormIsAdvanced = accountFormPurpose === 'advanced';
 </script>
 
-<div class="wallet-view" aria-labelledby={embeddedInSettings ? undefined : 'wallet-view-title'}>
+<div class="wallet-view" class:wallet-view--embedded={embeddedInSettings} aria-labelledby={embeddedInSettings ? undefined : 'wallet-view-title'}>
   <div class="wallet-view-inner">
     {#if !embeddedInSettings}
       <header class="wallet-view-header">
@@ -293,227 +284,59 @@
     {/if}
 
     {#if accountNpub}
-      <section class="wallet-view-section wallet-view-actions-section" aria-labelledby="wallet-actions-heading">
-        <h2 id="wallet-actions-heading" class="visually-hidden">Wallet actions</h2>
-        <div class="wallet-view-action-row">
-          <button
-            type="button"
-            class="wallet-view-btn wallet-view-btn-action"
-            on:click={() => (homeSendOpen = true)}
-            disabled={!evmAddress}
-          >
-            Send
-          </button>
-          <button
-            type="button"
-            class="wallet-view-btn wallet-view-btn-action wallet-view-btn-action-secondary"
-            on:click={() => (receiveOpen = true)}
-            disabled={!evmAddress}
-          >
-            Receive
-          </button>
-          <button type="button" class="wallet-view-btn wallet-view-btn-action-outline" on:click={onBuyCryptoClick}>
-            Buy crypto
-          </button>
-        </div>
-        {#if !evmAddress}
-          <p class="wallet-view-hint wallet-view-hint-tight">Unlock or wait for your wallet address to load to use Send and Receive.</p>
-        {/if}
-      </section>
+      {#if embeddedInSettings}
+        <section class="wallet-view-section" aria-labelledby="wallet-default-config-heading">
+          <DefaultWalletConfig
+            accountNpub={accountNpub}
+            squadAccounts={squadAccountList}
+            accountsLoading={accountsLoading}
+            onSaved={refreshEvmAddress}
+          />
+        </section>
+      {:else}
+        <section class="wallet-view-section wallet-view-actions-section" aria-labelledby="wallet-actions-heading">
+          <h2 id="wallet-actions-heading" class="visually-hidden">Wallet actions</h2>
+          <div class="wallet-view-action-row">
+            <button
+              type="button"
+              class="wallet-view-btn wallet-view-btn-action"
+              on:click={() => (homeSendOpen = true)}
+              disabled={!evmAddress}
+            >
+              Send
+            </button>
+            <button
+              type="button"
+              class="wallet-view-btn wallet-view-btn-action wallet-view-btn-action-secondary"
+              on:click={() => (receiveOpen = true)}
+              disabled={!evmAddress}
+            >
+              Receive
+            </button>
+          </div>
+          {#if !evmAddress}
+            <p class="wallet-view-hint wallet-view-hint-tight">Unlock or wait for your wallet address to load to use Send and Receive.</p>
+          {/if}
+        </section>
+      {/if}
     {/if}
 
     {#if accountNpub}
-      <section class="wallet-view-section" aria-labelledby="wallet-squad-accounts-heading">
-        <div class="wallet-view-section-head">
-          <h2 id="wallet-squad-accounts-heading" class="wallet-view-h2">Squad accounts</h2>
-          <div class="wallet-view-account-actions">
-            <button
-              type="button"
-              class="wallet-view-btn wallet-view-btn-secondary"
-              disabled={!evmAddress}
-              on:click={() => openAddAccountModal('squad')}
-            >
-              Add squad account
-            </button>
-          </div>
-        </div>
-        <p class="wallet-view-hint">
-          Squad keys power Send, DM wallet, squad roster shares, treasury deploy, and governance. Derived from your recovery phrase.
-          Only derived squad accounts can be the active signer or profile receiving address.
-        </p>
-        {#if accountsLoading && squadAccountList.length === 0 && advancedAccountList.length === 0}
-          <p class="wallet-view-empty">Loading accounts…</p>
-        {:else if squadAccountList.length === 0}
-          <p class="wallet-view-empty">No squad accounts yet. Unlock your wallet or add one from your recovery phrase.</p>
-        {:else}
-          <ul class="wallet-view-account-list">
-            {#each squadAccountList as acc (acc.id)}
-              <li class="wallet-view-account-row" class:wallet-view-account-active={acc.isActive}>
-                <label class="wallet-view-account-select">
-                  <input
-                    type="radio"
-                    name="active_evm_account"
-                    checked={acc.isActive}
-                    disabled={accountsLoading}
-                    on:change={() => onSetActiveAccount(acc.id)}
-                  />
-                  <span class="wallet-view-account-meta">
-                    <span class="wallet-view-account-scheme">{evmAccountSchemeLabel(acc.scheme)}</span>
-                    {#if acc.hdIndex != null}
-                      <span class="wallet-view-account-idx">#{acc.hdIndex}</span>
-                    {/if}
-                    {#if acc.label?.trim()}
-                      <span class="wallet-view-account-name">· {acc.label.trim()}</span>
-                    {/if}
-                  </span>
-                </label>
-                <code class="wallet-view-account-addr" title={acc.address}>{shortAddr(acc.address)}</code>
-                <div class="wallet-view-account-tools">
-                  {#if acc.isActive}
-                    <span class="wallet-view-account-badge">Signer</span>
-                  {/if}
-                  {#if acc.isDefaultShared}
-                    <span class="wallet-view-account-badge">Receiver</span>
-                  {/if}
-                  <button
-                    type="button"
-                    class="wallet-view-account-more"
-                    disabled={accountsLoading}
-                    aria-label="Edit squad account"
-                    title="Edit name, signing address, receiving address"
-                    on:click={() => openEditAccountModal(acc)}
-                  >
-                    …
-                  </button>
-                  <button
-                    type="button"
-                    class="wallet-view-account-copy-icon-btn"
-                    disabled={accountsLoading || !acc.address?.trim()}
-                    aria-label="Copy address to clipboard"
-                    title="Copy address"
-                    on:click|stopPropagation={() => copyAccountAddress(acc.address)}
-                  >
-                    <svg
-                      class="wallet-view-account-copy-svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.75"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-
-      <section class="wallet-view-section" aria-labelledby="wallet-advanced-accounts-heading">
-        <div class="wallet-view-section-head">
-          <h2 id="wallet-advanced-accounts-heading" class="wallet-view-h2">Advanced accounts</h2>
-          <div class="wallet-view-account-actions">
-            <button
-              type="button"
-              class="wallet-view-btn wallet-view-btn-secondary"
-              disabled={!evmAddress}
-              on:click={() => openAddAccountModal('advanced')}
-            >
-              Add advanced account
-            </button>
-            <button
-              type="button"
-              class="wallet-view-btn"
-              disabled={!evmAddress}
-              on:click={() => {
-                importKeyModalOpen = true;
-              }}
-            >
-              Import private key
-            </button>
-          </div>
-        </div>
-        <p class="wallet-view-hint">
-          Advanced keys are for experimental contract calls (Phase H). They are never squad roster identity, never governance signers,
-          and never the profile receiving address. Imported keys are always advanced-purpose.
-        </p>
-        {#if advancedAccountList.length === 0}
-          <p class="wallet-view-empty">No advanced accounts. Import a private key or derive an advanced-only address.</p>
-        {:else}
-          <ul class="wallet-view-account-list">
-            {#each advancedAccountList as acc (acc.id)}
-              <li class="wallet-view-account-row" class:wallet-view-account-active={acc.isActiveAdvanced}>
-                <label class="wallet-view-account-select">
-                  <input
-                    type="radio"
-                    name="active_advanced_evm_account"
-                    checked={acc.isActiveAdvanced}
-                    disabled={accountsLoading}
-                    on:change={() => onSetActiveAdvancedAccount(acc.id)}
-                  />
-                  <span class="wallet-view-account-meta">
-                    <span class="wallet-view-account-scheme">{evmAccountSchemeLabel(acc.scheme)}</span>
-                    <span class="wallet-view-account-badge">{evmAccountPurposeLabel(acc.purpose)}</span>
-                    {#if acc.hdIndex != null}
-                      <span class="wallet-view-account-idx">#{acc.hdIndex}</span>
-                    {/if}
-                    {#if acc.label?.trim()}
-                      <span class="wallet-view-account-name">· {acc.label.trim()}</span>
-                    {/if}
-                  </span>
-                </label>
-                <code class="wallet-view-account-addr" title={acc.address}>{shortAddr(acc.address)}</code>
-                <div class="wallet-view-account-tools">
-                  {#if acc.isActiveAdvanced}
-                    <span class="wallet-view-account-badge">Advanced signer</span>
-                  {/if}
-                  <button
-                    type="button"
-                    class="wallet-view-account-more"
-                    disabled={accountsLoading}
-                    aria-label="Edit advanced account name"
-                    title="Edit display name"
-                    on:click={() => openEditAccountModal(acc)}
-                  >
-                    …
-                  </button>
-                  <button
-                    type="button"
-                    class="wallet-view-account-copy-icon-btn"
-                    disabled={accountsLoading || !acc.address?.trim()}
-                    aria-label="Copy address to clipboard"
-                    title="Copy address"
-                    on:click|stopPropagation={() => copyAccountAddress(acc.address)}
-                  >
-                    <svg
-                      class="wallet-view-account-copy-svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.75"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
+      <EvmAccountsSection
+        {accountNpub}
+        {evmAddress}
+        {embeddedInSettings}
+        {evmAccountList}
+        {accountsLoading}
+        onSetActiveAccount={onSetActiveAccount}
+        onSetActiveAdvancedAccount={onSetActiveAdvancedAccount}
+        onEditAccount={openEditAccountModal}
+        onAddSquad={() => openAddAccountModal('squad')}
+        onAddAdvanced={() => openAddAccountModal('advanced')}
+        onImportKey={() => {
+          importKeyModalOpen = true;
+        }}
+      />
 
       <div class="wallet-view-section">
         <WalletAdvancedPanel enabledChainIds={enabledChainsOrdered} />
@@ -601,21 +424,25 @@
       importModalOpen = false;
     }}
   />
-  <WalletHomeSendModal
-    open={homeSendOpen}
-    onClose={() => {
-      homeSendOpen = false;
-    }}
-    watchedAssetRows={watchedRows}
-    enabledChainIds={enabledChainsOrdered}
-  />
+  {#if !embeddedInSettings}
+    <WalletHomeSendModal
+      open={homeSendOpen}
+      onClose={() => {
+        homeSendOpen = false;
+      }}
+      watchedAssetRows={watchedRows}
+      enabledChainIds={enabledChainsOrdered}
+    />
+  {/if}
 {/if}
 
-<WalletReceiveModal
-  open={receiveOpen && !!displayReceivingAddress}
-  address={displayReceivingAddress ?? ''}
-  onClose={() => (receiveOpen = false)}
-/>
+{#if !embeddedInSettings}
+  <WalletReceiveModal
+    open={receiveOpen && !!displayReceivingAddress}
+    address={displayReceivingAddress ?? ''}
+    onClose={() => (receiveOpen = false)}
+  />
+{/if}
 
 {#if accountFormMode}
   <div
@@ -648,6 +475,8 @@
       {/if}
     {:else if accountFormIsAdvanced}
       <p class="wallet-view-hint">Update the display name. Advanced accounts cannot be squad signers or receiving addresses.</p>
+    {:else if embeddedInSettings}
+      <p class="wallet-view-hint">Update the display name. Signer and receiver are set in Default wallet config above.</p>
     {:else}
       <p class="wallet-view-hint">
         Update the display name and whether this account is the signer or published receiving address. Name is only stored on this device.
@@ -663,7 +492,7 @@
       bind:value={accountFormLabel}
       disabled={accountFormBusy}
     />
-    {#if !accountFormIsAdvanced}
+    {#if !accountFormIsAdvanced && !embeddedInSettings}
       <label class="wallet-view-import-check">
         <input type="checkbox" bind:checked={accountFormSetSigning} disabled={accountFormBusy} />
         Use as signing address (Send, balances, DM wallet)
@@ -746,10 +575,21 @@
     background: var(--bg-page);
   }
 
+  .wallet-view--embedded {
+    background: transparent;
+    overflow: visible;
+  }
+
   .wallet-view-inner {
     max-width: 720px;
     margin: 0 auto;
     padding: 28px 32px 48px;
+  }
+
+  .wallet-view--embedded .wallet-view-inner {
+    max-width: none;
+    margin: 0;
+    padding: 24px 28px 28px;
   }
 
   .wallet-view-header {

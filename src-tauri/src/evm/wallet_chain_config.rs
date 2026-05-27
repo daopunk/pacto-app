@@ -4,7 +4,7 @@
 //! token addresses, decimals, explorer URLs, and display names stay aligned with the Svelte/viem
 //! layer. Numeric chain IDs and default RPC URL lists live here (JSON has no chain id field).
 //!
-//! Env: `PACTO_WALLET_RPC_MAINNET`, `PACTO_WALLET_RPC_OPTIMISM`, `PACTO_WALLET_RPC_SEPOLIA`
+//! Env: `PACTO_WALLET_RPC_ARBITRUM`, `PACTO_WALLET_RPC_MAINNET`, `PACTO_WALLET_RPC_OPTIMISM`, `PACTO_WALLET_RPC_SEPOLIA`
 //! (comma-separated fallbacks). See `docs/wallet/RPC_AND_VIEM_ARCHITECTURE.md`.
 
 use once_cell::sync::Lazy;
@@ -51,10 +51,11 @@ struct TokenJson {
 }
 
 /// Stable iteration order (must match product expectations and frontend `WALLET_ASSETS_CHAIN_IDS`).
-const NETWORK_KEYS: &[&str] = &["mainnet", "optimism", "sepolia"];
+const NETWORK_KEYS: &[&str] = &["arbitrum", "mainnet", "optimism", "sepolia"];
 
 fn chain_id_for_key(key: &str) -> Option<u64> {
     match key {
+        "arbitrum" => Some(42_161),
         "mainnet" => Some(1),
         "optimism" => Some(10),
         "sepolia" => Some(11155111),
@@ -64,6 +65,7 @@ fn chain_id_for_key(key: &str) -> Option<u64> {
 
 fn rpc_env_var_for_key(key: &str) -> Option<&'static str> {
     match key {
+        "arbitrum" => Some("PACTO_WALLET_RPC_ARBITRUM"),
         "mainnet" => Some("PACTO_WALLET_RPC_MAINNET"),
         "optimism" => Some("PACTO_WALLET_RPC_OPTIMISM"),
         "sepolia" => Some("PACTO_WALLET_RPC_SEPOLIA"),
@@ -74,6 +76,10 @@ fn rpc_env_var_for_key(key: &str) -> Option<&'static str> {
 /// Defaults aligned with `src/lib/wallet/chains.ts` `DEFAULT_RPC_URLS`.
 fn default_rpc_urls_for_key(key: &str) -> Vec<&'static str> {
     match key {
+        "arbitrum" => vec![
+            "https://arb1.arbitrum.io/rpc",
+            "https://arbitrum.publicnode.com",
+        ],
         "mainnet" => vec![
             "https://ethereum.publicnode.com",
             "https://1rpc.io/eth",
@@ -149,12 +155,12 @@ fn build_ordered_networks() -> Vec<WalletNetworkConfig> {
 
 static ORDERED_NETWORKS: Lazy<Vec<WalletNetworkConfig>> = Lazy::new(build_ordered_networks);
 
-/// All configured networks in product order (mainnet, optimism, sepolia).
+/// All configured networks in product order (arbitrum, mainnet, optimism, sepolia).
 pub fn wallet_networks() -> &'static [WalletNetworkConfig] {
     ORDERED_NETWORKS.as_slice()
 }
 
-/// Lookup by `mainnet` / `optimism` / `sepolia` (case-insensitive).
+/// Lookup by `arbitrum` / `mainnet` / `optimism` / `sepolia` (case-insensitive).
 pub fn network_by_key(key: &str) -> Option<&'static WalletNetworkConfig> {
     let k = key.to_lowercase();
     wallet_networks().iter().find(|n| n.key == k)

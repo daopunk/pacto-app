@@ -6332,6 +6332,7 @@ pub fn run() {
             db::upsert_squad_member_evm,
             db::list_squad_member_evm,
             db::upsert_squad_member_evm_account,
+            db::list_evm_account_squad_bindings,
             db::resolve_squad_roster_evm_address,
             db::backfill_squad_member_evm_missing_from_profiles,
             db::get_seed,

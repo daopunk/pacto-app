@@ -1808,6 +1808,41 @@ pub(crate) fn get_squad_member_evm_account_id<R: Runtime>(
     Ok(id.filter(|s| !s.trim().is_empty()))
 }
 
+#[derive(serde::Serialize)]
+pub struct EvmAccountSquadBindingRow {
+    pub evm_account_id: String,
+    pub parent_id: String,
+}
+
+/// All squad roster bindings for the current user keyed by EVM account id.
+#[command]
+pub fn list_evm_account_squad_bindings<R: Runtime>(
+    handle: AppHandle<R>,
+) -> Result<Vec<EvmAccountSquadBindingRow>, String> {
+    let member_npub = crate::account_manager::get_current_account()?;
+    let conn = crate::account_manager::get_db_connection(&handle)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT evm_account_id, parent_id FROM squad_member_evm_account WHERE member_npub = ?1 ORDER BY parent_id",
+        )
+        .map_err(|e| format!("Failed to prepare squad binding query: {}", e))?;
+    let rows = stmt
+        .query_map(rusqlite::params![member_npub.as_str()], |r| {
+            Ok(EvmAccountSquadBindingRow {
+                evm_account_id: r.get(0)?,
+                parent_id: r.get(1)?,
+            })
+        })
+        .map_err(|e| format!("Failed to list squad bindings: {}", e))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row.map_err(|e| format!("Failed to read squad binding row: {}", e))?);
+    }
+    drop(stmt);
+    crate::account_manager::return_db_connection(conn);
+    Ok(out)
+}
+
 pub(crate) fn roster_evm_address_for_member<R: Runtime>(
     handle: &AppHandle<R>,
     parent_id: &str,

@@ -4,13 +4,14 @@
  */
 
 import { createPublicClient, type Chain, type PublicClient, fallback, http } from 'viem';
-import { mainnet, optimism, sepolia } from 'viem/chains';
+import { arbitrum, mainnet, optimism, sepolia } from 'viem/chains';
 
 /**
  * Supported chains for the embedded wallet (DM WalletBar + Squad Safe).
  * Token addresses per chain: `wallet-assets.json` and `assets.ts`.
  */
 export const SUPPORTED_CHAINS = {
+  arbitrum,
   mainnet,
   optimism,
   sepolia,
@@ -29,6 +30,7 @@ const RPC_TIMEOUT_MS = 20_000;
  * Superseded when `VITE_WALLET_RPC_*` is set (see `getEffectiveRpcUrlsForChain`).
  */
 const DEFAULT_RPC_URLS: Record<SupportedChainId, string[]> = {
+  arbitrum: ['https://arb1.arbitrum.io/rpc', 'https://arbitrum.publicnode.com'],
   mainnet: ['https://ethereum.publicnode.com', 'https://1rpc.io/eth'],
   optimism: ['https://mainnet.optimism.io', 'https://optimism.publicnode.com'],
   sepolia: [
@@ -41,6 +43,7 @@ const DEFAULT_RPC_URLS: Record<SupportedChainId, string[]> = {
 };
 
 const VITE_RPC_ENV_KEYS: Record<SupportedChainId, keyof ImportMetaEnv> = {
+  arbitrum: 'VITE_WALLET_RPC_ARBITRUM',
   mainnet: 'VITE_WALLET_RPC_MAINNET',
   optimism: 'VITE_WALLET_RPC_OPTIMISM',
   sepolia: 'VITE_WALLET_RPC_SEPOLIA',
@@ -111,6 +114,7 @@ export function parseSupportedChainId(raw: string | undefined | null): Supported
   const c = (raw ?? 'sepolia').trim().toLowerCase();
   if (c === 'mainnet' || c === 'ethereum' || c === 'eth') return 'mainnet';
   if (c === 'optimism' || c === 'op') return 'optimism';
+  if (c === 'arbitrum' || c === 'arb') return 'arbitrum';
   return 'sepolia';
 }
 
@@ -127,6 +131,7 @@ export function explorerAddressUrl(chainId: SupportedChainId, address: string): 
  * Short prefixes match the query format used on https://app.safe.global
  */
 const SAFE_APP_CHAIN_PREFIX: Record<SupportedChainId, string> = {
+  arbitrum: 'arb1',
   mainnet: 'eth',
   sepolia: 'sep',
   optimism: 'oeth',
