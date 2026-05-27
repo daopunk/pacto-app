@@ -269,7 +269,7 @@
 
     <p class="deploy-safe-signers-caption">Other signers (#announcements)</p>
     <p class="deploy-safe-signers-hint muted">
-      Addresses come from #announcements when someone shares from a squad invite or Change signer. Members who have not
+      Addresses come from #announcements when members share a squad roster address (Inbox on join, or #dashboard → Settings). Members who have not
       shared are not listed. You are not listed here; use &quot;Include me as an owner&quot; for your wallet. At most
       {DEPLOY_SAFE_MAX_SIGNERS} owners total.
     </p>

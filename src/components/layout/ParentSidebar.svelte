@@ -37,12 +37,8 @@
   export let onCreateChannel: () => void = () => {};
   export let onRetryCreate: () => void = () => {};
   export let onInvite: () => void = () => {};
-  /** Open the "Add Juice" WIP modal for this parent (optional). */
-  export let onAddJuice: (() => void) | undefined = undefined;
-  /** Open the "Initialize Governance" WIP modal for this parent (optional). */
-  export let onInitGovernance: (() => void) | undefined = undefined;
-  /** Squad/network roster signer (EVM); does not edit on-chain Safe owners. */
-  export let onChangeSigner: (() => void) | undefined = undefined;
+  /** Placeholder: future per-parent EVM signer change from sidebar (use #dashboard → Settings today). */
+  export let onChangeEvmSigner: (() => void) | undefined = undefined;
   /** Only used when type === 'squad'. */
   export let onExitSquad: (() => void) | undefined = undefined;
   /** Only used when type === 'network'. */
@@ -64,11 +60,7 @@
   })();
 
   $: inviteLabel = type === 'squad' ? 'Invite to Squad' : 'Invite to Network';
-  $: addJuiceLabel = 'Add Juice';
-  $: initGovLabel = 'Initialize Governance';
-  $: showAddJuice = typeof onAddJuice === 'function';
-  $: showInitGovernance = typeof onInitGovernance === 'function';
-  $: showChangeSigner = typeof onChangeSigner === 'function';
+  $: showChangeEvmSigner = typeof onChangeEvmSigner === 'function';
   $: showExitSquad = type === 'squad' && typeof onExitSquad === 'function';
   $: showExitNetwork = type === 'network' && typeof onExitNetwork === 'function';
   $: showExit = showExitSquad || showExitNetwork;
@@ -113,43 +105,17 @@
               >
                 {inviteLabel}
               </button>
-              {#if showAddJuice && onAddJuice}
+              {#if showChangeEvmSigner && onChangeEvmSigner}
                 <button
                   type="button"
                   class="parent-menu-item"
                   role="menuitem"
                   on:click={() => {
                     menuOpen = false;
-                    onAddJuice();
+                    onChangeEvmSigner();
                   }}
                 >
-                  {addJuiceLabel}
-                </button>
-              {/if}
-              {#if showInitGovernance && onInitGovernance}
-                <button
-                  type="button"
-                  class="parent-menu-item"
-                  role="menuitem"
-                  on:click={() => {
-                    menuOpen = false;
-                    onInitGovernance();
-                  }}
-                >
-                  {initGovLabel}
-                </button>
-              {/if}
-              {#if showChangeSigner && onChangeSigner}
-                <button
-                  type="button"
-                  class="parent-menu-item"
-                  role="menuitem"
-                  on:click={() => {
-                    menuOpen = false;
-                    onChangeSigner();
-                  }}
-                >
-                  Change signer
+                  Change EVM Signer
                 </button>
               {/if}
               {#if showExit && onExit}
