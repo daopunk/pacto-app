@@ -369,6 +369,9 @@ pub async fn wallet_build_and_send_transaction<R: Runtime>(
     }
 
     let _ = evm_accounts::ensure_ready(app.clone()).await;
+    evm_accounts::require_squad_purpose_signer(app.clone()).await.map_err(|e| {
+        wallet_err_json("SQUAD_SIGNER_REQUIRED", e, None)
+    })?;
 
     let (_signer, wallet) = load_embedded_signer(app.clone()).await?;
     let provider = connect_signing_provider(&urls, wallet).await?;

@@ -1126,6 +1126,7 @@ pub fn upsert_squad_member_evm<R: Runtime>(
     }
     let norm = crate::evm::normalize_hex_address(evm_address.trim())
         .ok_or_else(|| "Invalid EVM address".to_string())?;
+    crate::evm::evm_accounts::ensure_address_allowed_on_squad_roster(&handle, norm.as_str())?;
     let conn = crate::account_manager::get_db_connection(&handle)?;
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1263,6 +1264,9 @@ pub fn try_apply_squad_member_evm_share<R: Runtime>(
     let Some(norm) = crate::evm::normalize_hex_address(raw_addr) else {
         return;
     };
+    if crate::evm::evm_accounts::ensure_address_allowed_on_squad_roster(handle, norm.as_str()).is_err() {
+        return;
+    }
 
     let Ok(conn) = crate::account_manager::get_db_connection(handle) else {
         return;
@@ -1318,6 +1322,9 @@ pub fn backfill_squad_member_evm_missing_from_profiles<R: Runtime>(
             continue;
         };
         let Some(norm) = crate::evm::normalize_hex_address(raw.trim()) else {
+            continue;
+        };
+        if crate::evm::evm_accounts::ensure_address_allowed_on_squad_roster(&handle, norm.as_str()).is_err() {
             continue;
         };
         conn.execute(

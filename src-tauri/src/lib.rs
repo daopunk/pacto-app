@@ -6430,6 +6430,8 @@ pub fn run() {
             evm::evm_accounts::update_evm_account,
             evm::evm_accounts::set_active_evm_account,
             evm::evm_accounts::set_default_shared_evm_account,
+            evm::evm_accounts::set_active_advanced_evm_account,
+            evm::advanced_contract_call::evm_send_advanced_contract_call,
             evm::safe_deploy::safe_deploy_proxy,
             evm::nave_pirata_deploy::deploy_nave_pirata_for_parent,
             evm::squad_sponsor_deploy::deploy_squad_sponsor_for_parent,

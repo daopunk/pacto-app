@@ -16,6 +16,9 @@ These files are **tracked in git** and are intended for references from **source
 | [EVM_ADDRESS_DERIVATION.md](./EVM_ADDRESS_DERIVATION.md) | HD v1 + legacy SHA256-of-nostr note; canonical pubkey hash; legacy 0x04 repair. |
 | [ONCHAIN_READ_PATTERN.md](./ONCHAIN_READ_PATTERN.md) | Shared pattern: persist / hydrate / background refresh / stale-while-revalidate for WalletBar + Safe-style hub reads. |
 | [PACTO_GOV.md](./PACTO_GOV.md) | Upstream [covenant-gov/pacto-gov](https://github.com/covenant-gov/pacto-gov); in-app Alloy bindings and env-based deploy addresses. |
+| [NAVE_PIRATA_SMOKE.md](./NAVE_PIRATA_SMOKE.md) | Manual Sepolia checklist: Pacto Gov / Nave Pirata factory deploy (A2). |
+| [STANDALONE_SAFE_SMOKE.md](./STANDALONE_SAFE_SMOKE.md) | Manual Sepolia checklist: vault Safe deploy/import (A3). |
+| [GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md](./GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md) | Manual checklist: `governance_updated` → `squad_infra` reload / peer sync (A4). |
 | [PACTO_SQUAD_SPONSOR.md](./PACTO_SQUAD_SPONSOR.md) | Upstream [covenant-gov/pacto-squad-sponsor](https://github.com/covenant-gov/pacto-squad-sponsor); deploy, summary read, `squad_infra` persistence. |
 | [SQUAD_SPONSOR_SMOKE.md](./SQUAD_SPONSOR_SMOKE.md) | Manual Sepolia checklist: deploy sponsor, read balance, deposit (app + devtools). |
 

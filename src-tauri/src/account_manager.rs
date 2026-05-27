@@ -170,7 +170,8 @@ CREATE TABLE IF NOT EXISTS evm_accounts (
     hd_index INTEGER,
     address TEXT NOT NULL,
     label TEXT NOT NULL DEFAULT '',
-    imported_enc TEXT
+    imported_enc TEXT,
+    purpose TEXT NOT NULL DEFAULT 'squad'
 );
 CREATE INDEX IF NOT EXISTS idx_evm_accounts_scheme_hd ON evm_accounts(scheme, hd_index);
 
@@ -966,12 +967,32 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
                     hd_index INTEGER,
                     address TEXT NOT NULL,
                     label TEXT NOT NULL DEFAULT '',
-                    imported_enc TEXT
+                    imported_enc TEXT,
+                    purpose TEXT NOT NULL DEFAULT 'squad'
                 );
                 CREATE INDEX IF NOT EXISTS idx_evm_accounts_scheme_hd ON evm_accounts(scheme, hd_index);"#,
             )
             .map_err(|e| format!("Failed to create evm_accounts table: {}", e))?;
         println!("[Migration] evm_accounts table created");
+    }
+
+    let has_evm_purpose: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('evm_accounts') WHERE name = 'purpose'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .unwrap_or(0)
+        > 0;
+    if has_evm_accounts && !has_evm_purpose {
+        println!(
+            "[Migration] TODO: delete after pre-alpha — add evm_accounts.purpose (existing rows → squad)"
+        );
+        conn.execute(
+            "ALTER TABLE evm_accounts ADD COLUMN purpose TEXT NOT NULL DEFAULT 'squad'",
+            [],
+        )
+        .map_err(|e| format!("Failed to add evm_accounts.purpose: {}", e))?;
     }
 
     // Dashboard polls replica (MLS sync; Tauri only)

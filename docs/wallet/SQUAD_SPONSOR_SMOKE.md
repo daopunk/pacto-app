@@ -82,4 +82,6 @@ Run with a logged-in profile that has **Sepolia ETH** for gas.
 
 - [PACTO_SQUAD_SPONSOR.md](./PACTO_SQUAD_SPONSOR.md) — upstream + app wiring
 - [PACTO_GOV.md](./PACTO_GOV.md) — Nave Pirata (deploy **after** sponsor in product order)
+- [NAVE_PIRATA_SMOKE.md](./NAVE_PIRATA_SMOKE.md) — Sepolia factory deploy checklist (A2)
+- [GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md](./GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md) — reload / peer sync (A4)
 - [INHOUSE_GOV.md](../../ai-docs/INHOUSE_GOV.md) — execution plan

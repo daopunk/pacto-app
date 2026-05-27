@@ -14,6 +14,10 @@ Governance contract sources for **Nave Pirata** live in the upstream repository 
 
 When upstream interfaces change, update bindings in `evm/contracts/pacto_gov/` against the reviewed commit on GitHub (Foundry `out/` JSON generation is optional follow-on).
 
+## Manual smoke (Sepolia)
+
+Operator checklist: [NAVE_PIRATA_SMOKE.md](./NAVE_PIRATA_SMOKE.md) (requires squad sponsor first). Announce sync: [GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md](./GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md).
+
 ## Related
 
 - Squad sponsor contracts: [github.com/covenant-gov/pacto-squad-sponsor](https://github.com/covenant-gov/pacto-squad-sponsor) (same pattern — external repo, env addresses, in-app bindings).

@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { getEvmAddress } from '../api/auth';
-import { getActiveEvmSignerAddress } from '../wallet/evm-accounts';
 import { sendDmMessage } from '../api/nostr';
+import { getActiveSquadEvmSignerAddress } from '../wallet/evm-accounts';
 
 export const SQUAD_MEMBER_EVM_SHARE_TYPE = 'squad_member_evm_share';
 export const SQUAD_MEMBER_EVM_SHARE_VERSION = 1;
@@ -38,7 +37,7 @@ export type PublishSquadMemberEvmShareOptions = {
 /**
  * Record the current user's preferred squad/network signer address (EVM) for this community and broadcast to #announcements.
  * `announcementsMlsGroupId` is both the MLS destination and the roster `parent_id` key (must match for all members).
- * Uses the **active EVM signing account** when `options.evmAddress` is omitted; falls back to the stored profile/wallet address.
+ * Uses the **active squad-purpose EVM signing account** when `options.evmAddress` is omitted.
  * Other members receive their own row when their client publishes (e.g. on invite accept). This does not change on-chain Safe owners.
  */
 export async function publishSquadMemberEvmShare(
@@ -48,11 +47,7 @@ export async function publishSquadMemberEvmShare(
   const rosterId = announcementsMlsGroupId.trim();
   if (!rosterId) return false;
   const explicit = options?.evmAddress?.trim();
-  const fromWallet =
-    explicit ||
-    (await getActiveEvmSignerAddress())?.trim() ||
-    (await getEvmAddress())?.trim() ||
-    '';
+  const fromWallet = explicit || (await getActiveSquadEvmSignerAddress())?.trim() || '';
   if (!fromWallet) return false;
   try {
     await invoke('upsert_squad_member_evm', { parentId: rosterId, evmAddress: fromWallet });

@@ -15,9 +15,12 @@ use super::{
 
 pub const SCHEME_BIP44_V1: &str = "bip44_v1";
 pub const SCHEME_IMPORTED: &str = "imported_private_key";
+pub const PURPOSE_SQUAD: &str = "squad";
+pub const PURPOSE_ADVANCED: &str = "advanced";
 
 const SETTING_ACTIVE: &str = "active_evm_account_id";
 const SETTING_DEFAULT_SHARED: &str = "default_shared_evm_account_id";
+const SETTING_ACTIVE_ADVANCED: &str = "active_advanced_evm_account_id";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,8 +30,10 @@ pub struct EvmAccountRow {
     pub hd_index: Option<u32>,
     pub address: String,
     pub label: String,
+    pub purpose: String,
     pub is_active: bool,
     pub is_default_shared: bool,
+    pub is_active_advanced: bool,
 }
 
 /// One row for export / backup (includes decrypted private key).
@@ -41,6 +46,120 @@ pub struct EvmAccountExportRow {
     pub address: String,
     pub label: String,
     pub private_key: String,
+}
+
+fn normalize_purpose(raw: &str) -> Result<String, String> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        PURPOSE_SQUAD => Ok(PURPOSE_SQUAD.to_string()),
+        PURPOSE_ADVANCED => Ok(PURPOSE_ADVANCED.to_string()),
+        other if other.is_empty() => Ok(PURPOSE_SQUAD.to_string()),
+        other => Err(format!("Unknown EVM account purpose: {}", other.trim())),
+    }
+}
+
+/// Resolve account purpose for a normalized `0x` address, if it belongs to a local row.
+pub fn address_purpose<R: Runtime>(handle: &AppHandle<R>, address: &str) -> Result<Option<String>, String> {
+    let Some(norm) = normalize_hex_address(address.trim()) else {
+        return Ok(None);
+    };
+    let conn = account_manager::get_db_connection(handle)?;
+    let purpose: Option<String> = conn
+        .query_row(
+            "SELECT purpose FROM evm_accounts WHERE lower(address) = lower(?1) LIMIT 1",
+            rusqlite::params![norm.as_str()],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("evm_accounts purpose lookup: {}", e))?;
+    account_manager::return_db_connection(conn);
+    Ok(purpose.map(|p| normalize_purpose(&p).unwrap_or(PURPOSE_SQUAD.to_string())))
+}
+
+/// Reject roster / shared-profile use of a local advanced-purpose address.
+pub fn ensure_address_allowed_on_squad_roster<R: Runtime>(
+    handle: &AppHandle<R>,
+    address: &str,
+) -> Result<(), String> {
+    match address_purpose(handle, address)? {
+        Some(p) if p == PURPOSE_ADVANCED => Err(
+            "Advanced-purpose EVM accounts cannot be linked to squad rosters or shared profile defaults."
+                .to_string(),
+        ),
+        _ => Ok(()),
+    }
+}
+
+async fn require_active_account_purpose<R: Runtime>(
+    handle: &AppHandle<R>,
+    expected: &str,
+    wrong_message: &str,
+) -> Result<(), String> {
+    ensure_ready(handle.clone()).await?;
+    let conn = account_manager::get_db_connection(handle)?;
+    let active_id = sql_get_setting(&conn, SETTING_ACTIVE)?
+        .ok_or_else(|| "No active EVM account.".to_string())?;
+    let purpose: String = conn
+        .query_row(
+            "SELECT purpose FROM evm_accounts WHERE id = ?1",
+            rusqlite::params![&active_id],
+            |r| r.get(0),
+        )
+        .map_err(|_| "Active EVM account not found.".to_string())?;
+    account_manager::return_db_connection(conn);
+    let purpose = normalize_purpose(&purpose)?;
+    if purpose != expected {
+        return Err(wrong_message.to_string());
+    }
+    Ok(())
+}
+
+pub async fn require_squad_purpose_signer<R: Runtime>(handle: AppHandle<R>) -> Result<(), String> {
+    require_active_account_purpose(
+        &handle,
+        PURPOSE_SQUAD,
+        "Active signer must be a squad-purpose account. Switch signer under Settings → Wallet.",
+    )
+    .await
+}
+
+pub async fn require_advanced_purpose_signer<R: Runtime>(handle: AppHandle<R>) -> Result<(), String> {
+    ensure_ready(handle.clone()).await?;
+    let conn = account_manager::get_db_connection(&handle)?;
+    let advanced_id = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.ok_or_else(|| {
+        "No active Advanced account. Create or select one under Settings → Wallet.".to_string()
+    })?;
+    let purpose: String = conn
+        .query_row(
+            "SELECT purpose FROM evm_accounts WHERE id = ?1",
+            rusqlite::params![&advanced_id],
+            |r| r.get(0),
+        )
+        .map_err(|_| "Active Advanced account not found.".to_string())?;
+    account_manager::return_db_connection(conn);
+    if normalize_purpose(&purpose)? != PURPOSE_ADVANCED {
+        return Err("Active Advanced account must have advanced purpose.".to_string());
+    }
+    Ok(())
+}
+
+fn account_purpose_by_id(conn: &rusqlite::Connection, account_id: &str) -> Result<String, String> {
+    let purpose: String = conn
+        .query_row(
+            "SELECT purpose FROM evm_accounts WHERE id = ?1",
+            rusqlite::params![account_id],
+            |r| r.get(0),
+        )
+        .map_err(|_| "Unknown EVM account.".to_string())?;
+    normalize_purpose(&purpose)
+}
+
+fn require_squad_purpose_account_id(conn: &rusqlite::Connection, account_id: &str) -> Result<(), String> {
+    if account_purpose_by_id(conn, account_id)? != PURPOSE_SQUAD {
+        return Err(
+            "Only squad-purpose accounts may be the active signer or default shared address.".to_string(),
+        );
+    }
+    Ok(())
 }
 
 fn sql_get_setting(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
@@ -233,8 +352,8 @@ fn fix_active_if_needed<R: Runtime>(handle: &AppHandle<R>) -> Result<(), String>
     if active_invalid {
         let pick: Option<String> = conn
             .query_row(
-                "SELECT id FROM evm_accounts ORDER BY scheme ASC, (hd_index IS NULL), hd_index ASC, id ASC LIMIT 1",
-                [],
+                "SELECT id FROM evm_accounts WHERE purpose = ?1 ORDER BY scheme ASC, (hd_index IS NULL), hd_index ASC, id ASC LIMIT 1",
+                rusqlite::params![PURPOSE_SQUAD],
                 |r| r.get(0),
             )
             .optional()
@@ -261,8 +380,8 @@ fn fix_active_if_needed<R: Runtime>(handle: &AppHandle<R>) -> Result<(), String>
     if default_invalid {
         let pick: Option<String> = conn
             .query_row(
-                "SELECT id FROM evm_accounts ORDER BY scheme ASC, (hd_index IS NULL), hd_index ASC, id ASC LIMIT 1",
-                [],
+                "SELECT id FROM evm_accounts WHERE purpose = ?1 ORDER BY scheme ASC, (hd_index IS NULL), hd_index ASC, id ASC LIMIT 1",
+                rusqlite::params![PURPOSE_SQUAD],
                 |r| r.get(0),
             )
             .optional()
@@ -297,8 +416,8 @@ pub async fn ensure_ready<R: Runtime>(handle: AppHandle<R>) -> Result<(), String
         let id = hd_row_id(0);
         let conn = account_manager::get_db_connection(&handle)?;
         conn.execute(
-            "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc) VALUES (?1, ?2, ?3, ?4, '', NULL)",
-            rusqlite::params![&id, SCHEME_BIP44_V1, 0i64, &addr],
+            "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc, purpose) VALUES (?1, ?2, ?3, ?4, '', NULL, ?5)",
+            rusqlite::params![&id, SCHEME_BIP44_V1, 0i64, &addr, PURPOSE_SQUAD],
         )
         .map_err(|e| format!("evm_accounts insert: {}", e))?;
         sql_set_setting(&conn, SETTING_ACTIVE, &id)?;
@@ -319,8 +438,8 @@ pub async fn ensure_ready<R: Runtime>(handle: AppHandle<R>) -> Result<(), String
         let id = new_import_id();
         let conn = account_manager::get_db_connection(&handle)?;
         conn.execute(
-            "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc) VALUES (?1, ?2, NULL, ?3, '', ?4)",
-            rusqlite::params![&id, SCHEME_IMPORTED, &addr, &enc],
+            "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc, purpose) VALUES (?1, ?2, NULL, ?3, '', ?4, ?5)",
+            rusqlite::params![&id, SCHEME_IMPORTED, &addr, &enc, PURPOSE_SQUAD],
         )
         .map_err(|e| format!("evm_accounts insert: {}", e))?;
         sql_set_setting(&conn, SETTING_ACTIVE, &id)?;
@@ -347,7 +466,10 @@ pub async fn active_account_allows_treasury_signing<R: Runtime>(
 ) -> Result<bool, String> {
     ensure_ready(handle.clone()).await?;
     let (_, _, scheme) = resolve_active_private_key_hex(&handle).await?;
-    Ok(scheme == SCHEME_BIP44_V1)
+    if scheme != SCHEME_BIP44_V1 {
+        return Ok(false);
+    }
+    require_squad_purpose_signer(handle).await.map(|_| true)
 }
 
 #[tauri::command]
@@ -356,9 +478,10 @@ pub async fn list_evm_accounts<R: Runtime>(handle: AppHandle<R>) -> Result<Vec<E
     let conn = account_manager::get_db_connection(&handle)?;
     let active = sql_get_setting(&conn, SETTING_ACTIVE)?.unwrap_or_default();
     let default_sh = sql_get_setting(&conn, SETTING_DEFAULT_SHARED)?.unwrap_or_default();
+    let active_adv = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.unwrap_or_default();
 
     let mut stmt = conn
-        .prepare("SELECT id, scheme, hd_index, address, label FROM evm_accounts ORDER BY scheme ASC, (hd_index IS NULL), hd_index ASC, id ASC")
+        .prepare("SELECT id, scheme, hd_index, address, label, purpose FROM evm_accounts ORDER BY purpose ASC, scheme ASC, (hd_index IS NULL), hd_index ASC, id ASC")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], |r| {
@@ -368,6 +491,7 @@ pub async fn list_evm_accounts<R: Runtime>(handle: AppHandle<R>) -> Result<Vec<E
                 r.get::<_, Option<i64>>(2)?,
                 r.get::<_, String>(3)?,
                 r.get::<_, String>(4)?,
+                r.get::<_, String>(5)?,
             ))
         })
         .map_err(|e| e.to_string())?
@@ -378,10 +502,12 @@ pub async fn list_evm_accounts<R: Runtime>(handle: AppHandle<R>) -> Result<Vec<E
 
     Ok(rows
         .into_iter()
-        .map(|(id, scheme, hd_index, address, label)| EvmAccountRow {
+        .map(|(id, scheme, hd_index, address, label, purpose)| EvmAccountRow {
             is_active: id == active,
             is_default_shared: id == default_sh,
+            is_active_advanced: id == active_adv,
             hd_index: hd_index.map(|i| i as u32),
+            purpose: normalize_purpose(&purpose).unwrap_or_else(|_| PURPOSE_SQUAD.to_string()),
             id,
             scheme,
             address,
@@ -416,8 +542,13 @@ pub async fn add_evm_account<R: Runtime>(
     label: String,
     set_active_signer: bool,
     set_default_shared: bool,
+    purpose: Option<String>,
 ) -> Result<EvmAccountRow, String> {
     ensure_ready(handle.clone()).await?;
+    let purpose_norm = normalize_purpose(purpose.as_deref().unwrap_or(PURPOSE_SQUAD))?;
+    if purpose_norm == PURPOSE_ADVANCED && set_default_shared {
+        return Err("Advanced accounts cannot be the default shared (Kind 0) address.".to_string());
+    }
     let phrase = get_mnemonic_for_hd(handle.clone()).await?;
     let label_trimmed = label.trim().to_string();
 
@@ -439,24 +570,36 @@ pub async fn add_evm_account<R: Runtime>(
 
     let conn = account_manager::get_db_connection(&handle)?;
     conn.execute(
-        "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc) VALUES (?1, ?2, ?3, ?4, ?5, NULL)",
-        rusqlite::params![&id, SCHEME_BIP44_V1, next as i64, &addr, &label_trimmed],
+        "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc, purpose) VALUES (?1, ?2, ?3, ?4, ?5, NULL, ?6)",
+        rusqlite::params![&id, SCHEME_BIP44_V1, next as i64, &addr, &label_trimmed, &purpose_norm],
     )
     .map_err(|e| format!("add account: {}", e))?;
 
     if set_active_signer {
+        if purpose_norm != PURPOSE_SQUAD {
+            return Err("Only squad-purpose accounts may be the active WalletBar signer.".to_string());
+        }
         sql_set_setting(&conn, SETTING_ACTIVE, &id)?;
     }
     if set_default_shared {
+        require_squad_purpose_account_id(&conn, &id)?;
         sql_set_setting(&conn, SETTING_DEFAULT_SHARED, &id)?;
+    }
+    if purpose_norm == PURPOSE_ADVANCED {
+        if sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.is_none() {
+            sql_set_setting(&conn, SETTING_ACTIVE_ADVANCED, &id)?;
+        }
     }
 
     let active = sql_get_setting(&conn, SETTING_ACTIVE)?.unwrap_or_default();
     let default_sh = sql_get_setting(&conn, SETTING_DEFAULT_SHARED)?.unwrap_or_default();
+    let active_adv = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.unwrap_or_default();
     account_manager::return_db_connection(conn);
 
     let republish = set_default_shared;
-    sync_signing_material_from_active(handle.clone()).await?;
+    if purpose_norm == PURPOSE_SQUAD {
+        sync_signing_material_from_active(handle.clone()).await?;
+    }
 
     if republish {
         spawn_kind0_republish_with_events(handle.clone());
@@ -464,14 +607,17 @@ pub async fn add_evm_account<R: Runtime>(
 
     let is_active = id == active;
     let is_default_shared = id == default_sh;
+    let is_active_advanced = id == active_adv;
     Ok(EvmAccountRow {
         id,
         scheme: SCHEME_BIP44_V1.to_string(),
         hd_index: Some(next),
         address: addr,
         label: label_trimmed,
+        purpose: purpose_norm,
         is_active,
         is_default_shared,
+        is_active_advanced,
     })
 }
 
@@ -514,27 +660,36 @@ pub async fn import_evm_account<R: Runtime>(
     let enc = crypto::internal_encrypt(key_plain, None).await;
     let id = new_import_id();
     conn.execute(
-        "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc) VALUES (?1, ?2, NULL, ?3, '', ?4)",
-        rusqlite::params![&id, SCHEME_IMPORTED, &addr, &enc],
+        "INSERT INTO evm_accounts (id, scheme, hd_index, address, label, imported_enc, purpose) VALUES (?1, ?2, NULL, ?3, '', ?4, ?5)",
+        rusqlite::params![&id, SCHEME_IMPORTED, &addr, &enc, PURPOSE_ADVANCED],
     )
     .map_err(|e| format!("import account: {}", e))?;
     if set_active_signer {
-        sql_set_setting(&conn, SETTING_ACTIVE, &id)?;
+        return Err(
+            "Imported keys are advanced-purpose only and cannot be the squad WalletBar signer."
+                .to_string(),
+        );
+    }
+    if sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.is_none() {
+        sql_set_setting(&conn, SETTING_ACTIVE_ADVANCED, &id)?;
     }
     let active = sql_get_setting(&conn, SETTING_ACTIVE)?.unwrap_or_default();
     let default_sh = sql_get_setting(&conn, SETTING_DEFAULT_SHARED)?.unwrap_or_default();
+    let active_adv = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.unwrap_or_default();
     account_manager::return_db_connection(conn);
-    sync_signing_material_from_active(handle.clone()).await?;
     let is_active = id == active;
     let is_default_shared = id == default_sh;
+    let is_active_advanced = id == active_adv;
     Ok(EvmAccountRow {
         id,
         scheme: SCHEME_IMPORTED.to_string(),
         hd_index: None,
         address: addr,
         label: String::new(),
+        purpose: PURPOSE_ADVANCED.to_string(),
         is_active,
         is_default_shared,
+        is_active_advanced,
     })
 }
 
@@ -568,18 +723,21 @@ pub async fn update_evm_account<R: Runtime>(
     .map_err(|e| format!("update account: {}", e))?;
 
     if set_active_signer {
+        require_squad_purpose_account_id(&conn, &account_id)?;
         sql_set_setting(&conn, SETTING_ACTIVE, &account_id)?;
     }
     if set_default_shared {
+        require_squad_purpose_account_id(&conn, &account_id)?;
         sql_set_setting(&conn, SETTING_DEFAULT_SHARED, &account_id)?;
     }
 
     let active = sql_get_setting(&conn, SETTING_ACTIVE)?.unwrap_or_default();
     let default_sh = sql_get_setting(&conn, SETTING_DEFAULT_SHARED)?.unwrap_or_default();
+    let active_adv = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.unwrap_or_default();
 
-    let row: (String, String, Option<i64>, String, String) = conn
+    let row: (String, String, Option<i64>, String, String, String) = conn
         .query_row(
-            "SELECT id, scheme, hd_index, address, label FROM evm_accounts WHERE id = ?1",
+            "SELECT id, scheme, hd_index, address, label, purpose FROM evm_accounts WHERE id = ?1",
             rusqlite::params![&account_id],
             |r| {
                 Ok((
@@ -588,6 +746,7 @@ pub async fn update_evm_account<R: Runtime>(
                     r.get::<_, Option<i64>>(2)?,
                     r.get::<_, String>(3)?,
                     r.get::<_, String>(4)?,
+                    r.get::<_, String>(5)?,
                 ))
             },
         )
@@ -601,17 +760,21 @@ pub async fn update_evm_account<R: Runtime>(
 
     sync_signing_material_from_active(handle.clone()).await?;
 
-    let (id, scheme, hd_idx, address, label_out) = row;
+    let (id, scheme, hd_idx, address, label_out, purpose_raw) = row;
+    let purpose = normalize_purpose(&purpose_raw)?;
     let is_active = id == active;
     let is_default_shared_row = id == default_sh;
+    let is_active_advanced = id == active_adv;
     Ok(EvmAccountRow {
         id,
         scheme,
         hd_index: hd_idx.map(|i| i as u32),
         address,
         label: label_out,
+        purpose,
         is_active,
         is_default_shared: is_default_shared_row,
+        is_active_advanced,
     })
 }
 
@@ -632,6 +795,7 @@ pub async fn set_active_evm_account<R: Runtime>(
     if n == 0 {
         return Err("Unknown EVM account.".to_string());
     }
+    require_squad_purpose_account_id(&conn, &account_id)?;
     sql_set_setting(&conn, SETTING_ACTIVE, &account_id)?;
     account_manager::return_db_connection(conn);
     sync_signing_material_from_active(handle.clone()).await?;
@@ -655,8 +819,51 @@ pub async fn set_default_shared_evm_account<R: Runtime>(
     if n == 0 {
         return Err("Unknown EVM account.".to_string());
     }
+    require_squad_purpose_account_id(&conn, &account_id)?;
     sql_set_setting(&conn, SETTING_DEFAULT_SHARED, &account_id)?;
     account_manager::return_db_connection(conn);
     spawn_kind0_republish_with_events(handle.clone());
     Ok(())
+}
+
+#[tauri::command]
+pub async fn set_active_advanced_evm_account<R: Runtime>(
+    handle: AppHandle<R>,
+    account_id: String,
+) -> Result<(), String> {
+    ensure_ready(handle.clone()).await?;
+    let conn = account_manager::get_db_connection(&handle)?;
+    let n: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM evm_accounts WHERE id = ?1",
+            rusqlite::params![&account_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if n == 0 {
+        return Err("Unknown EVM account.".to_string());
+    }
+    if account_purpose_by_id(&conn, &account_id)? != PURPOSE_ADVANCED {
+        return Err("Only advanced-purpose accounts may be selected for Advanced sends.".to_string());
+    }
+    sql_set_setting(&conn, SETTING_ACTIVE_ADVANCED, &account_id)?;
+    account_manager::return_db_connection(conn);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_purpose, PURPOSE_ADVANCED, PURPOSE_SQUAD};
+
+    #[test]
+    fn normalize_purpose_accepts_squad_and_advanced() {
+        assert_eq!(normalize_purpose("squad").unwrap(), PURPOSE_SQUAD);
+        assert_eq!(normalize_purpose("ADVANCED").unwrap(), PURPOSE_ADVANCED);
+        assert_eq!(normalize_purpose("").unwrap(), PURPOSE_SQUAD);
+    }
+
+    #[test]
+    fn normalize_purpose_rejects_unknown() {
+        assert!(normalize_purpose("experimental").is_err());
+    }
 }

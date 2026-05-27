@@ -6,6 +6,8 @@
   import {
     listEvmAccounts,
     evmAccountSchemeLabel,
+    evmAccountPurposeLabel,
+    squadEvmAccounts,
     type EvmAccountRow,
   } from '../../lib/wallet/evm-accounts';
   import {
@@ -36,7 +38,7 @@
     loading = true;
     error = '';
     try {
-      accounts = (await listEvmAccounts()) ?? [];
+      accounts = squadEvmAccounts((await listEvmAccounts()) ?? []);
       const me = $currentUser?.npub;
       if (me && parentId.trim()) {
         const q = listSquadMemberEvmInvokeArgs(parentId, announcementsGroupId);
@@ -105,7 +107,8 @@
 >
   <h2 id={titleId}>Change signer</h2>
   <p id={descId} class="change-signer-desc">
-    Choose which EVM address from your wallet is stored for <strong>{parentName}</strong> and shared on #announcements.
+    Choose which **squad-purpose** EVM address from your wallet is stored for <strong>{parentName}</strong> and shared on #announcements.
+    Advanced accounts are isolated from squad rosters and are not listed here.
     Deploy Safe and other flows use this roster to suggest co-owners. <strong>Updating here does not modify an already
     deployed Safe</strong>—only the lookup for this group going forward.
   </p>
@@ -127,6 +130,7 @@
           <input type="radio" name="change-signer-acct" value={acc.id} bind:group={selectedAccountId} />
           <span class="change-signer-option-body">
             <span class="change-signer-label">{acc.label || evmAccountSchemeLabel(acc.scheme)}</span>
+            <span class="muted change-signer-badge">{evmAccountPurposeLabel(acc.purpose)}</span>
             <code class="change-signer-code">{acc.address}</code>
             {#if acc.isActive}<span class="muted change-signer-badge">Active signer</span>{/if}
             {#if acc.isDefaultShared}<span class="muted change-signer-badge">Default shared</span>{/if}

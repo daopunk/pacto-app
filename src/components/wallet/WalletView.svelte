@@ -27,7 +27,12 @@
     updateEvmAccountRow,
     importEvmAccountRow,
     setActiveEvmAccount,
+    setActiveAdvancedEvmAccount,
     evmAccountSchemeLabel,
+    evmAccountPurposeLabel,
+    squadEvmAccounts,
+    advancedEvmAccounts,
+    type EvmAccountPurpose,
     type EvmAccountRow,
   } from '../../lib/wallet/evm-accounts';
   import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
@@ -47,10 +52,10 @@
   let importKeyModalOpen = false;
   let importKeyInput = '';
   let importKeyBusy = false;
-  let importSetActive = true;
 
   /** Unified add / edit account modal (same fields as add). */
   let accountFormMode: 'add' | 'edit' | null = null;
+  let accountFormPurpose: EvmAccountPurpose = 'squad';
   let accountFormEditId: string | null = null;
   let accountFormLabel = '';
   let accountFormSetSigning = false;
@@ -160,14 +165,16 @@
     resetAccountFormFields();
   }
 
-  function openAddAccountModal() {
+  function openAddAccountModal(purpose: EvmAccountPurpose = 'squad') {
     resetAccountFormFields();
+    accountFormPurpose = purpose;
     accountFormMode = 'add';
   }
 
   function openEditAccountModal(acc: EvmAccountRow) {
     accountFormMode = 'edit';
     accountFormEditId = acc.id;
+    accountFormPurpose = acc.purpose;
     accountFormLabel = acc.label ?? '';
     accountFormSetSigning = acc.isActive;
     accountFormSetReceiving = acc.isDefaultShared;
@@ -182,10 +189,12 @@
     accountFormBusy = true;
     try {
       if (mode === 'add') {
+        const isAdvanced = accountFormPurpose === 'advanced';
         await addEvmAccountRow({
           label: accountFormLabel,
-          setActiveSigner: accountFormSetSigning,
-          setDefaultShared: accountFormSetReceiving,
+          setActiveSigner: isAdvanced ? false : accountFormSetSigning,
+          setDefaultShared: isAdvanced ? false : accountFormSetReceiving,
+          purpose: accountFormPurpose,
         });
         if (setReceiving) {
           showToast('Receiving address saved. Publishing profile metadata…');
@@ -193,11 +202,12 @@
           showToast('Account added.');
         }
       } else if (editId) {
+        const isAdvanced = accountFormPurpose === 'advanced';
         await updateEvmAccountRow({
           accountId: editId,
           label: accountFormLabel,
-          setActiveSigner: accountFormSetSigning,
-          setDefaultShared: accountFormSetReceiving,
+          setActiveSigner: isAdvanced ? false : accountFormSetSigning,
+          setDefaultShared: isAdvanced ? false : accountFormSetReceiving,
         });
         if (setReceiving) {
           showToast('Receiving address saved. Publishing profile metadata…');
@@ -226,6 +236,16 @@
     }
   }
 
+  async function onSetActiveAdvancedAccount(id: string) {
+    try {
+      await setActiveAdvancedEvmAccount(id);
+      await refreshEvmAddress();
+      showToast('Advanced signing account updated.');
+    } catch (e) {
+      showToast(getInvokeErrorMessage(e, 'Could not switch advanced account.'));
+    }
+  }
+
   async function submitImportKey() {
     if (!importKeyInput.trim()) {
       showToast('Paste a private key (0x + 64 hex).');
@@ -233,11 +253,11 @@
     }
     importKeyBusy = true;
     try {
-      await importEvmAccountRow(importKeyInput.trim(), importSetActive);
+      await importEvmAccountRow(importKeyInput.trim());
       importKeyModalOpen = false;
       importKeyInput = '';
       await refreshEvmAddress();
-      showToast('Imported account saved.');
+      showToast('Advanced account imported. Not used for squad roster or governance.');
     } catch (e) {
       showToast(getInvokeErrorMessage(e, 'Import failed.'));
     } finally {
@@ -251,6 +271,9 @@
   /** Kind 0 / profile default; when unset, receiving matches the signing address. */
   $: profileDefaultEvmAddress = evmAccountList.find((a) => a.isDefaultShared)?.address?.trim() || null;
   $: displayReceivingAddress = profileDefaultEvmAddress ?? evmAddress;
+  $: squadAccountList = squadEvmAccounts(evmAccountList);
+  $: advancedAccountList = advancedEvmAccounts(evmAccountList);
+  $: accountFormIsAdvanced = accountFormPurpose === 'advanced';
 </script>
 
 <div class="wallet-view" aria-labelledby="wallet-view-title">
@@ -294,41 +317,31 @@
     {/if}
 
     {#if accountNpub}
-      <section class="wallet-view-section" aria-labelledby="wallet-accounts-heading">
+      <section class="wallet-view-section" aria-labelledby="wallet-squad-accounts-heading">
         <div class="wallet-view-section-head">
-          <h2 id="wallet-accounts-heading" class="wallet-view-h2">EVM Accounts</h2>
+          <h2 id="wallet-squad-accounts-heading" class="wallet-view-h2">Squad accounts</h2>
           <div class="wallet-view-account-actions">
             <button
               type="button"
               class="wallet-view-btn wallet-view-btn-secondary"
               disabled={!evmAddress}
-              on:click={openAddAccountModal}
+              on:click={() => openAddAccountModal('squad')}
             >
-              Add new EVM account
-            </button>
-            <button
-              type="button"
-              class="wallet-view-btn"
-              disabled={!evmAddress}
-              on:click={() => {
-                importKeyModalOpen = true;
-              }}
-            >
-              Import private key
+              Add squad account
             </button>
           </div>
         </div>
         <p class="wallet-view-hint">
-          Extra addresses are derived from your recovery phrase using standard Ethereum paths. Imported keys are not covered by that phrase.
-          Treasury and Safe deploy require a derived account (from your phrase) as the active signer, not an imported key.
+          Squad keys power Send, DM wallet, squad roster shares, treasury deploy, and governance. Derived from your recovery phrase.
+          Only derived squad accounts can be the active signer or profile receiving address.
         </p>
-        {#if accountsLoading && evmAccountList.length === 0}
+        {#if accountsLoading && squadAccountList.length === 0 && advancedAccountList.length === 0}
           <p class="wallet-view-empty">Loading accounts…</p>
-        {:else if evmAccountList.length === 0}
-          <p class="wallet-view-empty">No accounts yet. Unlock your wallet or wait for sync.</p>
+        {:else if squadAccountList.length === 0}
+          <p class="wallet-view-empty">No squad accounts yet. Unlock your wallet or add one from your recovery phrase.</p>
         {:else}
           <ul class="wallet-view-account-list">
-            {#each evmAccountList as acc (acc.id)}
+            {#each squadAccountList as acc (acc.id)}
               <li class="wallet-view-account-row" class:wallet-view-account-active={acc.isActive}>
                 <label class="wallet-view-account-select">
                   <input
@@ -360,8 +373,107 @@
                     type="button"
                     class="wallet-view-account-more"
                     disabled={accountsLoading}
-                    aria-label="Edit account name and roles"
+                    aria-label="Edit squad account"
                     title="Edit name, signing address, receiving address"
+                    on:click={() => openEditAccountModal(acc)}
+                  >
+                    …
+                  </button>
+                  <button
+                    type="button"
+                    class="wallet-view-account-copy-icon-btn"
+                    disabled={accountsLoading || !acc.address?.trim()}
+                    aria-label="Copy address to clipboard"
+                    title="Copy address"
+                    on:click|stopPropagation={() => copyAccountAddress(acc.address)}
+                  >
+                    <svg
+                      class="wallet-view-account-copy-svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+
+      <section class="wallet-view-section" aria-labelledby="wallet-advanced-accounts-heading">
+        <div class="wallet-view-section-head">
+          <h2 id="wallet-advanced-accounts-heading" class="wallet-view-h2">Advanced accounts</h2>
+          <div class="wallet-view-account-actions">
+            <button
+              type="button"
+              class="wallet-view-btn wallet-view-btn-secondary"
+              disabled={!evmAddress}
+              on:click={() => openAddAccountModal('advanced')}
+            >
+              Add advanced account
+            </button>
+            <button
+              type="button"
+              class="wallet-view-btn"
+              disabled={!evmAddress}
+              on:click={() => {
+                importKeyModalOpen = true;
+              }}
+            >
+              Import private key
+            </button>
+          </div>
+        </div>
+        <p class="wallet-view-hint">
+          Advanced keys are for experimental contract calls (Phase H). They are never squad roster identity, never governance signers,
+          and never the profile receiving address. Imported keys are always advanced-purpose.
+        </p>
+        {#if advancedAccountList.length === 0}
+          <p class="wallet-view-empty">No advanced accounts. Import a private key or derive an advanced-only address.</p>
+        {:else}
+          <ul class="wallet-view-account-list">
+            {#each advancedAccountList as acc (acc.id)}
+              <li class="wallet-view-account-row" class:wallet-view-account-active={acc.isActiveAdvanced}>
+                <label class="wallet-view-account-select">
+                  <input
+                    type="radio"
+                    name="active_advanced_evm_account"
+                    checked={acc.isActiveAdvanced}
+                    disabled={accountsLoading}
+                    on:change={() => onSetActiveAdvancedAccount(acc.id)}
+                  />
+                  <span class="wallet-view-account-meta">
+                    <span class="wallet-view-account-scheme">{evmAccountSchemeLabel(acc.scheme)}</span>
+                    <span class="wallet-view-account-badge">{evmAccountPurposeLabel(acc.purpose)}</span>
+                    {#if acc.hdIndex != null}
+                      <span class="wallet-view-account-idx">#{acc.hdIndex}</span>
+                    {/if}
+                    {#if acc.label?.trim()}
+                      <span class="wallet-view-account-name">· {acc.label.trim()}</span>
+                    {/if}
+                  </span>
+                </label>
+                <code class="wallet-view-account-addr" title={acc.address}>{shortAddr(acc.address)}</code>
+                <div class="wallet-view-account-tools">
+                  {#if acc.isActiveAdvanced}
+                    <span class="wallet-view-account-badge">Advanced signer</span>
+                  {/if}
+                  <button
+                    type="button"
+                    class="wallet-view-account-more"
+                    disabled={accountsLoading}
+                    aria-label="Edit advanced account name"
+                    title="Edit display name"
                     on:click={() => openEditAccountModal(acc)}
                   >
                     …
@@ -503,12 +615,29 @@
   ></div>
   <div class="wallet-view-modal" role="dialog" aria-labelledby="account-form-title" aria-modal="true">
     <h2 id="account-form-title" class="wallet-view-h2">
-      {accountFormMode === 'add' ? 'Add EVM account' : 'Edit EVM account'}
+      {#if accountFormMode === 'add'}
+        {accountFormIsAdvanced ? 'Add advanced account' : 'Add squad account'}
+      {:else if accountFormIsAdvanced}
+        Edit advanced account
+      {:else}
+        Edit squad account
+      {/if}
     </h2>
     {#if accountFormMode === 'add'}
-      <p class="wallet-view-hint">
-        Creates a new address from your recovery phrase. Name is optional and only stored on this device.
-      </p>
+      {#if accountFormIsAdvanced}
+        <p class="wallet-view-hint wallet-view-hint-warn">
+          Advanced accounts are not used for squad roster, governance, treasury deploy, or your profile receiving address.
+        </p>
+        <p class="wallet-view-hint">
+          Creates a new derived address from your recovery phrase, tagged advanced-only.
+        </p>
+      {:else}
+        <p class="wallet-view-hint">
+          Creates a new squad address from your recovery phrase. Name is optional and only stored on this device.
+        </p>
+      {/if}
+    {:else if accountFormIsAdvanced}
+      <p class="wallet-view-hint">Update the display name. Advanced accounts cannot be squad signers or receiving addresses.</p>
     {:else}
       <p class="wallet-view-hint">
         Update the display name and whether this account is the signer or published receiving address. Name is only stored on this device.
@@ -524,14 +653,16 @@
       bind:value={accountFormLabel}
       disabled={accountFormBusy}
     />
-    <label class="wallet-view-import-check">
-      <input type="checkbox" bind:checked={accountFormSetSigning} disabled={accountFormBusy} />
-      Use as signing address (Send, balances, DM wallet)
-    </label>
-    <label class="wallet-view-import-check">
-      <input type="checkbox" bind:checked={accountFormSetReceiving} disabled={accountFormBusy} />
-      Use as receiving address (profile / Kind 0; republishes your profile)
-    </label>
+    {#if !accountFormIsAdvanced}
+      <label class="wallet-view-import-check">
+        <input type="checkbox" bind:checked={accountFormSetSigning} disabled={accountFormBusy} />
+        Use as signing address (Send, balances, DM wallet)
+      </label>
+      <label class="wallet-view-import-check">
+        <input type="checkbox" bind:checked={accountFormSetReceiving} disabled={accountFormBusy} />
+        Use as receiving address (profile / Kind 0; republishes your profile)
+      </label>
+    {/if}
     <div class="wallet-view-modal-actions">
       <button
         type="button"
@@ -563,7 +694,10 @@
     }}
   ></div>
   <div class="wallet-view-modal" role="dialog" aria-labelledby="import-pk-title" aria-modal="true">
-    <h2 id="import-pk-title" class="wallet-view-h2">Import EVM private key</h2>
+    <h2 id="import-pk-title" class="wallet-view-h2">Import advanced private key</h2>
+    <p class="wallet-view-hint wallet-view-hint-warn">
+      Imported keys are always advanced-purpose. They cannot be squad signers, roster addresses, or profile receiving addresses.
+    </p>
     <p class="wallet-view-hint">
       Paste a standalone Ethereum private key (32-byte secret). It is encrypted like your other keys. Not recoverable from your recovery phrase.
     </p>
@@ -574,10 +708,6 @@
       bind:value={importKeyInput}
       disabled={importKeyBusy}
     ></textarea>
-    <label class="wallet-view-import-check">
-      <input type="checkbox" bind:checked={importSetActive} disabled={importKeyBusy} />
-      Use this account as the active signer after import
-    </label>
     <div class="wallet-view-modal-actions">
       <button
         type="button"
@@ -723,6 +853,10 @@
     font-size: 0.8125rem;
     line-height: 1.5;
     color: var(--text-muted);
+  }
+
+  .wallet-view-hint-warn {
+    color: var(--text-primary);
   }
 
   .wallet-view-toggle-list {
