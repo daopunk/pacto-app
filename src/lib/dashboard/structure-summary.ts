@@ -32,8 +32,12 @@ function governanceChainDisplayName(key: SupportedChainId): string {
   switch (key) {
     case 'mainnet':
       return 'Ethereum';
+    case 'arbitrum':
+      return 'Arbitrum';
     case 'optimism':
       return 'Optimism';
+    case 'gnosis':
+      return 'Gnosis';
     case 'sepolia':
       return 'Sepolia';
   }

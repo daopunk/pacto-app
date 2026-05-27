@@ -31,7 +31,12 @@ export function getPreferredNetworkDisplayName(id: PreferredNetworkId): string {
 
 /** Options for Settings edit dropdown (Arbitrum first as product default). */
 export function listPreferredNetworkOptions(): { id: PreferredNetworkId; label: string }[] {
-  return WALLET_ASSETS_CHAIN_IDS.map((id) => ({
+  const ids = [...WALLET_ASSETS_CHAIN_IDS].sort((a, b) => {
+    if (a === DEFAULT_PREFERRED_NETWORK) return -1;
+    if (b === DEFAULT_PREFERRED_NETWORK) return 1;
+    return 0;
+  });
+  return ids.map((id) => ({
     id,
     label: id === 'arbitrum' ? `${getWalletNetworkDisplayName(id)} (recommended)` : getWalletNetworkDisplayName(id),
   }));

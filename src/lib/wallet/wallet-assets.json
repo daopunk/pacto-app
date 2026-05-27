@@ -1,5 +1,5 @@
 {
-  "$comment": "ETH native and USDC/USDT on Arbitrum, Ethereum, Optimism, and Sepolia. Re-verify Sepolia USDT on Etherscan before production-like testing; testnet deployments can change.",
+  "$comment": "Native gas + USDC/USDT on Arbitrum, Ethereum, Gnosis, Optimism, and Sepolia. Re-verify Sepolia USDT on Etherscan before production-like testing; testnet deployments can change.",
   "version": 1,
   "networks": {
     "arbitrum": {
@@ -23,7 +23,7 @@
     },
     "mainnet": {
       "viemChainKey": "mainnet",
-      "displayName": "Ethereum mainnet",
+      "displayName": "Ethereum",
       "explorerTxPath": "https://etherscan.io/tx/",
       "native": {
         "symbol": "ETH",
@@ -55,6 +55,25 @@
         },
         "USDT": {
           "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+          "decimals": 6
+        }
+      }
+    },
+    "gnosis": {
+      "viemChainKey": "gnosis",
+      "displayName": "Gnosis",
+      "explorerTxPath": "https://gnosisscan.io/tx/",
+      "native": {
+        "symbol": "xDAI",
+        "decimals": 18
+      },
+      "tokens": {
+        "USDC": {
+          "address": "0xDDAfbb505ad214D7b80b1fd83009367855f4BE58",
+          "decimals": 6
+        },
+        "USDT": {
+          "address": "0x4ECaBa5870353815aAec567b667cbF7856AEB2ad",
           "decimals": 6
         }
       }

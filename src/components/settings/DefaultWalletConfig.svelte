@@ -109,36 +109,36 @@
 </script>
 
 <section class="dwc" aria-labelledby="wallet-default-config-heading">
-  <div class="dwc-head">
-    <h2 id="wallet-default-config-heading" class="dwc-title">Default wallet config</h2>
+  <h2 id="wallet-default-config-heading" class="dwc-title">Default wallet config</h2>
+
+  <p class="dwc-hint">
+    Preferred network, signing address, and published receiving address for squad operations and your profile.
+  </p>
+
+  <div class="dwc-summary">
+    <dl class="dwc-summary-list">
+      <div class="dwc-summary-row">
+        <dt>Preferred network</dt>
+        <dd>{preferredNetworkLabel}</dd>
+      </div>
+      <div class="dwc-summary-row">
+        <dt>Signer</dt>
+        <dd><code>{shortAddr(signerAddress)}</code></dd>
+      </div>
+      <div class="dwc-summary-row">
+        <dt>Receiver</dt>
+        <dd><code>{shortAddr(receiverAddress)}</code></dd>
+      </div>
+    </dl>
     <button
       type="button"
-      class="dwc-btn dwc-btn-secondary"
+      class="dwc-btn dwc-btn-secondary dwc-summary-edit"
       disabled={accountsLoading || squadAccounts.length === 0}
       on:click={openEdit}
     >
       Edit
     </button>
   </div>
-
-  <p class="dwc-hint">
-    Preferred network, signing address, and published receiving address for squad operations and your profile.
-  </p>
-
-  <dl class="dwc-summary">
-    <div class="dwc-summary-row">
-      <dt>Preferred network</dt>
-      <dd>{preferredNetworkLabel}</dd>
-    </div>
-    <div class="dwc-summary-row">
-      <dt>Signer</dt>
-      <dd><code>{shortAddr(signerAddress)}</code></dd>
-    </div>
-    <div class="dwc-summary-row">
-      <dt>Receiver</dt>
-      <dd><code>{shortAddr(receiverAddress)}</code></dd>
-    </div>
-  </dl>
 
   {#if squadAccounts.length === 0 && !accountsLoading}
     <p class="dwc-hint dwc-hint-tight">Add a squad account below before editing defaults.</p>
@@ -203,16 +203,8 @@
     margin-bottom: 8px;
   }
 
-  .dwc-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 8px;
-  }
-
   .dwc-title {
-    margin: 0;
+    margin: 0 0 8px;
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-primary);
@@ -235,16 +227,29 @@
     border: 1px solid var(--border-subtle);
     border-radius: 10px;
     background: var(--bg-elevated);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: minmax(120px, 34%) 1fr auto;
+    column-gap: 12px;
+    row-gap: 12px;
+    align-items: center;
+  }
+
+  .dwc-summary-list {
+    margin: 0;
+    display: contents;
   }
 
   .dwc-summary-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 38%) 1fr;
-    gap: 12px;
-    align-items: baseline;
+    display: contents;
+  }
+
+  .dwc-summary-edit {
+    grid-column: 3;
+    grid-row: 1 / span 3;
+    align-self: start;
+    justify-self: end;
+    flex-shrink: 0;
+    padding: 8px 14px;
   }
 
   .dwc-summary-row dt {

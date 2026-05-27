@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { WALLET_ASSETS_CHAIN_IDS, getWalletNetworkDisplayName } from '../../lib/wallet/assets';
+  import { WALLET_ASSETS_CHAIN_IDS, WALLET_CHAIN_GROUPS, getWalletNetworkDisplayName } from '../../lib/wallet/assets';
   import type { SupportedChainId } from '../../lib/wallet/chains';
   import {
     DEFAULT_PREFERRED_NETWORK,
@@ -8,7 +8,18 @@
     type PreferredNetworkId,
   } from '../../lib/wallet/preferred-network';
   import type { WatchedErc20Row } from '../../lib/wallet/watched-tokens';
+  import {
+    addPersonalRpc,
+    formatRpcDisplay,
+    listDefaultRpcOptions,
+    listPersonalRpcs,
+    loadDefaultRpc,
+    removePersonalRpc,
+    saveDefaultRpc,
+    walletRpcPrefsTick,
+  } from '../../lib/wallet/rpc-prefs';
   import { openExternalUrl } from '../../lib/utils/open-external';
+  import { showToast } from '../../stores/toast';
 
   export let accountNpub: string | null = null;
   export let enabledSet: Set<SupportedChainId>;
@@ -22,11 +33,19 @@
   let tokenFilterInitializedFor: string | null = null;
   let lastPreferred: PreferredNetworkId = DEFAULT_PREFERRED_NETWORK;
   let preferredNetwork: PreferredNetworkId = DEFAULT_PREFERRED_NETWORK;
+  let rpcNetworkFilter: SupportedChainId = DEFAULT_PREFERRED_NETWORK;
+  let rpcFilterInitializedFor: string | null = null;
+  let personalRpcs: string[] = [];
+  let defaultRpcOptions: ReturnType<typeof listDefaultRpcOptions> = [];
+  let selectedDefaultRpc = '';
+  let newRpcUrl = '';
+  let addRpcError: string | null = null;
 
   $: enabledChainIdsOrdered = WALLET_ASSETS_CHAIN_IDS.filter((id) => enabledSet.has(id));
 
   $: {
     void $walletPreferredNetworkTick;
+    void $walletRpcPrefsTick;
     preferredNetwork = accountNpub ? loadPreferredNetwork(accountNpub) : DEFAULT_PREFERRED_NETWORK;
 
     if (accountNpub && accountNpub !== tokenFilterInitializedFor) {
@@ -39,8 +58,18 @@
       }
       lastPreferred = preferredNetwork;
     }
+
+    if (accountNpub && accountNpub !== rpcFilterInitializedFor) {
+      rpcFilterInitializedFor = accountNpub;
+      rpcNetworkFilter = preferredNetwork;
+    } else if (preferredNetwork !== lastPreferred && rpcNetworkFilter === lastPreferred) {
+      rpcNetworkFilter = preferredNetwork;
+    }
   }
 
+  $: if (!enabledSet.has(rpcNetworkFilter)) {
+    rpcNetworkFilter = preferredNetwork;
+  }
   $: if (tokenNetworkFilter !== 'all' && !enabledSet.has(tokenNetworkFilter)) {
     tokenNetworkFilter = 'all';
   }
@@ -51,41 +80,78 @@
       : watchedRows.filter((row) => row.network === tokenNetworkFilter);
 
   const ALCHEMY_SIGNUP_URL = 'https://www.alchemy.com/';
-  const RPC_DOCS_URL = import.meta.env.VITE_WALLET_RPC_DOCS_URL as string | undefined;
+  const POCKET_SIGNUP_URL = 'https://pocket.network/';
 
-  function openRpcDocs() {
-    const u = typeof RPC_DOCS_URL === 'string' ? RPC_DOCS_URL.trim() : '';
-    if (u.startsWith('http://') || u.startsWith('https://')) {
-      openExternalUrl(u);
-    }
+  $: if (accountNpub) {
+    void $walletRpcPrefsTick;
+    personalRpcs = listPersonalRpcs(accountNpub, rpcNetworkFilter);
+    defaultRpcOptions = listDefaultRpcOptions(accountNpub, rpcNetworkFilter);
+    selectedDefaultRpc = loadDefaultRpc(accountNpub, rpcNetworkFilter) ?? '';
+  } else {
+    personalRpcs = [];
+    defaultRpcOptions = [];
+    selectedDefaultRpc = '';
   }
 
   function openAlchemySignup() {
     openExternalUrl(ALCHEMY_SIGNUP_URL);
   }
+
+  function openPocketSignup() {
+    openExternalUrl(POCKET_SIGNUP_URL);
+  }
+
+  function onDefaultRpcChange() {
+    if (!accountNpub) return;
+    saveDefaultRpc(accountNpub, rpcNetworkFilter, selectedDefaultRpc || null);
+  }
+
+  function submitAddRpc() {
+    addRpcError = null;
+    if (!accountNpub) return;
+    const result = addPersonalRpc(accountNpub, rpcNetworkFilter, newRpcUrl);
+    if (!result.ok) {
+      addRpcError = result.error;
+      return;
+    }
+    newRpcUrl = '';
+    showToast('Personal RPC added.');
+  }
+
+  function onRemovePersonalRpc(url: string) {
+    if (!accountNpub) return;
+    removePersonalRpc(accountNpub, rpcNetworkFilter, url);
+    showToast('Personal RPC removed.');
+  }
 </script>
 
-<section class="evm-extras-section" aria-labelledby="wallet-networks-heading">
+<section class="evm-extras-section evm-extras-section--first" aria-labelledby="wallet-networks-heading">
   <h2 id="wallet-networks-heading" class="evm-extras-h2">Enabled chains</h2>
   <p class="evm-extras-hint">
     Enable chains you use. At least one must stay on. Affects Send, balances, and the DM wallet sidebar.
   </p>
-  <ul class="evm-extras-toggle-list">
-    {#each WALLET_ASSETS_CHAIN_IDS as chain (chain)}
-      <li>
-        <label class="evm-extras-toggle">
-          <input
-            type="checkbox"
-            checked={enabledSet.has(chain)}
-            disabled={enabledSet.has(chain) && enabledSet.size <= 1}
-            on:change={() => onToggleChain(chain)}
-          />
-          <span>{getWalletNetworkDisplayName(chain)}</span>
-          <span class="evm-extras-chain-id">{chain}</span>
-        </label>
-      </li>
+  <div class="evm-extras-chain-groups">
+    {#each WALLET_CHAIN_GROUPS as group (group.id)}
+      <div class="evm-extras-chain-group">
+        <h3 class="evm-extras-chain-group-label">{group.label}</h3>
+        <ul class="evm-extras-toggle-list">
+          {#each group.chains as chain (chain)}
+            <li>
+              <label class="evm-extras-toggle">
+                <input
+                  type="checkbox"
+                  checked={enabledSet.has(chain)}
+                  disabled={enabledSet.has(chain) && enabledSet.size <= 1}
+                  on:change={() => onToggleChain(chain)}
+                />
+                <span>{getWalletNetworkDisplayName(chain)}{chain === DEFAULT_PREFERRED_NETWORK ? ' (recommended)' : ''}</span>
+              </label>
+            </li>
+          {/each}
+        </ul>
+      </div>
     {/each}
-  </ul>
+  </div>
 </section>
 
 <section class="evm-extras-section" aria-labelledby="wallet-tokens-heading">
@@ -100,7 +166,7 @@
       <option value="all">All networks</option>
       {#each enabledChainIdsOrdered as chainId (chainId)}
         <option value={chainId}>
-          {getWalletNetworkDisplayName(chainId)}{chainId === preferredNetwork ? ' (preferred)' : ''}
+          {getWalletNetworkDisplayName(chainId)}
         </option>
       {/each}
     </select>
@@ -131,20 +197,96 @@
 <section class="evm-extras-section" aria-labelledby="wallet-rpc-heading">
   <h2 id="wallet-rpc-heading" class="evm-extras-h2">RPC endpoints</h2>
   <p class="evm-extras-hint">
-    Custom RPC URLs use environment variables per chain (for example
-    <code class="evm-extras-code">VITE_WALLET_RPC_ARBITRUM</code>). See
-    <code class="evm-extras-code">docs/wallet/RPC_AND_VIEM_ARCHITECTURE.md</code>
-    in the repository for operator setup.
+    Choose which JSON-RPC endpoint Pacto uses for balances, reads, and on-chain actions on each network.
   </p>
-  <div class="evm-extras-rpc-actions">
-    <button type="button" class="evm-extras-btn evm-extras-btn-secondary" on:click={openAlchemySignup}>
-      Get an Alchemy API key
-    </button>
-    {#if RPC_DOCS_URL && (RPC_DOCS_URL.startsWith('http://') || RPC_DOCS_URL.startsWith('https://'))}
-      <button type="button" class="evm-extras-btn evm-extras-btn-secondary" on:click={openRpcDocs}>
-        Open RPC setup guide
-      </button>
+
+  <div class="evm-extras-token-filters">
+    <label class="evm-extras-filter-label" for="evm-rpc-network-select">Network</label>
+    <select id="evm-rpc-network-select" class="evm-extras-select" bind:value={rpcNetworkFilter}>
+      {#each enabledChainIdsOrdered as chainId (chainId)}
+        <option value={chainId}>
+          {getWalletNetworkDisplayName(chainId)}
+        </option>
+      {/each}
+    </select>
+  </div>
+
+  <div class="evm-extras-rpc-block">
+    <h3 class="evm-extras-h3">Personal RPC</h3>
+    {#if personalRpcs.length === 0}
+      <p class="evm-extras-empty evm-extras-rpc-empty">
+        No personal RPC yet.
+        <button type="button" class="evm-extras-inline-link" on:click={openAlchemySignup}>
+          Get a free RPC
+        </button>
+        from a provider below, then paste it under Add RPC.
+      </p>
+    {:else}
+      <ul class="evm-extras-rpc-list">
+        {#each personalRpcs as url (url)}
+          <li class="evm-extras-rpc-row">
+            <code class="evm-extras-rpc-url" title={url}>{formatRpcDisplay(url)}</code>
+            <button type="button" class="evm-extras-btn-text" on:click={() => onRemovePersonalRpc(url)}>
+              Remove
+            </button>
+          </li>
+        {/each}
+      </ul>
     {/if}
+  </div>
+
+  <div class="evm-extras-rpc-block">
+    <h3 class="evm-extras-h3">Add RPC</h3>
+    <div class="evm-extras-rpc-add">
+      <input
+        id="evm-add-rpc-input"
+        class="evm-extras-input"
+        type="url"
+        inputmode="url"
+        autocomplete="off"
+        placeholder="https://…"
+        bind:value={newRpcUrl}
+        on:keydown={(e) => e.key === 'Enter' && submitAddRpc()}
+      />
+      <button type="button" class="evm-extras-btn" on:click={submitAddRpc}>Add</button>
+    </div>
+    {#if addRpcError}
+      <p class="evm-extras-field-error" role="alert">{addRpcError}</p>
+    {/if}
+  </div>
+
+  <div class="evm-extras-rpc-block">
+    <label class="evm-extras-filter-label" for="evm-default-rpc-select">Default RPC</label>
+    <select
+      id="evm-default-rpc-select"
+      class="evm-extras-select evm-extras-select--wide"
+      bind:value={selectedDefaultRpc}
+      on:change={onDefaultRpcChange}
+    >
+      <option value="">Curated defaults (automatic)</option>
+      {#each defaultRpcOptions as opt (opt.value)}
+        <option value={opt.value}>{opt.label}</option>
+      {/each}
+    </select>
+    <p class="evm-extras-field-hint">Includes your personal RPCs and curated public endpoints for this network.</p>
+  </div>
+
+  <div class="evm-extras-rpc-providers">
+    <div class="evm-extras-rpc-providers-head">
+      <h3 class="evm-extras-h3">RPC API Providers</h3>
+      <div class="evm-extras-provider-buttons">
+        <button type="button" class="evm-extras-btn evm-extras-btn-secondary" on:click={openAlchemySignup}>
+          Alchemy
+        </button>
+        <span class="evm-extras-provider-sep" aria-hidden="true">|</span>
+        <button type="button" class="evm-extras-btn evm-extras-btn-secondary" on:click={openPocketSignup}>
+          Pocket
+        </button>
+      </div>
+    </div>
+    <p class="evm-extras-field-hint">
+      These providers offer free subscriptions that have high enough limits for basic squad on-chain activities.
+    </p>
   </div>
 </section>
 
@@ -168,6 +310,10 @@
     margin-bottom: 28px;
     padding-bottom: 24px;
     border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .evm-extras-section--first {
+    padding-top: 24px;
   }
 
   .evm-extras-section--last {
@@ -234,6 +380,147 @@
     outline-offset: 2px;
   }
 
+  .evm-extras-select--wide {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .evm-extras-h3 {
+    margin: 0 0 8px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .evm-extras-rpc-block {
+    margin-bottom: 18px;
+  }
+
+  .evm-extras-rpc-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .evm-extras-rpc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+  }
+
+  .evm-extras-rpc-url {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    word-break: break-all;
+  }
+
+  .evm-extras-rpc-empty {
+    margin: 0;
+  }
+
+  .evm-extras-inline-link {
+    display: inline;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .evm-extras-inline-link:hover {
+    color: var(--accent-hover);
+  }
+
+  .evm-extras-rpc-add {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .evm-extras-input {
+    flex: 1;
+    min-width: 220px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: inherit;
+  }
+
+  .evm-extras-input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .evm-extras-field-error {
+    margin: 8px 0 0;
+    font-size: 0.8125rem;
+    color: var(--danger);
+  }
+
+  .evm-extras-field-hint {
+    margin: 8px 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
+
+  .evm-extras-rpc-providers {
+    margin-top: 8px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .evm-extras-rpc-providers-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .evm-extras-provider-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .evm-extras-provider-sep {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .evm-extras-chain-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .evm-extras-chain-group-label {
+    margin: 0 0 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
   .evm-extras-toggle-list {
     list-style: none;
     margin: 0;
@@ -254,12 +541,6 @@
 
   .evm-extras-toggle input {
     accent-color: var(--accent);
-  }
-
-  .evm-extras-chain-id {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-family: var(--font-mono, ui-monospace, monospace);
   }
 
   .evm-extras-btn {
@@ -286,12 +567,6 @@
 
   .evm-extras-btn-secondary:hover {
     background: var(--bg-hover);
-  }
-
-  .evm-extras-rpc-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
   }
 
   .evm-extras-token-list {
