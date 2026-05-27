@@ -201,7 +201,7 @@ export function userFacingDeploySafeMessage(parsed: WalletOpParsedError | undefi
     return 'Could not submit the transaction. Check your native balance and network connection.';
   }
   if (code === 'RPC_CONNECT') {
-    return "Couldn't reach the RPC. Try again in a moment or set PACTO_WALLET_RPC_* if you use custom endpoints.";
+    return "Couldn't reach the RPC. Try again in a moment or set ALCHEMY_RPC_KEY in `.env` (see `.env.example`).";
   }
   if (code === 'NO_EVM_KEY') {
     return 'No embedded wallet key on this account. Use an account that was created or imported with an EVM wallet.';

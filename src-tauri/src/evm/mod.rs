@@ -25,6 +25,7 @@ pub mod treasury_proposals_read;
 pub mod wallet_chain_config;
 pub mod wallet_ops;
 pub mod wallet_prices;
+pub mod wallet_rpc_providers;
 pub mod wallet_security;
 
 pub use evm_keys::{

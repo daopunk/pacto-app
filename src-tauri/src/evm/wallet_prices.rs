@@ -30,8 +30,7 @@ const SEL_DECIMALS: &str = "0x313ce567";
 const CACHE_TTL: Duration = Duration::from_secs(90);
 const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Default read-only Ethereum RPC for Chainlink calls only (no API keys in repo).
-/// Override with `PACTO_CHAINLINK_PRICE_RPC_URL` or `PACTO_WALLET_RPC_MAINNET`.
+/// Override with `ALCHEMY_RPC_KEY` (Ethereum mainnet host) when set.
 const DEFAULT_ETH_MAINNET_RPC: &str = "https://ethereum.publicnode.com";
 
 #[derive(Clone, Serialize)]
@@ -62,17 +61,8 @@ fn now_ms_epoch() -> i64 {
 }
 
 fn price_rpc_url() -> String {
-    if let Ok(u) = std::env::var("PACTO_CHAINLINK_PRICE_RPC_URL") {
-        let t = u.trim();
-        if !t.is_empty() {
-            return t.to_string();
-        }
-    }
-    if let Ok(u) = std::env::var("PACTO_WALLET_RPC_MAINNET") {
-        let first = u.split(',').map(|s| s.trim()).find(|s| !s.is_empty());
-        if let Some(url) = first {
-            return url.to_string();
-        }
+    if let Some(url) = crate::evm::wallet_rpc_providers::mainnet_provider_rpc_url() {
+        return url;
     }
     DEFAULT_ETH_MAINNET_RPC.to_string()
 }

@@ -4,8 +4,8 @@
 //! token addresses, decimals, explorer URLs, and display names stay aligned with the Svelte/viem
 //! layer. Numeric chain IDs and default RPC URL lists live here (JSON has no chain id field).
 //!
-//! Env: `PACTO_WALLET_RPC_ARBITRUM`, `PACTO_WALLET_RPC_GNOSIS`, `PACTO_WALLET_RPC_MAINNET`, `PACTO_WALLET_RPC_OPTIMISM`, `PACTO_WALLET_RPC_SEPOLIA`
-//! (comma-separated fallbacks). See `docs/wallet/RPC_AND_VIEM_ARCHITECTURE.md`.
+//! Env: `ALCHEMY_RPC_KEY` builds `https://{host}.g.alchemy.com/v2/{key}` per network (see `wallet_rpc_providers.rs`).
+//! Without a key, public defaults apply. See `docs/wallet/RPC_AND_VIEM_ARCHITECTURE.md`.
 
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -64,18 +64,7 @@ fn chain_id_for_key(key: &str) -> Option<u64> {
     }
 }
 
-fn rpc_env_var_for_key(key: &str) -> Option<&'static str> {
-    match key {
-        "arbitrum" => Some("PACTO_WALLET_RPC_ARBITRUM"),
-        "gnosis" => Some("PACTO_WALLET_RPC_GNOSIS"),
-        "mainnet" => Some("PACTO_WALLET_RPC_MAINNET"),
-        "optimism" => Some("PACTO_WALLET_RPC_OPTIMISM"),
-        "sepolia" => Some("PACTO_WALLET_RPC_SEPOLIA"),
-        _ => None,
-    }
-}
-
-/// Defaults aligned with `src/lib/wallet/chains.ts` `DEFAULT_RPC_URLS`.
+/// Defaults aligned with `src/lib/wallet/rpc-catalog.ts` `CURATED_RPC_URLS`.
 fn default_rpc_urls_for_key(key: &str) -> Vec<&'static str> {
     match key {
         "arbitrum" => vec![
@@ -172,19 +161,16 @@ pub fn network_by_key(key: &str) -> Option<&'static WalletNetworkConfig> {
     wallet_networks().iter().find(|n| n.key == k)
 }
 
-/// Resolved RPC URL list: env override or defaults from this module.
+/// Resolved RPC URL list: operator provider key + public fallbacks, or public defaults only.
 pub fn rpc_urls_for(net: &WalletNetworkConfig) -> Vec<String> {
-    if let Some(env_name) = rpc_env_var_for_key(&net.key) {
-        if let Ok(u) = std::env::var(env_name) {
-            let parts: Vec<String> = u
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            if !parts.is_empty() {
-                return parts;
+    if let Some(primary) = crate::evm::wallet_rpc_providers::provider_primary_rpc_url(&net.key) {
+        let mut urls = vec![primary];
+        for fallback in default_rpc_urls_for_key(&net.key) {
+            if !urls.iter().any(|u| u == fallback) {
+                urls.push(fallback.to_string());
             }
         }
+        return urls;
     }
     default_rpc_urls_for_key(&net.key)
         .into_iter()

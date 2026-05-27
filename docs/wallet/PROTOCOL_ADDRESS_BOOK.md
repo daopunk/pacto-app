@@ -31,7 +31,7 @@ Resolution order for each field: **`PACTO_*` env override** (optional) → **JSO
 
 ## RPC stays in env
 
-JSON-RPC URLs are **not** in the address book. Use `VITE_WALLET_RPC_*` / `PACTO_WALLET_RPC_*` — see [CHAIN_CONFIG.md](./CHAIN_CONFIG.md).
+JSON-RPC URLs are **not** in the address book. Set **`ALCHEMY_RPC_KEY`** in `.env` — see [CHAIN_CONFIG.md](./CHAIN_CONFIG.md).
 
 ## Adding a network
 

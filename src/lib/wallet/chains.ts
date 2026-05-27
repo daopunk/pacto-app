@@ -27,39 +27,18 @@ export const DEFAULT_CHAIN_ID: SupportedChainId = 'sepolia';
 const RPC_TIMEOUT_MS = 20_000;
 
 import { resolveUserRpcUrls } from './rpc-prefs';
-import { getCuratedRpcUrlsForChain } from './rpc-catalog';
-
-const VITE_RPC_ENV_KEYS: Record<SupportedChainId, keyof ImportMetaEnv> = {
-  arbitrum: 'VITE_WALLET_RPC_ARBITRUM',
-  gnosis: 'VITE_WALLET_RPC_GNOSIS',
-  mainnet: 'VITE_WALLET_RPC_MAINNET',
-  optimism: 'VITE_WALLET_RPC_OPTIMISM',
-  sepolia: 'VITE_WALLET_RPC_SEPOLIA',
-};
-
-function parseCommaSeparatedUrls(value: unknown): string[] | null {
-  if (value == null) return null;
-  const s = String(value).trim();
-  if (!s) return null;
-  const parts = s
-    .split(',')
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0);
-  return parts.length > 0 ? parts : null;
-}
+import { resolveProviderRpcUrls } from './rpc-providers';
 
 /** Public RPC catalog for Settings default picker (no env or user overrides). */
 export { getCuratedRpcUrlsForChain } from './rpc-catalog';
 
 /**
- * Resolved RPC URL list for a chain: `VITE_WALLET_RPC_*` if set (comma-separated),
+ * Resolved RPC URL list for a chain: operator provider key (e.g. Alchemy) if set,
  * otherwise user default/personal prefs, then curated public defaults.
  */
 export function getEffectiveRpcUrlsForChain(chainId: SupportedChainId): string[] {
-  const key = VITE_RPC_ENV_KEYS[chainId];
-  const raw = import.meta.env[key];
-  const fromEnv = parseCommaSeparatedUrls(raw);
-  if (fromEnv) return fromEnv;
+  const fromProvider = resolveProviderRpcUrls(chainId);
+  if (fromProvider.length > 0) return fromProvider;
   return resolveUserRpcUrls(chainId);
 }
 

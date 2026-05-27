@@ -4,8 +4,8 @@ Single checklist for manual Sepolia verification on **desktop (Tauri)**. Executi
 
 ## Shared prerequisites
 
-- [ ] Copy [`.env.example`](../../.env.example) → `.env` (or export before `tauri dev`) for **RPC URLs** only.
-- [ ] Set **`PACTO_WALLET_RPC_SEPOLIA`** (and/or `VITE_WALLET_RPC_SEPOLIA`). Protocol factory addresses ship in [`pacto-protocol-addresses.json`](../../src/lib/evm/pacto-protocol-addresses.json) — see [`PROTOCOL_ADDRESS_BOOK.md`](./PROTOCOL_ADDRESS_BOOK.md).
+- [ ] Copy [`.env.example`](../../.env.example) → `.env` (or export before `tauri dev`) for **RPC**.
+- [ ] Set **`ALCHEMY_RPC_KEY`** (builds Sepolia and other chain URLs automatically). Protocol factory addresses ship in [`pacto-protocol-addresses.json`](../../src/lib/evm/pacto-protocol-addresses.json) — see [`PROTOCOL_ADDRESS_BOOK.md`](./PROTOCOL_ADDRESS_BOOK.md).
 - [ ] Logged-in profile with **Sepolia ETH**; wallet unlocked.
 - [ ] Test squad/network with **`#announcements`** and **`#inbox`**; use a **throwaway `parentId`** (one sponsor clone per parent on-chain).
 - [ ] Devtools helpers live in `src/lib/governance/api.ts`, `src/lib/wallet/backend-wallet.ts` — prefer in-app wizards when available.
