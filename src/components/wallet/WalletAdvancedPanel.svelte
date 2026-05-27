@@ -29,6 +29,8 @@
   import { evmSendAdvancedContractCall, listSquadInfraCanonicalRefs } from '../../lib/evm/advanced-write';
 
   export let enabledChainIds: SupportedChainId[] = [...WALLET_ASSETS_CHAIN_IDS];
+  /** When true, show Settings cross-links (external wallet disclaimer). */
+  export let embeddedInSettings = false;
 
   let advancedAccounts: EvmAccountRow[] = [];
   let activeAdvancedAddress: string | null = null;
@@ -196,6 +198,9 @@
   <div class="wallet-advanced-banner" role="note">
     <strong>Advanced — not linked to any squad.</strong>
     Opaque contract calls use your advanced-purpose key only. No roster shares, governance announces, or dashboard entries.
+    {#if embeddedInSettings}
+      For importing keys into MetaMask or similar, see <strong>Using this address in an external wallet</strong> above.
+    {/if}
   </div>
 
   <h2 id="wallet-advanced-heading" class="wallet-advanced-h2">Advanced contract call</h2>

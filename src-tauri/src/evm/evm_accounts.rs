@@ -36,18 +36,6 @@ pub struct EvmAccountRow {
     pub is_active_advanced: bool,
 }
 
-/// One row for export / backup (includes decrypted private key).
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EvmAccountExportRow {
-    pub id: String,
-    pub scheme: String,
-    pub hd_index: Option<u32>,
-    pub address: String,
-    pub label: String,
-    pub private_key: String,
-}
-
 fn normalize_purpose(raw: &str) -> Result<String, String> {
     match raw.trim().to_ascii_lowercase().as_str() {
         PURPOSE_SQUAD => Ok(PURPOSE_SQUAD.to_string()),
@@ -598,24 +586,18 @@ pub async fn list_evm_accounts<R: Runtime>(handle: AppHandle<R>) -> Result<Vec<E
         .collect())
 }
 
-pub(crate) async fn export_all_evm_account_keys_plaintext<R: Runtime>(
+#[tauri::command]
+pub async fn export_evm_account_key_plaintext<R: Runtime>(
     handle: AppHandle<R>,
-) -> Result<Vec<EvmAccountExportRow>, String> {
+    account_id: String,
+) -> Result<String, String> {
     ensure_ready(handle.clone()).await?;
-    let accounts = list_evm_accounts(handle.clone()).await?;
-    let mut out = Vec::with_capacity(accounts.len());
-    for acc in accounts {
-        let (private_key, _, _) = resolve_private_key_hex_for_account_id(&handle, &acc.id).await?;
-        out.push(EvmAccountExportRow {
-            id: acc.id,
-            scheme: acc.scheme,
-            hd_index: acc.hd_index,
-            address: acc.address,
-            label: acc.label,
-            private_key,
-        });
+    let id = account_id.trim();
+    if id.is_empty() {
+        return Err("Account id is required.".to_string());
     }
-    Ok(out)
+    let (private_key, _, _) = resolve_private_key_hex_for_account_id(&handle, id).await?;
+    Ok(private_key)
 }
 
 #[tauri::command]

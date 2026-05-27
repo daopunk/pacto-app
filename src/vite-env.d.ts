@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_WALLET_RPC_MAINNET?: string;
   readonly VITE_WALLET_RPC_OPTIMISM?: string;
   readonly VITE_WALLET_RPC_SEPOLIA?: string;
+  readonly VITE_WALLET_RPC_DOCS_URL?: string;
 }
 
 interface ImportMeta {

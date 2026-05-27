@@ -8,8 +8,9 @@
     walletUiEnabledChainsTick,
     defaultWalletEnabledChains,
   } from '../../lib/wallet/wallet-ui-prefs';
+  import { DEFAULT_PREFERRED_NETWORK } from '../../lib/wallet/preferred-network';
   import type { SupportedChainId } from '../../lib/wallet/chains';
-  import { WALLET_ASSETS_CHAIN_IDS, getWalletNetworkDisplayName } from '../../lib/wallet/assets';
+  import { WALLET_ASSETS_CHAIN_IDS } from '../../lib/wallet/assets';
   import {
     loadWatchedErc20Rows,
     saveWatchedErc20Rows,
@@ -18,7 +19,6 @@
   import WalletImportTokensModal from './WalletImportTokensModal.svelte';
   import WalletHomeSendModal from './WalletHomeSendModal.svelte';
   import WalletReceiveModal from './WalletReceiveModal.svelte';
-  import { openExternalUrl } from '../../lib/utils/open-external';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { showToast } from '../../stores/toast';
   import {
@@ -35,6 +35,7 @@
   import WalletAdvancedPanel from './WalletAdvancedPanel.svelte';
   import DefaultWalletConfig from '../settings/DefaultWalletConfig.svelte';
   import EvmAccountsSection from '../settings/EvmAccountsSection.svelte';
+  import EvmWalletExtras from '../settings/EvmWalletExtras.svelte';
 
   /** When true, omit the standalone page title (embedded under Settings → EVM). */
   export let embeddedInSettings = false;
@@ -44,6 +45,7 @@
   let receiveOpen = false;
   let watchedRows: WatchedErc20Row[] = [];
   let enabledSet = new Set<SupportedChainId>(defaultWalletEnabledChains());
+  let tokenNetworkFilter: 'all' | SupportedChainId = DEFAULT_PREFERRED_NETWORK;
 
   $: accountNpub = $currentUser?.npub ?? null;
 
@@ -126,15 +128,6 @@
     const next = watchedRows.filter((r) => r.id !== row.id);
     watchedRows = next;
     saveWatchedErc20Rows(accountNpub, next);
-  }
-
-  const RPC_DOCS_URL = import.meta.env.VITE_WALLET_RPC_DOCS_URL as string | undefined;
-
-  function openRpcDocs() {
-    const u = typeof RPC_DOCS_URL === 'string' ? RPC_DOCS_URL.trim() : '';
-    if (u.startsWith('http://') || u.startsWith('https://')) {
-      openExternalUrl(u);
-    }
   }
 
   function resetAccountFormFields() {
@@ -338,85 +331,37 @@
         }}
       />
 
+      <EvmWalletExtras
+        {accountNpub}
+        {enabledSet}
+        {watchedRows}
+        bind:tokenNetworkFilter
+        onToggleChain={toggleChain}
+        onRemoveWatchedRow={removeWatchedRow}
+        onImportTokens={() => {
+          importModalOpen = true;
+        }}
+      />
+
       <div class="wallet-view-section">
-        <WalletAdvancedPanel enabledChainIds={enabledChainsOrdered} />
+        <WalletAdvancedPanel enabledChainIds={enabledChainsOrdered} {embeddedInSettings} />
       </div>
     {/if}
 
-    <section class="wallet-view-section" aria-labelledby="wallet-networks-heading">
-      <h2 id="wallet-networks-heading" class="wallet-view-h2">Networks</h2>
-      <p class="wallet-view-hint">
-        Enable chains you use. At least one must stay on. Affects Send, this view, and the DM wallet sidebar.
-      </p>
-      <ul class="wallet-view-toggle-list">
-        {#each WALLET_ASSETS_CHAIN_IDS as chain (chain)}
-          <li>
-            <label class="wallet-view-toggle">
-              <input
-                type="checkbox"
-                checked={enabledSet.has(chain)}
-                disabled={enabledSet.has(chain) && enabledSet.size <= 1}
-                on:change={() => toggleChain(chain)}
-              />
-              <span>{getWalletNetworkDisplayName(chain)}</span>
-              <span class="wallet-view-chain-id">{chain}</span>
-            </label>
-          </li>
-        {/each}
-      </ul>
-    </section>
-
-    <section class="wallet-view-section" aria-labelledby="wallet-tokens-heading">
-      <div class="wallet-view-section-head">
-        <h2 id="wallet-tokens-heading" class="wallet-view-h2">Tokens to Track</h2>
-        <button type="button" class="wallet-view-btn" on:click={() => (importModalOpen = true)}>Import tokens</button>
-      </div>
-      <p class="wallet-view-hint">Tracked assets appear in Send and in the DM wallet sidebar (per network).</p>
-      {#if watchedRows.length === 0}
-        <p class="wallet-view-empty">No extra tokens yet. Native ETH balances still show when RPCs are available.</p>
-      {:else}
-        <ul class="wallet-view-token-list">
-          {#each watchedRows as row (row.id)}
-            <li class="wallet-view-token-row">
-              <div class="wallet-view-token-meta">
-                <span class="wallet-view-token-sym">{row.symbol}</span>
-                <span class="wallet-view-token-net">{getWalletNetworkDisplayName(row.network)}</span>
-                <code class="wallet-view-token-addr">{row.address.slice(0, 10)}…{row.address.slice(-6)}</code>
-                <span class="wallet-view-token-src">{row.source}</span>
-              </div>
-              <button type="button" class="wallet-view-btn-text" on:click={() => removeWatchedRow(row)}>Remove</button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </section>
-
-    <section class="wallet-view-section" aria-labelledby="wallet-rpc-heading">
-      <h2 id="wallet-rpc-heading" class="wallet-view-h2">RPC endpoints</h2>
-      <p class="wallet-view-hint">
-        Advanced: custom RPC URLs are documented in the repo at
-        <code class="wallet-view-code">docs/wallet/RPC_AND_VIEM_ARCHITECTURE.md</code>
-        (environment variables per chain).
-      </p>
-      {#if RPC_DOCS_URL && (RPC_DOCS_URL.startsWith('http://') || RPC_DOCS_URL.startsWith('https://'))}
-        <button type="button" class="wallet-view-btn wallet-view-btn-secondary" on:click={openRpcDocs}>
-          Open RPC documentation
-        </button>
-      {/if}
-    </section>
-
-    <aside class="wallet-view-alpha" role="note">
-      <strong>Alpha software.</strong>
-      Wallet and key handling have not been reviewed by an independent security audit. Use only funds you can afford to lose. See
-      <code class="wallet-view-code">docs/audits/README.md</code> in the repository.
-    </aside>
+    {#if !embeddedInSettings}
+      <aside class="wallet-view-alpha" role="note">
+        <strong>Alpha software.</strong>
+        Wallet and key handling have not been reviewed by an independent security audit. Use only funds you can afford to lose. See
+        <code class="wallet-view-code">docs/audits/README.md</code> in the repository.
+      </aside>
+    {/if}
   </div>
 </div>
 
 {#if accountNpub}
   <WalletImportTokensModal
     open={importModalOpen}
-    networkScope="all"
+    networkScope={tokenNetworkFilter}
     {accountNpub}
     onClose={() => (importModalOpen = false)}
     onSaved={() => {

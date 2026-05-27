@@ -4444,55 +4444,6 @@ async fn create_account() -> Result<LoginKeyPair, String> {
     })
 }
 
-/// Export account keys (nsec and seed phrase if available)
-#[tauri::command]
-async fn export_keys() -> Result<serde_json::Value, String> {
-    // Try to get nsec from database first
-    let handle = TAURI_APP.get().unwrap();
-    let nsec = if let Some(enc_pkey) = db::get_pkey(handle.clone())? {
-        // Decrypt the nsec
-        match crypto::internal_decrypt(enc_pkey, None).await {
-            Ok(decrypted_nsec) => decrypted_nsec,
-            Err(_) => return Err("Failed to decrypt nsec".to_string()),
-        }
-    } else {
-        return Err("No nsec found in database".to_string());
-    };
-    
-    // Try to get seed phrase from memory first
-    let seed_phrase = if let Some(seed) = mnemonic_seed_get() {
-        Some(seed)
-    } else {
-        // If not in memory, try to get from database
-        if ENCRYPTION_KEY.get().is_some() {
-            match db::get_seed(handle.clone()).await {
-                Ok(Some(seed)) => Some(seed),
-                Ok(None) => None,
-                Err(_) => None,
-            }
-        } else {
-            None
-        }
-    };
-    
-    // Active EVM account (when resolvable): same decryption path as wallet send.
-    let evm_private_key = match evm::evm_accounts::decrypt_active_evm_private_key_plaintext(handle.clone()).await {
-        Ok(k) => Some(k),
-        Err(_) => None,
-    };
-
-    let exported_evm_accounts = evm::evm_accounts::export_all_evm_account_keys_plaintext(handle.clone()).await?;
-
-    let response = serde_json::json!({
-        "nsec": nsec,
-        "seed_phrase": seed_phrase,
-        "evm_private_key": evm_private_key,
-        "evm_accounts": exported_evm_accounts
-    });
-
-    Ok(response)
-}
-
 /// Sign a 32-byte Ethereum hash (hex string) with the stored EVM key.
 /// Returns a 65-byte signature as 0x-prefixed hex (r || s || v) where v is 27 or 28.
 #[tauri::command]
@@ -6426,12 +6377,12 @@ pub fn run() {
             clear_storage,
             load_mls_device_id,
             load_mls_keypackages,
-            export_keys,
             sign_evm_hash,
             evm::wallet_prices::wallet_get_usd_spot_prices,
             evm::wallet_ops::get_wallet_summary,
             evm::wallet_ops::wallet_build_and_send_transaction,
             evm::evm_accounts::list_evm_accounts,
+            evm::evm_accounts::export_evm_account_key_plaintext,
             evm::evm_accounts::add_evm_account,
             evm::evm_accounts::import_evm_account,
             evm::evm_accounts::update_evm_account,

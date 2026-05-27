@@ -15,6 +15,7 @@
   } from '../../lib/wallet/evm-accounts';
   import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
   import { showToast } from '../../stores/toast';
+  import EvmAccountKeyExportModal from './EvmAccountKeyExportModal.svelte';
 
   export let accountNpub: string | null = null;
   export let evmAddress: string | null = null;
@@ -30,6 +31,8 @@
 
   let bindings: EvmAccountSquadBinding[] = [];
   let bindingsLoading = false;
+  let exportAccount: EvmAccountRow | null = null;
+  let exportModalOpen = false;
 
   $: squadList = squadEvmAccounts(evmAccountList);
   $: advancedList = advancedEvmAccounts(evmAccountList);
@@ -82,6 +85,16 @@
 
   function isAdvancedRow(acc: EvmAccountRow): boolean {
     return acc.purpose === 'advanced';
+  }
+
+  function openExportModal(acc: EvmAccountRow) {
+    exportAccount = acc;
+    exportModalOpen = true;
+  }
+
+  function closeExportModal() {
+    exportModalOpen = false;
+    exportAccount = null;
   }
 </script>
 
@@ -239,6 +252,14 @@
               <div class="wallet-view-account-tools">
                 <button
                   type="button"
+                  class="wallet-view-btn-export-key"
+                  disabled={accountsLoading}
+                  on:click={() => openExportModal(acc)}
+                >
+                  Export key
+                </button>
+                <button
+                  type="button"
                   class="wallet-view-account-more"
                   disabled={accountsLoading}
                   aria-label="Edit account name"
@@ -279,6 +300,8 @@
     </ul>
   {/if}
 </section>
+
+<EvmAccountKeyExportModal open={exportModalOpen} account={exportAccount} onClose={closeExportModal} />
 
 <style>
   .evm-section :global(.wallet-view-section-head) {
@@ -388,7 +411,8 @@
   }
 
   .evm-section :global(.wallet-view-account-more),
-  .evm-section :global(.wallet-view-account-copy-icon-btn) {
+  .evm-section :global(.wallet-view-account-copy-icon-btn),
+  .evm-section :global(.wallet-view-btn-export-key) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -410,6 +434,14 @@
     width: 2rem;
     height: 2rem;
     padding: 0;
+  }
+
+  .evm-section :global(.wallet-view-btn-export-key) {
+    min-height: 2rem;
+    padding: 0 10px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   .evm-accounts-list {
