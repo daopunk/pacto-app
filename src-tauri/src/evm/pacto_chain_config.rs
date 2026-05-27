@@ -38,6 +38,7 @@ pub struct PactoGovDeployAddresses {
     pub master_mutiny: Address,
     pub master_treasury_authority: Address,
     pub master_squad_admin_impl: Address,
+    pub master_squad_admin_ext_impl: Address,
     pub nave_pirata_registry: Option<Address>,
     pub hats: Option<Address>,
     pub role_hat_clones_factory: Option<Address>,
@@ -54,6 +55,10 @@ pub fn pacto_gov_deploy_addresses(net_key: &str) -> Result<PactoGovDeployAddress
             net_key,
         )?,
         master_squad_admin_impl: env_addr_primary_or_net("PACTO_NAV_MASTER_SQUAD_ADMIN", net_key)?,
+        master_squad_admin_ext_impl: env_addr_primary_or_net(
+            "PACTO_NAV_MASTER_SQUAD_ADMIN_EXT",
+            net_key,
+        )?,
         nave_pirata_registry: env_addr_optional("PACTO_NAVE_PIRATA_REGISTRY", net_key),
         hats: env_addr_optional("PACTO_HATS", net_key),
         role_hat_clones_factory: env_addr_optional("PACTO_ROLE_HAT_CLONES_FACTORY", net_key),

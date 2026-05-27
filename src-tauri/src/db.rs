@@ -498,6 +498,7 @@ fn normalize_infra_type(raw: &str) -> Result<String, String> {
     match s.as_str() {
         "sponsor" | "squad_sponsor" => Ok("sponsor".to_string()),
         "pacto_gov" | "pacto-gov" => Ok("pacto_gov".to_string()),
+        "squad_admin" | "squad-admin" => Ok("squad_admin".to_string()),
         "standalone_safe" | "gnosis_safe" | "gnosis-safe" | "safe" => Ok("standalone_safe".to_string()),
         "bread_coop" | "bread-coop" | "bread" => Ok("bread_coop".to_string()),
         _ => Err(format!("unknown squad infra type: {}", raw.trim())),
@@ -929,6 +930,42 @@ pub fn persist_sponsor_infra<R: Runtime>(
         squad_sponsor_infra_row_id(parent_id).as_str(),
         parent_id,
         "sponsor",
+        Some(chain),
+        norm.as_str(),
+        None,
+        Some(provider_payload),
+    )
+}
+
+/// Stable SQLite row id for the squad-admin infra entry for this parent.
+pub fn squad_admin_infra_row_id(parent_id: &str) -> String {
+    let pid = parent_id.trim();
+    let direct = format!("squad-admin-{pid}");
+    if direct.len() <= SQUAD_INFRA_ID_MAX {
+        direct
+    } else {
+        format!(
+            "sa-{}",
+            hex::encode(alloy::primitives::keccak256(pid.as_bytes()).as_slice())
+        )
+    }
+}
+
+/// Persist or refresh the squad-admin infra row after deploy (and for announce ingest).
+pub fn persist_squad_admin_infra<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+    chain: &str,
+    squad_admin_proxy: &str,
+    provider_payload: &str,
+) -> Result<(), String> {
+    let norm = crate::evm::normalize_hex_address(squad_admin_proxy.trim())
+        .ok_or_else(|| "invalid squad admin address".to_string())?;
+    upsert_squad_infra_inner(
+        handle,
+        squad_admin_infra_row_id(parent_id).as_str(),
+        parent_id,
+        "squad_admin",
         Some(chain),
         norm.as_str(),
         None,

@@ -4,9 +4,11 @@
   export let parentType: 'squad' | 'network';
   export let hasSponsor: boolean;
   export let hasPactoGov: boolean;
+  export let hasSquadAdmin: boolean;
   export let hasAnnouncementsChannel: boolean;
   export let onClose: () => void;
   export let onDeploySponsor: () => void;
+  export let onDeploySquadAdmin: () => void;
   export let onDeployPactoGov: () => void;
   export let onDeploySafe: () => void;
   export let onImportSafe: () => void;
@@ -73,6 +75,30 @@
         }}
       >
         {hasPactoGov ? 'Open Governance tab' : 'Set up Pacto Gov'}
+      </button>
+    </li>
+
+    <li class="launchpad-card" class:launchpad-card--locked={otherInfraLocked}>
+      <h3 class="launchpad-card-title">Squad Admin</h3>
+      <p class="launchpad-card-desc">
+        {#if otherInfraLocked}
+          Deploy squad sponsor first.
+        {:else if hasSquadAdmin}
+          Squad Admin is deployed. Open Settings → Manage squad roles to register roles and assign executors.
+        {:else}
+          Standalone executor roster (address-gated) without full Nave Pirata ceremony.
+        {/if}
+      </p>
+      <button
+        type="button"
+        class="btn-primary launchpad-card-btn"
+        disabled={otherInfraLocked || channelBlocked || hasSquadAdmin}
+        on:click={() => {
+          onClose();
+          onDeploySquadAdmin();
+        }}
+      >
+        {hasSquadAdmin ? 'Already deployed' : 'Deploy Squad Admin'}
       </button>
     </li>
 

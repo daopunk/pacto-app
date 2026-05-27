@@ -35,6 +35,7 @@
     hatChecksFromNaveDeployment,
     parsePactoGovProviderPayload,
   } from '../../lib/governance/pacto-gov-payload';
+  import { hasSquadAdminInfra, resolveSquadAdminContext } from '../../lib/governance/squad-admin-payload';
   import { isTreasuryProposalActive } from '../../lib/governance/treasury-proposal-ui';
   import { treasuryVaultHeading } from '../../lib/treasury/treasury-vault-labels';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
@@ -43,6 +44,7 @@
   import DeploySafeModal from './DeploySafeModal.svelte';
   import DeployNavePirataWizard from './governance/DeployNavePirataWizard.svelte';
   import DeploySquadSponsorModal from './governance/DeploySquadSponsorModal.svelte';
+  import DeploySquadAdminModal from './governance/DeploySquadAdminModal.svelte';
   import LaunchpadModal from './governance/LaunchpadModal.svelte';
   import SquadSponsorTreasuryPanel from './governance/SquadSponsorTreasuryPanel.svelte';
   import HatsTreeDiagram from './governance/HatsTreeDiagram.svelte';
@@ -113,11 +115,24 @@
       }) => Promise<void>)
     | undefined = undefined;
 
+  /** Persist, announce, and refresh store after standalone Squad Admin deploy. */
+  export let onSquadAdminDeployComplete:
+    | ((params: {
+        parentId: string;
+        announcementsGroupId: string;
+        chain: string;
+        squadAdminProxy: string;
+        providerPayload: string;
+        infraRowId: string;
+      }) => Promise<void>)
+    | undefined = undefined;
+
   let showSetSafeModal = false;
   let showDeploySafeModal = false;
   let showNaveWizard = false;
   let showLaunchpad = false;
   let showSponsorDeploy = false;
+  let showSquadAdminDeploy = false;
   let showSquadRolesModal = false;
 
   let setSafeInput = '';
@@ -141,8 +156,22 @@
 
   $: pactoGovRow = pactoGovInfraRow(squadInfraRows);
   $: hasPactoGov = pactoGovRow != null;
+  $: squadAdminCtx = resolveSquadAdminContext(squadInfraRows);
+  $: hasSquadAdmin = hasSquadAdminInfra(squadInfraRows);
   $: pactoPayload = parsePactoGovProviderPayload(pactoGovRow?.providerPayload);
-  $: pactoNetwork = (pactoGovRow?.chain?.trim() || 'sepolia') as 'sepolia' | 'mainnet' | 'optimism';
+  $: pactoNetwork = (pactoGovRow?.chain?.trim() || squadAdminCtx?.chain || 'sepolia') as
+    | 'sepolia'
+    | 'mainnet'
+    | 'optimism';
+  $: squadAdminNetwork = (squadAdminCtx?.chain?.trim() || 'sepolia') as 'sepolia' | 'mainnet' | 'optimism';
+  $: memberEvmOptionsForRoles = channelMembers
+    .map((npub) => {
+      const addr = squadMemberEvmByNpub[npub]?.trim();
+      if (!addr) return null;
+      const name = getProfileDisplayName($profiles[npub]) || npub.slice(0, 12);
+      return { address: addr, label: name };
+    })
+    .filter((row): row is { address: string; label: string } => row != null);
 
   $: structureSummary = resolveDashboardStructureSummary(
     squadInfraRows === undefined ? undefined : pactoGovRow,
@@ -258,36 +287,40 @@
 
   async function loadSettingsChainContext() {
     const topHat = pactoGovRow?.canonicalRef?.trim();
-    const squadAdmin = pactoPayload?.squadAdminProxy?.trim() ?? '';
+    const squadAdmin = squadAdminCtx?.proxy?.trim() ?? '';
     const key = `${pactoNetwork}:${topHat ?? ''}:${squadAdmin}:${Object.keys(squadMemberEvmByNpub).join(',')}`;
-    if (!topHat || settingsChainKey === key) return;
+    if ((!topHat && !squadAdmin) || settingsChainKey === key) return;
     settingsChainKey = key;
     settingsChainLoading = true;
     settingsChainError = '';
     memberHatByAddress = {};
     memberRolesByAddress = {};
     try {
-      const deployment = await getNavePirataDeployment({ network: pactoNetwork, topHatId: topHat });
       const evmAddresses = Object.values(squadMemberEvmByNpub).filter(Boolean);
       if (evmAddresses.length === 0) return;
-      const assignments = await getMemberHatWearers({
-        network: pactoNetwork,
-        memberAddresses: evmAddresses,
-        hatChecks: hatChecksFromNaveDeployment(deployment),
-      });
-      const hatMap: Record<string, string> = {};
-      for (const row of assignments) {
-        if (row.hats.length > 0) {
-          hatMap[row.address.toLowerCase()] = row.hats.map((h) => h.label).join(', ');
+
+      if (topHat) {
+        const deployment = await getNavePirataDeployment({ network: pactoNetwork, topHatId: topHat });
+        const assignments = await getMemberHatWearers({
+          network: pactoNetwork,
+          memberAddresses: evmAddresses,
+          hatChecks: hatChecksFromNaveDeployment(deployment),
+        });
+        const hatMap: Record<string, string> = {};
+        for (const row of assignments) {
+          if (row.hats.length > 0) {
+            hatMap[row.address.toLowerCase()] = row.hats.map((h) => h.label).join(', ');
+          }
         }
+        memberHatByAddress = hatMap;
       }
-      memberHatByAddress = hatMap;
 
       if (squadAdmin) {
+        const roleNetwork = squadAdminCtx?.chain?.trim() || pactoNetwork;
         const roleRows = await Promise.all(
           evmAddresses.map(async (addr) => {
             const roles = await getSquadAdminExecutorRoles({
-              network: pactoNetwork,
+              network: roleNetwork,
               squadAdminProxy: squadAdmin,
               executorAddress: addr,
             });
@@ -324,7 +357,7 @@
     void loadHatsTree();
   }
 
-  $: if (dashboardView === 'settings' && pactoGovRow?.canonicalRef) {
+  $: if (dashboardView === 'settings' && (pactoGovRow?.canonicalRef || squadAdminCtx?.proxy)) {
     void loadSettingsChainContext();
   }
 
@@ -453,6 +486,17 @@
 
   function openSponsorDeploy() {
     if (parentId?.trim()) showSponsorDeploy = true;
+  }
+
+  function openSquadAdminDeploy() {
+    requireSponsorForInfra(() => {
+      if (hasSquadAdmin) {
+        selectDashboardView('settings');
+        showSquadRolesModal = true;
+        return;
+      }
+      if (parentId?.trim()) showSquadAdminDeploy = true;
+    });
   }
 
   function closeDeploySafeModal() {
@@ -761,7 +805,7 @@
       {#if permissionsCtx.catalogRows.length > 0}
         <div class="settings-actions-row">
           <p class="roles-table-caption">Role model</p>
-          {#if pactoGovRow}
+          {#if squadAdminCtx}
             <button type="button" class="btn-secondary settings-roles-btn" on:click={() => (showSquadRolesModal = true)}>
               Manage squad roles
             </button>
@@ -924,14 +968,38 @@
     {parentType}
     {hasSponsor}
     {hasPactoGov}
+    {hasSquadAdmin}
     hasAnnouncementsChannel={!!announcementsGroupId}
     onClose={() => {
       showLaunchpad = false;
     }}
     onDeploySponsor={openSponsorDeploy}
+    onDeploySquadAdmin={openSquadAdminDeploy}
     onDeployPactoGov={openPactoGovDeploy}
     onDeploySafe={openDeploySafe}
     onImportSafe={openSetSafe}
+  />
+{/if}
+
+{#if showSquadAdminDeploy && parentId?.trim()}
+  <DeploySquadAdminModal
+    parentId={parentId.trim()}
+    {parentType}
+    onClose={() => {
+      showSquadAdminDeploy = false;
+    }}
+    onComplete={async (out) => {
+      await onSquadAdminDeployComplete?.({
+        parentId: parentId.trim(),
+        announcementsGroupId: announcementsGroupId?.trim() ?? '',
+        chain: out.chain,
+        squadAdminProxy: out.squadAdminProxy,
+        providerPayload: out.providerPayload,
+        infraRowId: out.infraRowId,
+      });
+      showToast('Squad Admin deployed — open Settings to manage roles.');
+      selectDashboardView('settings');
+    }}
   />
 {/if}
 
@@ -1000,7 +1068,13 @@
   </div>
 {/if}
 
-<SquadRolesModal open={showSquadRolesModal} onClose={() => (showSquadRolesModal = false)} />
+<SquadRolesModal
+  open={showSquadRolesModal}
+  onClose={() => (showSquadRolesModal = false)}
+  squadAdminProxy={squadAdminCtx?.proxy ?? ''}
+  network={squadAdminNetwork}
+  memberEvmOptions={memberEvmOptionsForRoles}
+/>
 
 <style>
   .parent-dashboard-layout {

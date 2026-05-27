@@ -134,6 +134,8 @@
     squadSponsorInfraId,
     buildSponsorGovernanceAnnouncePayload,
     buildPactoGovGovernanceAnnouncePayload,
+    buildSquadAdminGovernanceAnnouncePayload,
+    squadAdminInfraId,
     pactoGovTreasuryEntryId,
     primaryGovernanceView,
   } from '../lib/governance/api';
@@ -359,6 +361,48 @@
           payload: buildSponsorGovernanceAnnouncePayload({
             parentId: params.parentId,
             sponsorAddress: params.sponsorAddress,
+            chain: params.chain,
+            providerPayload: params.providerPayload,
+            entryId,
+          }),
+        }),
+        '',
+        { virtualBucket: 'monitor' },
+      );
+    }
+    await mergeSquadInfraForParent(params.parentId);
+  }
+
+  async function finalizeSquadAdminDeploy(params: {
+    parentId: string;
+    announcementsGroupId: string;
+    chain: string;
+    squadAdminProxy: string;
+    providerPayload: string;
+    infraRowId: string;
+  }) {
+    const entryId = params.infraRowId || squadAdminInfraId(params.parentId);
+    await upsertSquadInfra({
+      id: entryId,
+      parentId: params.parentId,
+      infraType: 'squad_admin',
+      chain: params.chain,
+      canonicalRef: params.squadAdminProxy,
+      providerPayload: params.providerPayload,
+    });
+    const row =
+      get(squads).find((s: Squad) => s.id === params.parentId) ??
+      get(networks).find((n: Network) => n.id === params.parentId);
+    const gid =
+      (row ? resolveAutomatedAnnounceGroupId(row) : null) ?? params.announcementsGroupId.trim();
+    if (gid) {
+      await sendDmMessage(
+        gid,
+        buildAnnounceContent({
+          type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
+          payload: buildSquadAdminGovernanceAnnouncePayload({
+            parentId: params.parentId,
+            squadAdminProxy: params.squadAdminProxy,
             chain: params.chain,
             providerPayload: params.providerPayload,
             entryId,
@@ -1679,6 +1723,7 @@
               }}
               onPactoGovDeployComplete={finalizePactoGovDeploy}
               onSponsorDeployComplete={finalizeSponsorDeploy}
+              onSquadAdminDeployComplete={finalizeSquadAdminDeploy}
             />
           {:else}
             <ChatView />

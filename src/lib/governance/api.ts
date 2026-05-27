@@ -81,6 +81,7 @@ export function infraTypeFromLegacyProvider(provider: string): string {
   if (p === 'gnosis_safe' || p === 'gnosis-safe' || p === 'safe') return 'standalone_safe';
   if (p === 'pacto-gov') return 'pacto_gov';
   if (p === 'squad_sponsor') return 'sponsor';
+  if (p === 'squad_admin' || p === 'squad-admin') return 'squad_admin';
   return p;
 }
 
@@ -406,7 +407,121 @@ export async function getSquadAdminExecutorRoles(params: {
   })) as SquadAdminExecutorRolesDto;
 }
 
+/** Stable id for squad-admin infra row per parent. */
+export function squadAdminInfraId(parentId: string): string {
+  return `squad-admin-${parentId}`;
+}
+
+/** Wire payload for `governance_updated` when squad-admin infra is deployed. */
+export function buildSquadAdminGovernanceAnnouncePayload(params: {
+  parentId: string;
+  squadAdminProxy: string;
+  chain: string;
+  providerPayload: string;
+  entryId: string;
+}): {
+  parent_id: string;
+  provider: 'squad_admin';
+  canonical_ref: string;
+  chain: string;
+  entry_id: string;
+  provider_payload: string;
+} {
+  return {
+    parent_id: params.parentId,
+    provider: 'squad_admin',
+    canonical_ref: params.squadAdminProxy,
+    chain: params.chain,
+    entry_id: params.entryId,
+    provider_payload: params.providerPayload,
+  };
+}
+
+/** Mirrors `SquadAdminDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface SquadAdminDeployResultDto {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  squadAdminProxy: string;
+  variant: string;
+  owner?: string | null;
+  captainHatId?: string | null;
+  implementation: string;
+  providerPayload: string;
+  infraRowId: string;
+}
+
+/** Backend: `deploy_squad_admin_for_parent`. */
+export async function deploySquadAdminForParent(params: {
+  network: string;
+  parentId: string;
+  variant: 'ext_standalone' | 'captain_hat';
+  owner?: string | null;
+  captainHatId?: string | null;
+}): Promise<SquadAdminDeployResultDto> {
+  return (await invoke('deploy_squad_admin_for_parent', {
+    network: params.network,
+    parentId: params.parentId,
+    variant: params.variant,
+    owner: params.owner?.trim() ? params.owner.trim() : null,
+    captainHatId: params.captainHatId?.trim() ? params.captainHatId.trim() : null,
+  })) as SquadAdminDeployResultDto;
+}
+
+/** Mirrors `SquadAdminWriteResult` from Tauri. */
+export interface SquadAdminWriteResultDto {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  squadAdminProxy: string;
+}
+
+export async function squadAdminCreateRole(params: {
+  network: string;
+  squadAdminProxy: string;
+  roleLabel: string;
+}): Promise<SquadAdminWriteResultDto> {
+  return (await invoke('squad_admin_create_role', {
+    network: params.network,
+    squadAdminProxy: params.squadAdminProxy.trim(),
+    roleLabel: params.roleLabel.trim(),
+  })) as SquadAdminWriteResultDto;
+}
+
+export async function squadAdminEnableExecutor(params: {
+  network: string;
+  squadAdminProxy: string;
+  executorAddress: string;
+  roleLabel: string;
+}): Promise<SquadAdminWriteResultDto> {
+  return (await invoke('squad_admin_enable_executor', {
+    network: params.network,
+    squadAdminProxy: params.squadAdminProxy.trim(),
+    executorAddress: params.executorAddress.trim(),
+    roleLabel: params.roleLabel.trim(),
+  })) as SquadAdminWriteResultDto;
+}
+
+export async function squadAdminEnableFullPermission(params: {
+  network: string;
+  squadAdminProxy: string;
+  executorAddress: string;
+  enable: boolean;
+}): Promise<SquadAdminWriteResultDto> {
+  return (await invoke('squad_admin_enable_full_permission', {
+    network: params.network,
+    squadAdminProxy: params.squadAdminProxy.trim(),
+    executorAddress: params.executorAddress.trim(),
+    enable: params.enable,
+  })) as SquadAdminWriteResultDto;
+}
+
 /** Pacto-gov infra row for a parent, if any. */
 export function pactoGovInfraRow(rows: SquadInfraDto[] | undefined): SquadInfraDto | null {
   return rows?.find((r) => r.infraType === 'pacto_gov') ?? null;
+}
+
+/** Squad-admin infra row for a parent (standalone deploy), if any. */
+export function squadAdminInfraRow(rows: SquadInfraDto[] | undefined): SquadInfraDto | null {
+  return rows?.find((r) => r.infraType === 'squad_admin') ?? null;
 }

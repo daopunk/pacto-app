@@ -48,5 +48,27 @@ sol! {
             address _treasuryAuthority,
             address _squadAdminProxy
         );
+
+        function deploySquadAdminExtStandalone(
+            address squadAdminExtImplementation,
+            address owner
+        ) external returns (address clone);
+
+        function deploySquadAdminStandaloneCaptainHat(
+            address squadAdminImplementation,
+            uint256 captainHatId
+        ) external returns (address clone);
+
+        event SquadAdminExtStandaloneDeployed(
+            address indexed clone,
+            address indexed owner,
+            address indexed implementation
+        );
+
+        event SquadAdminStandaloneDeployed(
+            address indexed clone,
+            address indexed implementation,
+            uint256 captainHatId
+        );
     }
 }

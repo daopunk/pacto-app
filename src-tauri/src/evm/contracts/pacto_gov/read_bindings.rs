@@ -60,6 +60,16 @@ sol! {
     }
 
     interface ISquadAdminBase {
+        function createRole(bytes32 _role) external;
+
+        function enableExecutor(address _executor, bytes32 _role) external;
+
+        function enableFullPermission(address _executor, bool _enable) external;
+
+        function disableExecutor(address _executor, bytes32 _role) external;
+
+        function pauseExecutor(address _executor, bool _pause) external;
+
         function hasExecutorRole(address _executor, bytes32 _role) external view returns (bool _enabled);
 
         function isExecutorFullPermission(address _executor) external view returns (bool _fullPermission);
