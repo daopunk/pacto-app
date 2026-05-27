@@ -90,10 +90,10 @@ export function resolveDashboardPermissionsContext(
     return {
       phase: 'pacto_gov',
       leadNote:
-        'Role identifiers, executor scopes, and captain-gated admin actions follow SquadAdminBase. Concrete assignments load next via RPC or indexer reads.',
+        'Role identifiers, executor scopes, and captain-gated admin actions follow SquadAdminBase. Member Hats and executor Roles load from chain on this tab.',
       catalogRows: pactoGovPermissionsCatalog(),
       ...(rev ? { pactoGovRevision: rev } : {}),
-      showExecutorMappingPlaceholder: true,
+      showExecutorMappingPlaceholder: false,
     };
   }
   if (governanceConfig.provider === 'gnosis_safe') {

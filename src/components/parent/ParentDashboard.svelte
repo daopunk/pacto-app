@@ -17,8 +17,24 @@
   import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
   import { safeStateByTreasuryId, refreshSafeStateForTreasuryEntry } from '../../stores/safe';
-  import type { ParentGovernanceDto, SquadInfraDto } from '../../lib/governance/api';
-  import { hasSponsorInfra, sponsorInfraRow } from '../../lib/governance/api';
+  import type { ParentGovernanceDto, SquadInfraDto, TreasuryProposalDto, HatTreeNodeDto, MemberHatAssignmentDto } from '../../lib/governance/api';
+  import {
+    getHatsTree,
+    getMemberHatWearers,
+    getNavePirataDeployment,
+    getSquadAdminExecutorRoles,
+    hasSponsorInfra,
+    listTreasuryProposals,
+    pactoGovInfraRow,
+    sponsorInfraRow,
+  } from '../../lib/governance/api';
+  import {
+    formatSquadAdminExecutorRoles,
+    hatChecksFromNaveDeployment,
+    parsePactoGovProviderPayload,
+    treasuryProposalStatusLabel,
+  } from '../../lib/governance/pacto-gov-payload';
+  import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import friendsIcon from '../../icons/friends.svg';
   import DeploySafeModal from './DeploySafeModal.svelte';
   import DeployNavePirataWizard from './governance/DeployNavePirataWizard.svelte';
@@ -121,6 +137,140 @@
   $: structureSummary = resolveDashboardStructureSummary(governanceConfig);
 
   $: permissionsCtx = resolveDashboardPermissionsContext(governanceConfig);
+
+  $: pactoGovRow = pactoGovInfraRow(squadInfraRows);
+  $: pactoPayload = parsePactoGovProviderPayload(pactoGovRow?.providerPayload);
+  $: pactoNetwork = (pactoGovRow?.chain?.trim() || 'sepolia') as 'sepolia' | 'mainnet' | 'optimism';
+
+  let treasuryProposals: TreasuryProposalDto[] = [];
+  let treasuryProposalsLoading = false;
+  let treasuryProposalsError = '';
+  let treasuryProposalsKey = '';
+
+  let hatsTree: HatTreeNodeDto | null = null;
+  let hatsTreeFlat: { node: HatTreeNodeDto; depth: number }[] = [];
+  let hatsTreeLoading = false;
+  let hatsTreeError = '';
+  let hatsTreeKey = '';
+
+  let memberHatByAddress: Record<string, string> = {};
+  let memberRolesByAddress: Record<string, string> = {};
+  let settingsChainLoading = false;
+  let settingsChainError = '';
+  let settingsChainKey = '';
+
+  function flattenHatTree(node: HatTreeNodeDto, depth = 0): { node: HatTreeNodeDto; depth: number }[] {
+    const out: { node: HatTreeNodeDto; depth: number }[] = [{ node, depth }];
+    for (const child of node.children ?? []) {
+      out.push(...flattenHatTree(child, depth + 1));
+    }
+    return out;
+  }
+
+  async function loadTreasuryProposals() {
+    const ta = pactoPayload?.treasuryAuthority?.trim();
+    const key = `${pactoNetwork}:${ta ?? ''}`;
+    if (!ta || treasuryProposalsKey === key) return;
+    treasuryProposalsKey = key;
+    treasuryProposalsLoading = true;
+    treasuryProposalsError = '';
+    try {
+      const rows = await listTreasuryProposals({ network: pactoNetwork, treasuryAuthority: ta });
+      treasuryProposals = [...rows].sort((a, b) => Number(b.proposalId) - Number(a.proposalId));
+    } catch (e) {
+      treasuryProposals = [];
+      treasuryProposalsError = getInvokeErrorMessage(e, 'Could not load treasury proposals.');
+    } finally {
+      treasuryProposalsLoading = false;
+    }
+  }
+
+  async function loadHatsTree() {
+    const topHat = pactoGovRow?.canonicalRef?.trim();
+    const key = `${pactoNetwork}:${topHat ?? ''}`;
+    if (!topHat || hatsTreeKey === key) return;
+    hatsTreeKey = key;
+    hatsTreeLoading = true;
+    hatsTreeError = '';
+    try {
+      hatsTree = await getHatsTree({ network: pactoNetwork, topHatId: topHat });
+      hatsTreeFlat = flattenHatTree(hatsTree);
+    } catch (e) {
+      hatsTree = null;
+      hatsTreeFlat = [];
+      hatsTreeError = getInvokeErrorMessage(e, 'Could not load Hats tree.');
+    } finally {
+      hatsTreeLoading = false;
+    }
+  }
+
+  async function loadSettingsChainContext() {
+    const topHat = pactoGovRow?.canonicalRef?.trim();
+    const squadAdmin = pactoPayload?.squadAdminProxy?.trim() ?? '';
+    const key = `${pactoNetwork}:${topHat ?? ''}:${squadAdmin}:${Object.keys(squadMemberEvmByNpub).join(',')}`;
+    if (!topHat || settingsChainKey === key) return;
+    settingsChainKey = key;
+    settingsChainLoading = true;
+    settingsChainError = '';
+    memberHatByAddress = {};
+    memberRolesByAddress = {};
+    try {
+      const deployment = await getNavePirataDeployment({ network: pactoNetwork, topHatId: topHat });
+      const evmAddresses = Object.values(squadMemberEvmByNpub).filter(Boolean);
+      if (evmAddresses.length === 0) return;
+      const assignments = await getMemberHatWearers({
+        network: pactoNetwork,
+        memberAddresses: evmAddresses,
+        hatChecks: hatChecksFromNaveDeployment(deployment),
+      });
+      const hatMap: Record<string, string> = {};
+      for (const row of assignments) {
+        if (row.hats.length > 0) {
+          hatMap[row.address.toLowerCase()] = row.hats.map((h) => h.label).join(', ');
+        }
+      }
+      memberHatByAddress = hatMap;
+
+      if (squadAdmin) {
+        const roleRows = await Promise.all(
+          evmAddresses.map(async (addr) => {
+            const roles = await getSquadAdminExecutorRoles({
+              network: pactoNetwork,
+              squadAdminProxy: squadAdmin,
+              executorAddress: addr,
+            });
+            return {
+              address: addr.toLowerCase(),
+              label: formatSquadAdminExecutorRoles(roles),
+            };
+          }),
+        );
+        const roleMap: Record<string, string> = {};
+        for (const row of roleRows) {
+          if (row.label && row.label !== '—') {
+            roleMap[row.address] = row.label;
+          }
+        }
+        memberRolesByAddress = roleMap;
+      }
+    } catch (e) {
+      settingsChainError = getInvokeErrorMessage(e, 'Could not load on-chain Hats or Roles for members.');
+    } finally {
+      settingsChainLoading = false;
+    }
+  }
+
+  $: if (dashboardView === 'governance' && pactoPayload?.treasuryAuthority) {
+    void loadTreasuryProposals();
+  }
+
+  $: if (dashboardView === 'roles_tree' && pactoGovRow?.canonicalRef) {
+    void loadHatsTree();
+  }
+
+  $: if (dashboardView === 'settings' && pactoGovRow?.canonicalRef) {
+    void loadSettingsChainContext();
+  }
 
   $: announcementsGroupId =
     parent?.channels?.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.groupId ??
@@ -365,16 +515,41 @@
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="governance-heading">
     <h3 id="governance-heading" class="section-heading">Governance</h3>
     <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-      Normalized feed for tools linked to this squad or network. Vote flows per tool come later. Nostr
-      polls stay in <strong>#polls</strong> until listed here.
+      Treasury Authority proposals from chain when Pacto Gov is deployed. Safe-linked rows remain placeholders until
+      Safe proposal reads land.
     </p>
-    {#if proposalCards.length === 0}
-      <p class="dashboard-placeholder-text muted">No proposal sources yet. Link a Safe or deploy Pacto Gov from Deploy.</p>
-    {:else}
+    {#if pactoPayload?.treasuryAuthority}
+      {#if treasuryProposalsLoading}
+        <p class="dashboard-placeholder-text muted">Loading treasury proposals…</p>
+      {:else if treasuryProposalsError}
+        <p class="chain-read-error" role="alert">{treasuryProposalsError}</p>
+      {:else if treasuryProposals.length === 0}
+        <p class="dashboard-placeholder-text muted">No treasury proposals on-chain yet for this deployment.</p>
+      {:else}
+        <ul class="proposal-card-list" role="list">
+          {#each treasuryProposals as proposal (proposal.proposalId)}
+            <li class="proposal-card">
+              <div class="proposal-card-head">
+                <span class="proposal-card-tool">Treasury Authority</span>
+                <span class="proposal-card-chain">{treasuryProposalStatusLabel(proposal.status)}</span>
+              </div>
+              <p class="proposal-card-title">Proposal #{proposal.proposalId}</p>
+              <p class="proposal-card-meta muted">
+                Yeas {proposal.yeas} / nays {proposal.nays} · snapshot {proposal.snapshot} · deadline{' '}
+                {new Date(proposal.deadline * 1000).toLocaleString()}
+              </p>
+              <code class="proposal-card-ref">{proposal.to}</code>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {/if}
+    {#if proposalCards.filter((c) => c.tool === 'safe').length > 0}
+      <p class="roles-table-caption">Linked Safes</p>
       <ul class="proposal-card-list" role="list">
-        {#each proposalCards as card (card.tool + ':' + card.ref + ':' + (card.treasuryEntryId ?? ''))}
+        {#each proposalCards.filter((c) => c.tool === 'safe') as card (card.tool + ':' + card.ref + ':' + (card.treasuryEntryId ?? ''))}
           {@const safeEntry =
-            card.tool === 'safe' && card.treasuryEntryId
+            card.treasuryEntryId
               ? displayedTreasurySafes.find((t) => t.id === card.treasuryEntryId)
               : undefined}
           <li class="proposal-card">
@@ -388,7 +563,7 @@
               <p class="proposal-card-title">{card.title}</p>
             {/if}
             <code class="proposal-card-ref">{card.ref}</code>
-            {#if card.tool === 'safe' && safeEntry}
+            {#if safeEntry}
               <p class="proposal-card-actions">
                 <button type="button" class="btn-link treasury-explorer-link" on:click={() => openTreasuryExplorer(safeEntry)}>
                   View on explorer
@@ -398,6 +573,8 @@
           </li>
         {/each}
       </ul>
+    {:else if !pactoPayload?.treasuryAuthority}
+      <p class="dashboard-placeholder-text muted">No proposal sources yet. Link a Safe or deploy Pacto Gov from Deploy.</p>
     {/if}
   </section>
   {:else if dashboardView === 'roles_tree'}
@@ -438,8 +615,26 @@
       {:else}
         <p class="dashboard-placeholder-text muted">Explorer link could not be built for this hat id format.</p>
       {/if}
+      {#if hatsTreeLoading}
+        <p class="dashboard-placeholder-text muted">Loading Hats tree from chain…</p>
+      {:else if hatsTreeError}
+        <p class="chain-read-error" role="alert">{hatsTreeError}</p>
+      {:else if hatsTreeFlat.length > 0}
+        <p class="roles-table-caption">On-chain tree (read via RPC)</p>
+        <ul class="hats-tree-flat-list" role="list">
+          {#each hatsTreeFlat as row (row.node.hatId)}
+            <li class="hats-tree-flat-row" style={`padding-left: ${8 + row.depth * 16}px`}>
+              <span class="hats-tree-flat-details">{row.node.details || 'Untitled hat'}</span>
+              <code class="structure-mono">{row.node.hatId}</code>
+              <span class="muted hats-tree-flat-meta"
+                >{row.node.supply}/{row.node.maxSupply} · {row.node.active ? 'active' : 'inactive'}</span
+              >
+            </li>
+          {/each}
+        </ul>
+      {/if}
       <p class="structure-footnote muted">
-        Read-only in-app tree visualization is still out of scope for this scaffold (subgraph-backed layout comes next).
+        Layout is flat-indented from live `eth_call` reads; richer visualization lands in a later pass.
       </p>
     {/if}
   </section>
@@ -563,11 +758,9 @@
           {/each}
         </ul>
       {/if}
-      {#if permissionsCtx.showExecutorMappingPlaceholder}
-        <p class="permissions-executor-placeholder muted">
-          Executor ↔ module mappings will appear here once wired to contract or indexer reads.
-        </p>
-      {/if}
+    {/if}
+    {#if settingsChainError}
+      <p class="chain-read-error" role="alert">{settingsChainError}</p>
     {/if}
     {#if announcementsGroupId}
       {#if loadingMembers && channelMembers.length === 0}
@@ -597,8 +790,24 @@
                 <span class="roles-col-value" class:muted={!rosterEvm}
                   >{rosterEvm ? shortAddress(rosterEvm) : 'Not shared'}</span
                 >
+                <span class="roles-col-label">Hats</span>
+                <span class="roles-col-value" class:muted={!rosterEvm || !memberHatByAddress[rosterEvm.toLowerCase()]}
+                  >{settingsChainLoading
+                    ? 'Loading…'
+                    : rosterEvm
+                      ? memberHatByAddress[rosterEvm.toLowerCase()] || '—'
+                      : 'Not shared'}</span
+                >
                 <span class="roles-col-label">Roles</span>
-                <span class="roles-col-value muted">—</span>
+                <span
+                  class="roles-col-value"
+                  class:muted={!rosterEvm || !memberRolesByAddress[rosterEvm.toLowerCase()]}
+                  >{settingsChainLoading
+                    ? 'Loading…'
+                    : rosterEvm
+                      ? memberRolesByAddress[rosterEvm.toLowerCase()] || '—'
+                      : 'Not shared'}</span
+                >
               </div>
             </li>
           {/each}

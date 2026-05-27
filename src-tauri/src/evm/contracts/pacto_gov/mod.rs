@@ -1,6 +1,8 @@
 //! `INavePirataFactory` surface required for `deployNavePirata` and receipt decoding.
 //! Mirrors [covenant-gov/pacto-gov](https://github.com/covenant-gov/pacto-gov) `INavePirataFactory` at a reviewed upstream revision (see `docs/wallet/PACTO_GOV.md`).
 
+pub mod read_bindings;
+
 use alloy::sol;
 
 sol! {

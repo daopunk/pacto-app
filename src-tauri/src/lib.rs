@@ -6435,6 +6435,12 @@ pub fn run() {
             evm::squad_sponsor_deploy::deploy_squad_sponsor_for_parent,
             evm::squad_sponsor_deposit::deposit_squad_sponsor,
             evm::squad_sponsor_read::get_squad_sponsor_summary,
+            evm::nave_pirata_read::get_nave_pirata_deployment,
+            evm::treasury_proposals_read::list_treasury_proposals,
+            evm::treasury_proposals_read::treasury_proposal_has_voted,
+            evm::hats_read::get_hats_tree,
+            evm::member_governance_read::get_member_hat_wearers,
+            evm::member_governance_read::get_squad_admin_executor_roles,
             regenerate_device_keypackage,
             // MLS core commands
             create_group_chat,

@@ -229,3 +229,149 @@ export async function deployNavePirataForParent(params: {
     saltNonce: params.saltNonce?.trim() ? params.saltNonce.trim() : null,
   })) as NavePirataDeployResultDto;
 }
+
+/** Mirrors `NavePirataDeploymentDto` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface NavePirataDeploymentDto {
+  chain: string;
+  chainId: number;
+  topHatId: string;
+  safe: string;
+  quartermaster: string;
+  mutinyModule: string;
+  treasuryAuthority: string;
+  squadAdminProxy: string;
+  captainHatId: string;
+  crewHatId: string;
+  squadAdminHatId: string;
+  mutinyRoleHatId: string;
+  quartermasterRoleHatId: string;
+  treasuryAuthorityRoleHatId: string;
+  deployedAt: number;
+  deployer: string;
+}
+
+export async function getNavePirataDeployment(params: {
+  network: string;
+  topHatId: string;
+}): Promise<NavePirataDeploymentDto> {
+  return (await invoke('get_nave_pirata_deployment', {
+    network: params.network,
+    topHatId: params.topHatId.trim(),
+  })) as NavePirataDeploymentDto;
+}
+
+/** Mirrors `TreasuryProposalDto` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface TreasuryProposalDto {
+  proposalId: string;
+  proposer: string;
+  to: string;
+  valueWei: string;
+  operation: string;
+  dataHex: string;
+  deadline: number;
+  snapshot: number;
+  yeas: number;
+  nays: number;
+  captainApproved: boolean;
+  captainDefeated: boolean;
+  executed: boolean;
+  status: string;
+}
+
+export async function listTreasuryProposals(params: {
+  network: string;
+  treasuryAuthority: string;
+  maxScan?: number | null;
+}): Promise<TreasuryProposalDto[]> {
+  return (await invoke('list_treasury_proposals', {
+    network: params.network,
+    treasuryAuthority: params.treasuryAuthority.trim(),
+    maxScan: params.maxScan ?? null,
+  })) as TreasuryProposalDto[];
+}
+
+export async function treasuryProposalHasVoted(params: {
+  network: string;
+  treasuryAuthority: string;
+  proposalId: string;
+  voter: string;
+}): Promise<boolean> {
+  return (await invoke('treasury_proposal_has_voted', {
+    network: params.network,
+    treasuryAuthority: params.treasuryAuthority.trim(),
+    proposalId: params.proposalId.trim(),
+    voter: params.voter.trim(),
+  })) as boolean;
+}
+
+/** Mirrors `HatTreeNodeDto` from Tauri (`serde(rename_all = "camelCase")`). */
+export interface HatTreeNodeDto {
+  hatId: string;
+  details: string;
+  maxSupply: number;
+  supply: number;
+  active: boolean;
+  children: HatTreeNodeDto[];
+}
+
+export async function getHatsTree(params: {
+  network: string;
+  topHatId: string;
+  maxDepth?: number | null;
+  maxNodes?: number | null;
+}): Promise<HatTreeNodeDto> {
+  return (await invoke('get_hats_tree', {
+    network: params.network,
+    topHatId: params.topHatId.trim(),
+    maxDepth: params.maxDepth ?? null,
+    maxNodes: params.maxNodes ?? null,
+  })) as HatTreeNodeDto;
+}
+
+export interface MemberHatLabelDto {
+  hatId: string;
+  label: string;
+}
+
+export interface MemberHatAssignmentDto {
+  address: string;
+  hats: MemberHatLabelDto[];
+}
+
+export async function getMemberHatWearers(params: {
+  network: string;
+  hatsContract?: string | null;
+  memberAddresses: string[];
+  hatChecks: { hatId: string; label: string }[];
+}): Promise<MemberHatAssignmentDto[]> {
+  return (await invoke('get_member_hat_wearers', {
+    network: params.network,
+    hatsContract: params.hatsContract?.trim() ? params.hatsContract.trim() : null,
+    memberAddresses: params.memberAddresses,
+    hatChecks: params.hatChecks,
+  })) as MemberHatAssignmentDto[];
+}
+
+export interface SquadAdminExecutorRolesDto {
+  address: string;
+  fullPermission: boolean;
+  paused: boolean;
+  roles: { role: string; enabled: boolean }[];
+}
+
+export async function getSquadAdminExecutorRoles(params: {
+  network: string;
+  squadAdminProxy: string;
+  executorAddress: string;
+}): Promise<SquadAdminExecutorRolesDto> {
+  return (await invoke('get_squad_admin_executor_roles', {
+    network: params.network,
+    squadAdminProxy: params.squadAdminProxy.trim(),
+    executorAddress: params.executorAddress.trim(),
+  })) as SquadAdminExecutorRolesDto;
+}
+
+/** Pacto-gov infra row for a parent, if any. */
+export function pactoGovInfraRow(rows: SquadInfraDto[] | undefined): SquadInfraDto | null {
+  return rows?.find((r) => r.infraType === 'pacto_gov') ?? null;
+}

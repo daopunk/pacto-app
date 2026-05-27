@@ -36,7 +36,7 @@ describe('resolveDashboardPermissionsContext', () => {
     expect(ctx.phase).toBe('pacto_gov');
     expect(ctx.catalogRows).toEqual(pactoGovPermissionsCatalog());
     expect(ctx.pactoGovRevision).toBe('abc');
-    expect(ctx.showExecutorMappingPlaceholder).toBe(true);
+    expect(ctx.showExecutorMappingPlaceholder).toBe(false);
   });
 
   it('gnosis_safe uses treasury catalog', () => {
