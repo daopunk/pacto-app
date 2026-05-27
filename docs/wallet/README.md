@@ -16,6 +16,7 @@ These files are **tracked in git** and are intended for references from **source
 | [ONCHAIN_READ_PATTERN.md](./ONCHAIN_READ_PATTERN.md) | Shared pattern: persist / hydrate / background refresh for WalletBar + Safe-style reads. |
 | [PACTO_GOV.md](./PACTO_GOV.md) | Upstream [covenant-gov/pacto-gov](https://github.com/covenant-gov/pacto-gov); Alloy bindings and env deploy addresses. |
 | [PACTO_SQUAD_SPONSOR.md](./PACTO_SQUAD_SPONSOR.md) | Upstream [covenant-gov/pacto-squad-sponsor](https://github.com/covenant-gov/pacto-squad-sponsor); deploy, summary read, `squad_infra`. |
+| [PROTOCOL_ADDRESS_BOOK.md](./PROTOCOL_ADDRESS_BOOK.md) | Tracked JSON: sponsor / gov / Safe deploy addresses per network (`pacto-protocol-addresses.json`). |
 | [OPERATOR_SMOKE.md](./OPERATOR_SMOKE.md) | **Single** Sepolia operator checklist: sponsor, gov, Safe, announce sync, advanced, allowlist, inbox/roster. |
 
 **Maintainers — alpha-only migrations (remove before beta / public v1):** WalletBar token-dropdown → watched-token list — [`docs/legacy-fixes/LF-002-wallet-bar-token-filter-migration.md`](../legacy-fixes/LF-002-wallet-bar-token-filter-migration.md). EVM address repair — [`docs/legacy-fixes/LF-001-evm-address-repair.md`](../legacy-fixes/LF-001-evm-address-repair.md). Full catalog: [`docs/legacy-fixes/CATALOG.md`](../legacy-fixes/CATALOG.md).

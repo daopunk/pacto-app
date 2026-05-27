@@ -9,7 +9,7 @@ Governance contract sources for **Nave Pirata** live in the upstream repository 
 | Concern | Where in Pacto |
 |---------|----------------|
 | Alloy bindings (deploy surface) | `src-tauri/src/evm/contracts/pacto_gov/mod.rs` — hand-maintained `sol!` aligned with upstream interfaces |
-| Deployed factory / master copies | Runtime env (`PACTO_*` in [`.env.example`](../../.env.example)); see [`ai-docs/INHOUSE_GOV.md`](../../ai-docs/INHOUSE_GOV.md) for Sepolia reference |
+| Deployed factory / master copies | [`src/lib/evm/pacto-protocol-addresses.json`](../../src/lib/evm/pacto-protocol-addresses.json) (compile-time in Rust); optional `PACTO_*` env override — see [`PROTOCOL_ADDRESS_BOOK.md`](./PROTOCOL_ADDRESS_BOOK.md) |
 | Audit trail on deploy | Optional `pacto_gov_revision` on governance rows / announces — **upstream git commit SHA**, not a local submodule pin |
 
 When upstream interfaces change, update bindings in `evm/contracts/pacto_gov/` against the reviewed commit on GitHub (Foundry `out/` JSON generation is optional follow-on).

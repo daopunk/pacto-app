@@ -38,6 +38,9 @@
   import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
   import WalletAdvancedPanel from './WalletAdvancedPanel.svelte';
 
+  /** When true, omit the standalone page title (embedded under Settings → EVM). */
+  export let embeddedInSettings = false;
+
   let importModalOpen = false;
   let homeSendOpen = false;
   let receiveOpen = false;
@@ -277,15 +280,17 @@
   $: accountFormIsAdvanced = accountFormPurpose === 'advanced';
 </script>
 
-<div class="wallet-view" aria-labelledby="wallet-view-title">
+<div class="wallet-view" aria-labelledby={embeddedInSettings ? undefined : 'wallet-view-title'}>
   <div class="wallet-view-inner">
-    <header class="wallet-view-header">
-      <h1 id="wallet-view-title" class="wallet-view-title">EVM Wallet</h1>
-      <p class="wallet-view-lead">
-        Your embedded EVM wallet: send to any address, receive by sharing your address, and manage networks and tokens. Payment requests with
-        contacts stay in <strong>DMs</strong> (in-chat wallet panel). Nostr profile, backup, and logout: <strong>Settings → Profile</strong>.
-      </p>
-    </header>
+    {#if !embeddedInSettings}
+      <header class="wallet-view-header">
+        <h1 id="wallet-view-title" class="wallet-view-title">EVM Wallet</h1>
+        <p class="wallet-view-lead">
+          Your embedded EVM wallet: send to any address, receive by sharing your address, and manage networks and tokens. Payment requests with
+          contacts stay in <strong>DMs</strong> (in-chat wallet panel). Nostr profile, backup, and logout: <strong>Settings</strong>.
+        </p>
+      </header>
+    {/if}
 
     {#if accountNpub}
       <section class="wallet-view-section wallet-view-actions-section" aria-labelledby="wallet-actions-heading">
