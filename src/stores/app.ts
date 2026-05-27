@@ -49,10 +49,6 @@ function persistenceKey(prefix: string): string | null {
 export type TopNavTab = 'dms' | 'networks' | 'squads';
 export const activeTopNavTab = writable<TopNavTab>('squads');
 
-/** Sub-area when `activeView === 'profile'` (Settings in sidebar): Nostr profile vs wallet vs app preferences. */
-export type SettingsAreaTab = 'profile' | 'wallet' | 'settings';
-export const activeSettingsAreaTab = writable<SettingsAreaTab>('profile');
-
 // UI state stores - what's currently selected
 export const activeSquadId = writable<string | null>(null);
 export const activeChannelId = writable<string | null>(null);

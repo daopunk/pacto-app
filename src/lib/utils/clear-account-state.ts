@@ -44,7 +44,6 @@ import {
   channelMessages,
   composingNewChat,
   activeTopNavTab,
-  activeSettingsAreaTab,
   activeDmTab,
   activeView,
   showMembersPanel,
@@ -188,7 +187,6 @@ export function clearAccountState(npub?: string): void {
   channelMessages.set({});
   composingNewChat.set(false);
   activeTopNavTab.set('squads');
-  activeSettingsAreaTab.set('profile');
   activeDmTab.set('friends');
   activeView.set('hub');
   parentDashboardChannelMode.set('governance');

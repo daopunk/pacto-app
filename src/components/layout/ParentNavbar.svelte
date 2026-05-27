@@ -671,7 +671,7 @@
   function showChangeEvmSignerPlaceholder() {
     if (!canShowParentMenuActions || !activeParent) return;
     showToast(
-      'Change EVM Signer from the sidebar is not available yet. Use #dashboard → Settings for treasury, governance, and squad keys.'
+      'Set your squad signer under Settings → Default wallet config (Edit).'
     );
   }
 

@@ -18,14 +18,15 @@ These files are **tracked in git** and are intended for references from **source
 | [PACTO_SQUAD_SPONSOR.md](./PACTO_SQUAD_SPONSOR.md) | Upstream [covenant-gov/pacto-squad-sponsor](https://github.com/covenant-gov/pacto-squad-sponsor); deploy, summary read, `squad_infra`. |
 | [PROTOCOL_ADDRESS_BOOK.md](./PROTOCOL_ADDRESS_BOOK.md) | Tracked JSON: sponsor / gov / Safe deploy addresses per network (`pacto-protocol-addresses.json`). |
 | [OPERATOR_SMOKE.md](./OPERATOR_SMOKE.md) | **Single** Sepolia operator checklist: sponsor, gov, Safe, announce sync, advanced, allowlist, inbox/roster. |
+| [SETTINGS_LAYOUT.md](./SETTINGS_LAYOUT.md) | In-app **Settings** page: scroll sections (Profile, Nostr, EVM, App). |
 
 **Maintainers — alpha-only migrations (remove before beta / public v1):** WalletBar token-dropdown → watched-token list — [`docs/legacy-fixes/LF-002-wallet-bar-token-filter-migration.md`](../legacy-fixes/LF-002-wallet-bar-token-filter-migration.md). EVM address repair — [`docs/legacy-fixes/LF-001-evm-address-repair.md`](../legacy-fixes/LF-001-evm-address-repair.md). Full catalog: [`docs/legacy-fixes/CATALOG.md`](../legacy-fixes/CATALOG.md).
 
-Supplementary planning notes live under **`ai-docs/wallet/`**; **`docs/wallet/`** here is the canonical index for implementation-linked behavior.
+Supplementary planning notes live under **`ai-docs/`** (e.g. settings refactor backlog); **`docs/wallet/`** here is the canonical index for implementation-linked behavior.
 
 **Dev:** With `vite` dev mode, the wallet sidebar shows **Post test announcement (dev)** — sends a valid `wallet_tx_announcement` JSON with a fake hash so `WalletTxAnnouncementCard` can be checked in-thread before real sends.
 
-**Desktop (Tauri):** `get_wallet_summary` and `wallet_build_and_send_transaction` are registered commands; TypeScript helpers live in `src/lib/wallet/backend-wallet.ts`. **DM WalletBar Send** resolves the peer **`0x`** as **`dm_peer_evm`** first, then **`profiles.evm_address`** (see `docs/legacy-fixes/LF-003-peer-evm-send-fallback.md`). **Pairwise** **`wallet_peer_info_*`** DMs populate **`dm_peer_evm`**. **Settings → Wallet Send** passes **`to_address_evm`** so the backend uses a raw **`0x`** recipient instead. After a **confirmed** receipt from a **DM** send, the client posts a **`wallet_tx_announcement`** DM (`formatWalletTxAnnouncement` in `dm-messages.ts`). **Request** in the wallet bar posts **`wallet_tx_request`** JSON via `formatWalletTxRequest`. Those DM payloads **require** **`from_evm_address`** (active signer). **Kind 0** profile metadata may carry a **default-shared** payout `evm_address` for visibility; it can differ from the **active** signing address in **settings**.
+**Desktop (Tauri):** `get_wallet_summary` and `wallet_build_and_send_transaction` are registered commands; TypeScript helpers live in `src/lib/wallet/backend-wallet.ts`. **DM WalletBar Send** resolves the peer **`0x`** as **`dm_peer_evm`** first, then **`profiles.evm_address`** (see `docs/legacy-fixes/LF-003-peer-evm-send-fallback.md`). **Pairwise** **`wallet_peer_info_*`** DMs populate **`dm_peer_evm`**. A raw **`0x`** recipient from Settings passes **`to_address_evm`** so the backend skips npub resolution. After a **confirmed** receipt from a **DM** send, the client posts a **`wallet_tx_announcement`** DM (`formatWalletTxAnnouncement` in `dm-messages.ts`). **Request** in the wallet bar posts **`wallet_tx_request`** JSON via `formatWalletTxRequest`. Those DM payloads **require** **`from_evm_address`** (active signer). **Kind 0** profile metadata may carry a **default-shared** payout `evm_address` for visibility; it can differ from the **active** signing address in **Settings → Default wallet config**.
 
 Accepting a request opens the send form pre-filled and may attach **`request_id`** on the announcement when present.
 
@@ -34,7 +35,7 @@ Accepting a request opens the send form pre-filled and may attach **`request_id`
 ### Squad vs Advanced keys
 
 - **Squad accounts** (`purpose: squad`): DM WalletBar Send, squad roster shares, treasury deploy, and governance commands. Only squad-purpose keys may be the active signer or profile receiving address.
-- **Advanced accounts** (`purpose: advanced`): imported keys or derived advanced-only addresses. Used only from **Settings → Wallet → Advanced contract call** (`WalletAdvancedPanel.svelte`). Backend command **`evm_send_advanced_contract_call`** refuses squad signers; squad paths refuse advanced addresses (Phase G).
+- **Advanced accounts** (`purpose: advanced`): imported keys or derived advanced-only addresses. Used only from **Settings → Advanced** contract call (`WalletAdvancedPanel.svelte`). Backend command **`evm_send_advanced_contract_call`** refuses squad signers; squad paths refuse advanced addresses (Phase G).
 - **Generic reads** (token/module observation): viem via **`src/lib/evm/read-plane.ts`** — no private key. Does not replace curated pacto-gov dashboard reads in Rust.
 - **Squad allowlisted calls:** Dashboard → Settings → **Smart contract security** — squad keys may call explicit allowlist targets + implicit deploy infra only (`evm_send_squad_allowlisted_contract_call`).
 - Operator smoke: [OPERATOR_SMOKE.md](./OPERATOR_SMOKE.md).

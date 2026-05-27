@@ -1557,11 +1557,6 @@
           <MessengerNavbar />
           <div class="dm-main-row">
             <div class="dm-area-center" class:dm-area-center--wallet-open={dmWalletSidebarVisible}>
-            {#if $dmSyncStatus !== 'idle'}
-              <p class="dm-sync-banner dm-sync-{$dmSyncStatus}" role="status">
-                {$dmSyncStatus === 'syncing' ? 'Updating messages…' : 'Up to date'}
-              </p>
-            {/if}
             <div class="dm-main">
             {#if $composingNewChat}
               <MessengerChatView />
@@ -1828,26 +1823,6 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-  }
-
-  .dm-sync-banner {
-    margin: 0;
-    padding: 6px 24px;
-    font-size: 0.8125rem;
-    flex-shrink: 0;
-    width: 100%;
-    text-align: center;
-    box-sizing: border-box;
-  }
-
-  .dm-sync-syncing {
-    color: var(--text-secondary);
-    background-color: var(--bg-elevated);
-  }
-
-  .dm-sync-finished {
-    color: var(--text-muted);
-    background-color: #24804620;
   }
 
   .dm-empty {

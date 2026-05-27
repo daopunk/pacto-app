@@ -3,6 +3,7 @@ import {
   DEFAULT_PREFERRED_NETWORK,
   getPreferredNetworkDisplayName,
   isPreferredNetworkId,
+  listPreferredNetworkOptions,
   loadPreferredNetwork,
   savePreferredNetwork,
   WALLET_PREFERRED_NETWORK_PREFIX,
@@ -59,5 +60,14 @@ describe('preferred network prefs', () => {
     expect(getPreferredNetworkDisplayName('arbitrum')).toBe('Arbitrum');
     expect(isPreferredNetworkId('arbitrum')).toBe(true);
     expect(isPreferredNetworkId('polygon')).toBe(false);
+  });
+});
+
+describe('default wallet config (preferred network)', () => {
+  it('lists Arbitrum first with recommended label for the edit dropdown', () => {
+    const options = listPreferredNetworkOptions();
+    expect(options[0]?.id).toBe('arbitrum');
+    expect(options[0]?.label).toContain('recommended');
+    expect(options.some((o) => o.id === 'gnosis')).toBe(true);
   });
 });

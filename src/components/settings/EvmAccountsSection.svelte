@@ -108,7 +108,7 @@
         disabled={!evmAddress}
         on:click={onAddSquad}
       >
-        Add squad account
+        Add new account
       </button>
       <button
         type="button"
@@ -118,7 +118,12 @@
       >
         Add advanced account
       </button>
-      <button type="button" class="wallet-view-btn" disabled={!evmAddress} on:click={onImportKey}>
+      <button
+        type="button"
+        class="wallet-view-btn wallet-view-btn-secondary"
+        disabled={!evmAddress}
+        on:click={onImportKey}
+      >
         Import private key
       </button>
     </div>

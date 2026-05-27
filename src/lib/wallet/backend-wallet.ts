@@ -118,7 +118,7 @@ export async function walletBuildAndSendTransaction(
   asset: string,
   amount: string,
   erc20Transfer?: { address: string; decimals: number } | null,
-  /** When set, send to this `0x` address (Settings → Wallet). `toNpub` is then ignored by the backend. */
+  /** When set, send to this `0x` address from Settings. `toNpub` is then ignored by the backend. */
   toAddressEvm?: string | null
 ): Promise<WalletSendResultOutcome> {
   if (!isTauri()) {

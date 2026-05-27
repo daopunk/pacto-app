@@ -398,7 +398,7 @@
   <div class="wallet-view-modal" role="dialog" aria-labelledby="account-form-title" aria-modal="true">
     <h2 id="account-form-title" class="wallet-view-h2">
       {#if accountFormMode === 'add'}
-        {accountFormIsAdvanced ? 'Add advanced account' : 'Add squad account'}
+        {accountFormIsAdvanced ? 'Add advanced account' : 'Add new account'}
       {:else if accountFormIsAdvanced}
         Edit advanced account
       {:else}

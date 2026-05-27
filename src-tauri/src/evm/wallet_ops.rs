@@ -312,7 +312,7 @@ fn resolve_peer_send_address<R: Runtime>(app: &AppHandle<R>, to_npub: &str) -> R
     })
 }
 
-/// Tauri command: resolve peer EVM from `to_npub`, **or** use `to_address_evm` when set (Settings → Wallet send-to-address).
+/// Tauri command: resolve peer EVM from `to_npub`, **or** use `to_address_evm` when set (raw `0x` recipient from Settings).
 /// When `to_address_evm` is non-empty after trim, it is the recipient and `to_npub` is ignored for resolution.
 #[tauri::command]
 pub async fn wallet_build_and_send_transaction<R: Runtime>(

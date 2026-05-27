@@ -1845,6 +1845,63 @@ pub fn list_evm_account_squad_bindings<R: Runtime>(
     Ok(out)
 }
 
+#[cfg(test)]
+mod squad_binding_list_tests {
+    use super::EvmAccountSquadBindingRow;
+
+    fn list_bindings_for_member(
+        conn: &rusqlite::Connection,
+        member_npub: &str,
+    ) -> rusqlite::Result<Vec<EvmAccountSquadBindingRow>> {
+        let mut stmt = conn.prepare(
+            "SELECT evm_account_id, parent_id FROM squad_member_evm_account WHERE member_npub = ?1 ORDER BY parent_id",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![member_npub], |r| {
+            Ok(EvmAccountSquadBindingRow {
+                evm_account_id: r.get(0)?,
+                parent_id: r.get(1)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    #[test]
+    fn lists_bindings_for_member_ordered_by_parent_id() {
+        let conn = rusqlite::Connection::open_in_memory().expect("in-memory db");
+        conn.execute_batch(
+            "CREATE TABLE squad_member_evm_account (
+                parent_id TEXT NOT NULL,
+                member_npub TEXT NOT NULL,
+                evm_account_id TEXT NOT NULL,
+                updated_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (parent_id, member_npub)
+            );",
+        )
+        .expect("schema");
+        conn.execute(
+            "INSERT INTO squad_member_evm_account (parent_id, member_npub, evm_account_id, updated_at_ms) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["squad-z", "npub1member", "acc-1", 1_i64],
+        )
+        .expect("insert z");
+        conn.execute(
+            "INSERT INTO squad_member_evm_account (parent_id, member_npub, evm_account_id, updated_at_ms) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["squad-a", "npub1member", "acc-1", 2_i64],
+        )
+        .expect("insert a");
+        conn.execute(
+            "INSERT INTO squad_member_evm_account (parent_id, member_npub, evm_account_id, updated_at_ms) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["squad-a", "npub1other", "acc-2", 3_i64],
+        )
+        .expect("insert other member");
+
+        let rows = list_bindings_for_member(&conn, "npub1member").expect("query");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].parent_id, "squad-a");
+        assert_eq!(rows[1].parent_id, "squad-z");
+        assert!(rows.iter().all(|r| r.evm_account_id == "acc-1"));
+    }
+}
+
 pub(crate) fn roster_evm_address_for_member<R: Runtime>(
     handle: &AppHandle<R>,
     parent_id: &str,

@@ -173,7 +173,7 @@ pub async fn require_squad_purpose_signer<R: Runtime>(handle: AppHandle<R>) -> R
     require_active_account_purpose(
         &handle,
         PURPOSE_SQUAD,
-        "Active signer must be a squad-purpose account. Switch signer under Settings → Wallet.",
+        "Active signer must be a squad-purpose account. Switch signer under Settings → Default wallet config.",
     )
     .await
 }
@@ -182,7 +182,7 @@ pub async fn require_advanced_purpose_signer<R: Runtime>(handle: AppHandle<R>) -
     ensure_ready(handle.clone()).await?;
     let conn = account_manager::get_db_connection(&handle)?;
     let advanced_id = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.ok_or_else(|| {
-        "No active Advanced account. Create or select one under Settings → Wallet.".to_string()
+        "No active Advanced account. Create or select one under Settings → EVM accounts.".to_string()
     })?;
     let purpose: String = conn
         .query_row(
@@ -365,7 +365,7 @@ async fn resolve_active_private_key_hex<R: Runtime>(
 ) -> Result<(String, String, String), String> {
     let conn = account_manager::get_db_connection(handle)?;
     let active_id = sql_get_setting(&conn, SETTING_ACTIVE)?.ok_or_else(|| {
-        "No active EVM account. Open Settings → Wallet to set up accounts.".to_string()
+        "No active EVM account. Set up accounts under Settings → EVM.".to_string()
     })?;
     account_manager::return_db_connection(conn);
     resolve_private_key_hex_for_account_id(handle, &active_id).await
@@ -378,7 +378,7 @@ pub(crate) async fn resolve_advanced_signing_material<R: Runtime>(
     require_advanced_purpose_signer(handle.clone()).await?;
     let conn = account_manager::get_db_connection(&handle)?;
     let advanced_id = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.ok_or_else(|| {
-        "No active Advanced account. Create or select one under Settings → Wallet.".to_string()
+        "No active Advanced account. Create or select one under Settings → EVM accounts.".to_string()
     })?;
     account_manager::return_db_connection(conn);
     let (key_hex, addr, _) = resolve_private_key_hex_for_account_id(&handle, &advanced_id).await?;
