@@ -133,6 +133,8 @@
     pactoGovInfraId,
     squadSponsorInfraId,
     buildSponsorGovernanceAnnouncePayload,
+    buildPactoGovGovernanceAnnouncePayload,
+    pactoGovTreasuryEntryId,
     primaryGovernanceView,
   } from '../lib/governance/api';
   import { resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
@@ -261,9 +263,12 @@
     chain: string;
     topHatId: string;
     providerPayload: string;
+    safeAddress: string;
+    txHash: string;
   }) {
+    const entryId = pactoGovInfraId(params.parentId);
     await upsertSquadInfra({
-      id: pactoGovInfraId(params.parentId),
+      id: entryId,
       parentId: params.parentId,
       infraType: 'pacto_gov',
       chain: params.chain,
@@ -275,23 +280,52 @@
       get(networks).find((n: Network) => n.id === params.parentId);
     const gid =
       (row ? resolveAutomatedAnnounceGroupId(row) : null) ?? params.announcementsGroupId.trim();
+
+    const safeCanonical = governanceCanonicalSafeRef(params.safeAddress);
+    const treasuryEntryId = pactoGovTreasuryEntryId(params.parentId);
+    await addParentTreasurySafe(params.parentId, safeCanonical, {
+      chain: params.chain,
+      label: '',
+      entryId: treasuryEntryId,
+    });
+
     if (gid) {
+      const chainKey = parseSupportedChainId(params.chain);
+      const txHex = params.txHash?.trim();
+      const explorerTxUrl = txHex && txHex.length > 0 ? getExplorerTxUrl(chainKey, txHex) : null;
       await sendDmMessage(
         gid,
         buildAnnounceContent({
-          type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
+          type: ANNOUNCE_TYPE_SAFE_UPDATED,
           payload: {
-            parent_id: params.parentId,
-            provider: 'pacto_gov',
-            canonical_ref: params.topHatId,
+            squad_id: params.parentId,
+            safe_address: safeCanonical,
             chain: params.chain,
-            provider_payload: params.providerPayload,
+            entry_id: treasuryEntryId,
+            tx_hash: txHex || undefined,
+            explorer_tx_url: explorerTxUrl ?? undefined,
           },
         }),
         '',
         { virtualBucket: 'monitor' },
       );
+      await sendDmMessage(
+        gid,
+        buildAnnounceContent({
+          type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
+          payload: buildPactoGovGovernanceAnnouncePayload({
+            parentId: params.parentId,
+            topHatId: params.topHatId,
+            chain: params.chain,
+            providerPayload: params.providerPayload,
+            entryId,
+          }),
+        }),
+        '',
+        { virtualBucket: 'monitor' },
+      );
     }
+    await mergeTreasurySafesForParent(params.parentId);
     await mergeSquadInfraForParent(params.parentId);
   }
 

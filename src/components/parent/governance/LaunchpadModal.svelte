@@ -3,6 +3,7 @@
 
   export let parentType: 'squad' | 'network';
   export let hasSponsor: boolean;
+  export let hasPactoGov: boolean;
   export let hasAnnouncementsChannel: boolean;
   export let onClose: () => void;
   export let onDeploySponsor: () => void;
@@ -56,6 +57,8 @@
       <p class="launchpad-card-desc">
         {#if otherInfraLocked}
           Deploy squad sponsor first.
+        {:else if hasPactoGov}
+          Nave Pirata is deployed for this {parentType}. Open the Governance and Roles Tree tabs to explore on-chain state.
         {:else}
           Nave Pirata factory bundle (Hats tree, treasury authority, Safe module).
         {/if}
@@ -69,7 +72,7 @@
           onDeployPactoGov();
         }}
       >
-        Set up Pacto Gov
+        {hasPactoGov ? 'Open Governance tab' : 'Set up Pacto Gov'}
       </button>
     </li>
 

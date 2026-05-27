@@ -108,6 +108,8 @@
         chain: string;
         topHatId: string;
         providerPayload: string;
+        safeAddress: string;
+        txHash: string;
       }) => Promise<void>)
     | undefined = undefined;
 
@@ -138,6 +140,7 @@
   }
 
   $: pactoGovRow = pactoGovInfraRow(squadInfraRows);
+  $: hasPactoGov = pactoGovRow != null;
   $: pactoPayload = parsePactoGovProviderPayload(pactoGovRow?.providerPayload);
   $: pactoNetwork = (pactoGovRow?.chain?.trim() || 'sepolia') as 'sepolia' | 'mainnet' | 'optimism';
 
@@ -440,6 +443,10 @@
 
   function openPactoGovDeploy() {
     requireSponsorForInfra(() => {
+      if (pactoGovRow) {
+        selectDashboardView('governance');
+        return;
+      }
       if (parentId?.trim()) showNaveWizard = true;
     });
   }
@@ -902,8 +909,12 @@
         chain: out.chain,
         topHatId: out.topHatId,
         providerPayload: out.providerPayload,
+        safeAddress: out.safeAddress,
+        txHash: out.txHash,
       });
-      showToast('Pacto Gov deployment saved and announced.');
+      showNaveWizard = false;
+      selectDashboardView('governance');
+      showToast('Pacto Gov deployed — Governance and Roles Tree tabs are live.');
     }}
   />
 {/if}
@@ -912,6 +923,7 @@
   <LaunchpadModal
     {parentType}
     {hasSponsor}
+    {hasPactoGov}
     hasAnnouncementsChannel={!!announcementsGroupId}
     onClose={() => {
       showLaunchpad = false;

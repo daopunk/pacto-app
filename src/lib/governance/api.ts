@@ -70,6 +70,11 @@ export function pactoGovInfraId(parentId: string): string {
   return `pacto-gov-${parentId}`;
 }
 
+/** Stable treasury row id for the Safe deployed with Nave Pirata (`Governance: Treasury`). */
+export function pactoGovTreasuryEntryId(parentId: string): string {
+  return `pacto-gov-treasury-${parentId}`;
+}
+
 /** Maps legacy announce / UI provider strings to squad infra types. */
 export function infraTypeFromLegacyProvider(provider: string): string {
   const p = provider.trim().toLowerCase();
@@ -196,6 +201,36 @@ export function buildSponsorGovernanceAnnouncePayload(params: {
     chain: params.chain,
     entry_id: params.entryId,
     provider_payload: params.providerPayload,
+  };
+}
+
+/** Wire payload for `governance_updated` when pacto-gov (Nave Pirata) infra is deployed. */
+export function buildPactoGovGovernanceAnnouncePayload(params: {
+  parentId: string;
+  topHatId: string;
+  chain: string;
+  providerPayload: string;
+  entryId: string;
+  pactoGovRevision?: string | null;
+}): {
+  parent_id: string;
+  provider: 'pacto_gov';
+  canonical_ref: string;
+  chain: string;
+  entry_id: string;
+  provider_payload: string;
+  pacto_gov_revision?: string;
+} {
+  return {
+    parent_id: params.parentId,
+    provider: 'pacto_gov',
+    canonical_ref: params.topHatId,
+    chain: params.chain,
+    entry_id: params.entryId,
+    provider_payload: params.providerPayload,
+    ...(params.pactoGovRevision?.trim()
+      ? { pacto_gov_revision: params.pactoGovRevision.trim() }
+      : {}),
   };
 }
 

@@ -15,6 +15,7 @@
     txHash: string;
     chain: string;
     topHatId: string;
+    safeAddress: string;
     providerPayload: string;
   }) => Promise<void>;
 
@@ -99,6 +100,7 @@
         txHash: result.txHash,
         chain: result.chain,
         topHatId: result.topHatId,
+        safeAddress: result.safeAddress,
         providerPayload: result.providerPayload,
       });
       onClose();
