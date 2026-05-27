@@ -4,6 +4,7 @@ import type { SupportedChainId } from '../lib/wallet/chains';
 import type { TreasurySafeEntry } from '../lib/treasury/treasury-safes';
 import type { SquadInfraDto } from '../lib/governance/api';
 import { hydrateWalletSummaryCacheFromDisk } from '../lib/wallet/wallet-summary-cache';
+import { loadDeferredSquadRosterKeyParentIds } from '../lib/squad/squad-roster-key-choice';
 import { buildBackendGroupTimelineMessages } from '../lib/mls/virtual-channel-bucket';
 import {
   initInviteDecisionPersistence,
@@ -425,9 +426,14 @@ export const treasurySafesByParentId = writable<Record<string, TreasurySafeEntry
 export type { TreasurySafeEntry };
 export type { SquadInfraDto };
 
-/** Normalize a channel from storage (drops legacy `id` if present). */
+/** Normalize a channel from storage (drops legacy `id` if present). Renames pre–step-17 `monitor` → `inbox`. */
+export function normalizeStoredChannel(ch: { name: string; groupId: string; order: number }): Channel {
+  const name = ch.name === 'monitor' ? INBOX_CHANNEL_NAME : ch.name;
+  return { name, groupId: ch.groupId, order: ch.order };
+}
+
 function normalizeChannel(ch: { name: string; groupId: string; order: number }): Channel {
-  return { name: ch.name, groupId: ch.groupId, order: ch.order };
+  return normalizeStoredChannel(ch);
 }
 
 // Squad = frontend-only container (name, icon, ordered channels). Persisted to localStorage.
@@ -769,6 +775,7 @@ export function loadAccountState(npub: string): void {
   } catch {
     // ignore parse errors
   }
+  loadDeferredSquadRosterKeyParentIds();
   hydrateWalletSummaryCacheFromDisk(npub);
 }
 

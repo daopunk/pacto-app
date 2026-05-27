@@ -17,7 +17,7 @@ use super::rpc::{
     connect_signing_provider, contract_call_request, parse_salt_nonce, parse_address,
     send_and_confirm, wallet_err_json, wallet_err_json_with_tx_hash,
 };
-use super::rpc::signer::{load_embedded_signer, require_treasury_signing_allowed};
+use super::rpc::signer::{load_squad_roster_embedded_signer, require_roster_treasury_signing_allowed};
 use super::squad_sponsor_common::require_sponsor_infra_for_parent;
 use super::wallet_chain_config;
 
@@ -175,8 +175,8 @@ pub async fn deploy_nave_pirata_for_parent<R: Runtime>(
         ));
     }
 
-    require_treasury_signing_allowed(app.clone()).await?;
-    let (_signer, wallet) = load_embedded_signer(app).await?;
+    require_roster_treasury_signing_allowed(app.clone(), pid).await?;
+    let (_signer, wallet) = load_squad_roster_embedded_signer(app.clone(), pid).await?;
     let provider = connect_signing_provider(&urls, wallet).await?;
 
     let tx = contract_call_request(factory, calldata);

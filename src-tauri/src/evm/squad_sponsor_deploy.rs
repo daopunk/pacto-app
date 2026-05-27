@@ -15,7 +15,7 @@ use super::rpc::{
     connect_read_provider, connect_signing_provider, contract_call_request, send_and_confirm,
     wallet_err_json, wallet_err_json_with_tx_hash,
 };
-use super::rpc::signer::{load_embedded_signer, require_treasury_signing_allowed};
+use super::rpc::signer::{load_squad_roster_embedded_signer, require_roster_treasury_signing_allowed};
 use super::squad_sponsor_common::{
     parse_deposit_wei, read_squad_record, squad_id_from_parent_id, squad_variant_label,
 };
@@ -93,8 +93,8 @@ pub async fn deploy_squad_sponsor_for_parent<R: Runtime>(
         ));
     }
 
-    require_treasury_signing_allowed(app.clone()).await?;
-    let (_signer, wallet) = load_embedded_signer(app.clone()).await?;
+    require_roster_treasury_signing_allowed(app.clone(), pid).await?;
+    let (_signer, wallet) = load_squad_roster_embedded_signer(app.clone(), pid).await?;
     let provider = connect_signing_provider(&urls, wallet).await?;
 
     let mut tx = contract_call_request(factory, calldata);

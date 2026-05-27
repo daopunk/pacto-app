@@ -16,7 +16,7 @@ When upstream interfaces change, update bindings in `evm/contracts/pacto_gov/` a
 
 ## Manual smoke (Sepolia)
 
-Operator checklist: [NAVE_PIRATA_SMOKE.md](./NAVE_PIRATA_SMOKE.md) (requires squad sponsor first). Announce sync: [GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md](./GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md).
+Operator checklist: [OPERATOR_SMOKE.md](./OPERATOR_SMOKE.md) §2 (Pacto Gov) and §4 (announce sync); requires squad sponsor first (§1).
 
 ## Related
 

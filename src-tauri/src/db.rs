@@ -1690,6 +1690,27 @@ pub fn list_squad_member_evm<R: Runtime>(
     Ok(out)
 }
 
+/// Lookup squad/network `parent_id` for an on-chain infra address (e.g. Squad Admin proxy).
+pub fn parent_id_for_canonical_infra_ref<R: Runtime>(
+    handle: &AppHandle<R>,
+    canonical_ref: &str,
+) -> Result<Option<String>, String> {
+    let Some(norm) = crate::evm::normalize_hex_address(canonical_ref.trim()) else {
+        return Ok(None);
+    };
+    let conn = crate::account_manager::get_db_connection(handle)?;
+    let parent: Option<String> = conn
+        .query_row(
+            "SELECT parent_id FROM squad_infra WHERE lower(canonical_ref) = lower(?1) ORDER BY updated_at_ms DESC LIMIT 1",
+            rusqlite::params![norm.as_str()],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Failed to lookup squad_infra parent: {}", e))?;
+    crate::account_manager::return_db_connection(conn);
+    Ok(parent.filter(|s| !s.trim().is_empty()))
+}
+
 /// Local per-squad roster signing account binding for the current user.
 #[command]
 pub fn upsert_squad_member_evm_account<R: Runtime>(

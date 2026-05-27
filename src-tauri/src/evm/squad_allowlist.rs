@@ -8,7 +8,6 @@ use tauri::{AppHandle, Runtime};
 
 use crate::db;
 use super::contract_call_params::{parse_data_hex, parse_value_wei};
-use super::evm_accounts;
 use super::rpc::{connect_signing_provider, parse_address, send_and_confirm, wallet_err_json};
 use super::rpc::signer::load_squad_roster_embedded_signer;
 use super::wallet_chain_config;
@@ -53,10 +52,6 @@ pub async fn evm_send_squad_allowlisted_contract_call<R: Runtime>(
         .map_err(|e| wallet_err_json("INVALID_TO_ADDRESS", e, None))?;
     let value = parse_value_wei(&value_wei).map_err(|e| wallet_err_json("INVALID_VALUE", e, None))?;
     let data = parse_data_hex(&data_hex).map_err(|e| wallet_err_json("INVALID_DATA", e, None))?;
-
-    evm_accounts::require_squad_purpose_signer(app.clone())
-        .await
-        .map_err(|e| wallet_err_json("SQUAD_SIGNER_REQUIRED", e, None))?;
 
     let allowed = db::is_allowlisted_contract_target(&app, pid, &net.key, &format!("{:#x}", to_addr))
         .map_err(|e| wallet_err_json("ALLOWLIST_CHECK", e, None))?;

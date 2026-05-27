@@ -12,8 +12,12 @@ use super::rpc::{
     connect_signing_provider, contract_call_request, parse_address, send_and_confirm,
     wallet_err_json,
 };
-use super::rpc::signer::{load_embedded_signer, require_treasury_signing_allowed};
+use super::rpc::signer::{
+    load_embedded_signer, load_squad_roster_embedded_signer, require_roster_treasury_signing_allowed,
+    require_treasury_signing_allowed,
+};
 use super::wallet_chain_config;
+use crate::db;
 
 pub fn bytes32_role_tag(label: &str) -> Result<B256, String> {
     let trimmed = label.trim();
@@ -67,8 +71,15 @@ async fn squad_admin_write<R: Runtime>(
         ));
     }
 
-    require_treasury_signing_allowed(app.clone()).await?;
-    let (_signer, wallet) = load_embedded_signer(app).await?;
+    let parent_id = db::parent_id_for_canonical_infra_ref(&app, squad_admin_proxy.trim())?
+        .unwrap_or_default();
+    let (_signer, wallet) = if parent_id.trim().is_empty() {
+        require_treasury_signing_allowed(app.clone()).await?;
+        load_embedded_signer(app.clone()).await?
+    } else {
+        require_roster_treasury_signing_allowed(app.clone(), parent_id.trim()).await?;
+        load_squad_roster_embedded_signer(app.clone(), parent_id.trim()).await?
+    };
     let provider = connect_signing_provider(&urls, wallet).await?;
     let tx = contract_call_request(admin, calldata);
     let receipt = send_and_confirm(

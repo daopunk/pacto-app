@@ -89,6 +89,74 @@ pub fn ensure_address_allowed_on_squad_roster<R: Runtime>(
     }
 }
 
+/// Resolve which local `evm_accounts.id` should sign for a squad parent scope.
+pub fn resolve_roster_signing_account_id<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+) -> Result<String, String> {
+    let pid = parent_id.trim();
+
+    let active_squad_account_id = |conn: &rusqlite::Connection| -> Result<String, String> {
+        let active_id = sql_get_setting(conn, SETTING_ACTIVE)?
+            .ok_or_else(|| "No active EVM account.".to_string())?;
+        require_squad_purpose_account_id(conn, &active_id)?;
+        Ok(active_id)
+    };
+
+    if pid.is_empty() {
+        let conn = account_manager::get_db_connection(handle)?;
+        let id = active_squad_account_id(&conn)?;
+        account_manager::return_db_connection(conn);
+        return Ok(id);
+    }
+
+    if let Some(account_id) = db::get_squad_member_evm_account_id(handle, pid, None)? {
+        let conn = account_manager::get_db_connection(handle)?;
+        require_squad_purpose_account_id(&conn, &account_id)?;
+        account_manager::return_db_connection(conn);
+        return Ok(account_id);
+    }
+
+    if let Some(member) = account_manager::get_current_account().ok() {
+        if let Some(addr) = db::roster_evm_address_for_member(handle, pid, member.as_str())? {
+            let conn = account_manager::get_db_connection(handle)?;
+            let account_id: Option<String> = conn
+                .query_row(
+                    "SELECT id FROM evm_accounts WHERE lower(address) = lower(?1) AND lower(purpose) = 'squad' LIMIT 1",
+                    rusqlite::params![addr.as_str()],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|e| format!("evm_accounts lookup: {}", e))?;
+            account_manager::return_db_connection(conn);
+            if let Some(id) = account_id {
+                return Ok(id);
+            }
+        }
+    }
+
+    let conn = account_manager::get_db_connection(handle)?;
+    let id = active_squad_account_id(&conn)?;
+    account_manager::return_db_connection(conn);
+    Ok(id)
+}
+
+/// Treasury / phrase-derived deploy paths: validate the roster-resolved account can sign.
+pub async fn require_roster_treasury_signing_allowed<R: Runtime>(
+    handle: AppHandle<R>,
+    parent_id: &str,
+) -> Result<(), String> {
+    let account_id = resolve_roster_signing_account_id(&handle, parent_id)?;
+    let (_, _, scheme) = resolve_private_key_hex_for_account_id(&handle, &account_id).await?;
+    if scheme != SCHEME_BIP44_V1 {
+        return Err(
+            "Treasury and on-chain deployment require a wallet address derived from your recovery phrase."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 async fn require_active_account_purpose<R: Runtime>(
     handle: &AppHandle<R>,
     expected: &str,

@@ -14,11 +14,7 @@
   } from '../../lib/mls/virtual-channel-bucket';
   import DashboardPollsPanel from '../parent/DashboardPollsPanel.svelte';
   import SquadRosterKeyInboxCard from '../inbox/SquadRosterKeyInboxCard.svelte';
-  import {
-    needsSquadRosterKeyChoice,
-    loadDeferredSquadRosterKeyParentIds,
-  } from '../../lib/squad/squad-roster-key-choice';
-  import { onMount } from 'svelte';
+  import { needsSquadRosterKeyChoice } from '../../lib/squad/squad-roster-key-choice';
   import {
     activeChannelId,
     activeHubChannelName,
@@ -120,10 +116,6 @@
   let leaveChannelError = '';
 
   let showRosterKeyCard = false;
-
-  onMount(() => {
-    loadDeferredSquadRosterKeyParentIds();
-  });
 
   async function refreshRosterKeyCard(): Promise<void> {
     if (!isInboxChannel || !activeParent) {

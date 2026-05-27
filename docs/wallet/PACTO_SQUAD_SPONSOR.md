@@ -19,7 +19,7 @@ Squad-scoped **ERC-4337** gas sponsorship (paymaster + per-squad clone factory).
 
 ## Manual smoke (Sepolia)
 
-See **[SQUAD_SPONSOR_SMOKE.md](./SQUAD_SPONSOR_SMOKE.md)**.
+See **[OPERATOR_SMOKE.md](./OPERATOR_SMOKE.md)** §1 (squad sponsor).
 
 ## Related
 
