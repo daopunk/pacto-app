@@ -17,7 +17,7 @@
   import { getProfileAvatarSrc, getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
   import { safeStateByTreasuryId, refreshSafeStateForTreasuryEntry } from '../../stores/safe';
-  import type { ParentGovernanceDto, SquadInfraDto, TreasuryProposalDto, HatTreeNodeDto, MemberHatAssignmentDto } from '../../lib/governance/api';
+  import type { ParentGovernanceDto, SquadInfraDto, TreasuryProposalDto, HatTreeNodeDto } from '../../lib/governance/api';
   import {
     getHatsTree,
     getMemberHatWearers,
@@ -27,23 +27,30 @@
     listTreasuryProposals,
     pactoGovInfraRow,
     sponsorInfraRow,
+    treasuryProposalHasVoted,
+    withLegacyProvider,
   } from '../../lib/governance/api';
   import {
     formatSquadAdminExecutorRoles,
     hatChecksFromNaveDeployment,
     parsePactoGovProviderPayload,
-    treasuryProposalStatusLabel,
   } from '../../lib/governance/pacto-gov-payload';
+  import { isTreasuryProposalActive } from '../../lib/governance/treasury-proposal-ui';
+  import { treasuryVaultHeading } from '../../lib/treasury/treasury-vault-labels';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
+  import { currentUser } from '../../stores/auth';
   import friendsIcon from '../../icons/friends.svg';
   import DeploySafeModal from './DeploySafeModal.svelte';
   import DeployNavePirataWizard from './governance/DeployNavePirataWizard.svelte';
   import DeploySquadSponsorModal from './governance/DeploySquadSponsorModal.svelte';
   import LaunchpadModal from './governance/LaunchpadModal.svelte';
   import SquadSponsorTreasuryPanel from './governance/SquadSponsorTreasuryPanel.svelte';
+  import HatsTreeDiagram from './governance/HatsTreeDiagram.svelte';
+  import TreasuryProposalCard from './governance/TreasuryProposalCard.svelte';
+  import SmartContractSecuritySection from './governance/SmartContractSecuritySection.svelte';
+  import SquadRolesModal from './governance/SquadRolesModal.svelte';
   import { showToast } from '../../stores/toast';
   import { listSquadMemberEvmInvokeArgs } from '../../lib/squad/squad-member-evm-share';
-  import { buildDashboardProposalCards, dashboardProposalToolLabel } from '../../lib/dashboard/proposal-cards';
   import { resolveDashboardStructureSummary } from '../../lib/dashboard/structure-summary';
   import { resolveDashboardPermissionsContext } from '../../lib/dashboard/permissions-panel';
 
@@ -109,6 +116,7 @@
   let showNaveWizard = false;
   let showLaunchpad = false;
   let showSponsorDeploy = false;
+  let showSquadRolesModal = false;
 
   let setSafeInput = '';
   let setSafeChain: 'sepolia' | 'mainnet' | 'optimism' = 'sepolia';
@@ -129,26 +137,27 @@
     });
   }
 
-  $: proposalCards = buildDashboardProposalCards({
-    treasurySafes: displayedTreasurySafes,
-    governanceConfig,
-  });
-
-  $: structureSummary = resolveDashboardStructureSummary(governanceConfig);
-
-  $: permissionsCtx = resolveDashboardPermissionsContext(governanceConfig);
-
   $: pactoGovRow = pactoGovInfraRow(squadInfraRows);
   $: pactoPayload = parsePactoGovProviderPayload(pactoGovRow?.providerPayload);
   $: pactoNetwork = (pactoGovRow?.chain?.trim() || 'sepolia') as 'sepolia' | 'mainnet' | 'optimism';
+
+  $: structureSummary = resolveDashboardStructureSummary(
+    squadInfraRows === undefined ? undefined : pactoGovRow,
+  );
+
+  $: permissionsGov =
+    pactoGovRow != null ? withLegacyProvider(pactoGovRow) : governanceConfig;
+  $: permissionsCtx = resolveDashboardPermissionsContext(permissionsGov);
 
   let treasuryProposals: TreasuryProposalDto[] = [];
   let treasuryProposalsLoading = false;
   let treasuryProposalsError = '';
   let treasuryProposalsKey = '';
+  let proposalHasVotedById: Record<string, boolean> = {};
+  let proposalVotesLoading = false;
+  let myVoterAddress = '';
 
   let hatsTree: HatTreeNodeDto | null = null;
-  let hatsTreeFlat: { node: HatTreeNodeDto; depth: number }[] = [];
   let hatsTreeLoading = false;
   let hatsTreeError = '';
   let hatsTreeKey = '';
@@ -159,12 +168,46 @@
   let settingsChainError = '';
   let settingsChainKey = '';
 
-  function flattenHatTree(node: HatTreeNodeDto, depth = 0): { node: HatTreeNodeDto; depth: number }[] {
-    const out: { node: HatTreeNodeDto; depth: number }[] = [{ node, depth }];
-    for (const child of node.children ?? []) {
-      out.push(...flattenHatTree(child, depth + 1));
+  async function loadTreasuryProposalVotes() {
+    const ta = pactoPayload?.treasuryAuthority?.trim();
+    if (!ta || treasuryProposals.length === 0) {
+      proposalHasVotedById = {};
+      myVoterAddress = '';
+      return;
     }
-    return out;
+    const me = $currentUser?.npub;
+    const voter = me ? squadMemberEvmByNpub[me]?.trim() : '';
+    myVoterAddress = voter;
+    if (!voter) {
+      proposalHasVotedById = {};
+      return;
+    }
+    const active = treasuryProposals.filter((p) => isTreasuryProposalActive(p.status));
+    if (active.length === 0) {
+      proposalHasVotedById = {};
+      return;
+    }
+    proposalVotesLoading = true;
+    try {
+      const pairs = await Promise.all(
+        active.map(async (p) => {
+          const voted = await treasuryProposalHasVoted({
+            network: pactoNetwork,
+            treasuryAuthority: ta,
+            proposalId: p.proposalId,
+            voter,
+          });
+          return [p.proposalId, voted] as const;
+        }),
+      );
+      const map: Record<string, boolean> = {};
+      for (const [id, voted] of pairs) map[id] = voted;
+      proposalHasVotedById = map;
+    } catch {
+      proposalHasVotedById = {};
+    } finally {
+      proposalVotesLoading = false;
+    }
   }
 
   async function loadTreasuryProposals() {
@@ -177,12 +220,20 @@
     try {
       const rows = await listTreasuryProposals({ network: pactoNetwork, treasuryAuthority: ta });
       treasuryProposals = [...rows].sort((a, b) => Number(b.proposalId) - Number(a.proposalId));
+      await loadTreasuryProposalVotes();
     } catch (e) {
       treasuryProposals = [];
+      proposalHasVotedById = {};
       treasuryProposalsError = getInvokeErrorMessage(e, 'Could not load treasury proposals.');
     } finally {
       treasuryProposalsLoading = false;
     }
+  }
+
+  function onTreasuryVoteClick() {
+    showToast(
+      'On-chain vote signing is not wired yet — your vote status is loaded from Treasury Authority.',
+    );
   }
 
   async function loadHatsTree() {
@@ -194,10 +245,8 @@
     hatsTreeError = '';
     try {
       hatsTree = await getHatsTree({ network: pactoNetwork, topHatId: topHat });
-      hatsTreeFlat = flattenHatTree(hatsTree);
     } catch (e) {
       hatsTree = null;
-      hatsTreeFlat = [];
       hatsTreeError = getInvokeErrorMessage(e, 'Could not load Hats tree.');
     } finally {
       hatsTreeLoading = false;
@@ -262,6 +311,10 @@
 
   $: if (dashboardView === 'governance' && pactoPayload?.treasuryAuthority) {
     void loadTreasuryProposals();
+  }
+
+  $: if (dashboardView === 'governance' && parentId) {
+    void loadSquadMemberEvm();
   }
 
   $: if (dashboardView === 'roles_tree' && pactoGovRow?.canonicalRef) {
@@ -514,11 +567,12 @@
   {/if}
   <section class="dashboard-section dashboard-placeholder-section" aria-labelledby="governance-heading">
     <h3 id="governance-heading" class="section-heading">Governance</h3>
-    <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-      Treasury Authority proposals from chain when Pacto Gov is deployed. Safe-linked rows remain placeholders until
-      Safe proposal reads land.
-    </p>
-    {#if pactoPayload?.treasuryAuthority}
+    {#if !pactoPayload?.treasuryAuthority}
+      <p class="dashboard-placeholder-text dashboard-placeholder-lead">
+        Treasury Authority proposals appear here after you deploy <strong>Pacto Gov</strong> from Deploy.
+      </p>
+      <button type="button" class="btn-primary governance-deploy-cta" on:click={openLaunchpad}>Deploy Pacto Gov</button>
+    {:else}
       {#if treasuryProposalsLoading}
         <p class="dashboard-placeholder-text muted">Loading treasury proposals…</p>
       {:else if treasuryProposalsError}
@@ -528,53 +582,17 @@
       {:else}
         <ul class="proposal-card-list" role="list">
           {#each treasuryProposals as proposal (proposal.proposalId)}
-            <li class="proposal-card">
-              <div class="proposal-card-head">
-                <span class="proposal-card-tool">Treasury Authority</span>
-                <span class="proposal-card-chain">{treasuryProposalStatusLabel(proposal.status)}</span>
-              </div>
-              <p class="proposal-card-title">Proposal #{proposal.proposalId}</p>
-              <p class="proposal-card-meta muted">
-                Yeas {proposal.yeas} / nays {proposal.nays} · snapshot {proposal.snapshot} · deadline{' '}
-                {new Date(proposal.deadline * 1000).toLocaleString()}
-              </p>
-              <code class="proposal-card-ref">{proposal.to}</code>
-            </li>
+            <TreasuryProposalCard
+              {proposal}
+              voterAddress={myVoterAddress}
+              hasVoted={proposalHasVotedById[proposal.proposalId]}
+              votePending={proposalVotesLoading}
+              onVoteYea={onTreasuryVoteClick}
+              onVoteNay={onTreasuryVoteClick}
+            />
           {/each}
         </ul>
       {/if}
-    {/if}
-    {#if proposalCards.filter((c) => c.tool === 'safe').length > 0}
-      <p class="roles-table-caption">Linked Safes</p>
-      <ul class="proposal-card-list" role="list">
-        {#each proposalCards.filter((c) => c.tool === 'safe') as card (card.tool + ':' + card.ref + ':' + (card.treasuryEntryId ?? ''))}
-          {@const safeEntry =
-            card.treasuryEntryId
-              ? displayedTreasurySafes.find((t) => t.id === card.treasuryEntryId)
-              : undefined}
-          <li class="proposal-card">
-            <div class="proposal-card-head">
-              <span class="proposal-card-tool">{dashboardProposalToolLabel(card.tool)}</span>
-              {#if card.chain}
-                <span class="proposal-card-chain">{card.chain}</span>
-              {/if}
-            </div>
-            {#if card.title}
-              <p class="proposal-card-title">{card.title}</p>
-            {/if}
-            <code class="proposal-card-ref">{card.ref}</code>
-            {#if safeEntry}
-              <p class="proposal-card-actions">
-                <button type="button" class="btn-link treasury-explorer-link" on:click={() => openTreasuryExplorer(safeEntry)}>
-                  View on explorer
-                </button>
-              </p>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {:else if !pactoPayload?.treasuryAuthority}
-      <p class="dashboard-placeholder-text muted">No proposal sources yet. Link a Safe or deploy Pacto Gov from Deploy.</p>
     {/if}
   </section>
   {:else if dashboardView === 'roles_tree'}
@@ -593,9 +611,7 @@
         Hat tree and role structure show here once this {parentType} has a <strong>Pacto Gov</strong> deployment
         (Deploy). Safe-only setups do not publish a Hats tree id yet.
       </p>
-      <p class="dashboard-placeholder-text muted">
-        An in-app diagram will read the Hats subgraph first when we wire it; this tab stays summary-first until then.
-      </p>
+      <button type="button" class="btn-secondary roles-tree-deploy-cta" on:click={openLaunchpad}>Open Deploy</button>
     {:else}
       <p class="structure-summary-lead dashboard-placeholder-text">
         Top hat for this {parentType} on <strong>{structureSummary.chainDisplayName}</strong> (chain id{' '}
@@ -619,23 +635,10 @@
         <p class="dashboard-placeholder-text muted">Loading Hats tree from chain…</p>
       {:else if hatsTreeError}
         <p class="chain-read-error" role="alert">{hatsTreeError}</p>
-      {:else if hatsTreeFlat.length > 0}
-        <p class="roles-table-caption">On-chain tree (read via RPC)</p>
-        <ul class="hats-tree-flat-list" role="list">
-          {#each hatsTreeFlat as row (row.node.hatId)}
-            <li class="hats-tree-flat-row" style={`padding-left: ${8 + row.depth * 16}px`}>
-              <span class="hats-tree-flat-details">{row.node.details || 'Untitled hat'}</span>
-              <code class="structure-mono">{row.node.hatId}</code>
-              <span class="muted hats-tree-flat-meta"
-                >{row.node.supply}/{row.node.maxSupply} · {row.node.active ? 'active' : 'inactive'}</span
-              >
-            </li>
-          {/each}
-        </ul>
+      {:else if hatsTree}
+        <p class="roles-table-caption">On-chain tree</p>
+        <HatsTreeDiagram root={hatsTree} />
       {/if}
-      <p class="structure-footnote muted">
-        Layout is flat-indented from live `eth_call` reads; richer visualization lands in a later pass.
-      </p>
     {/if}
   </section>
   {:else if dashboardView === 'treasury'}
@@ -646,7 +649,7 @@
   />
   <section class="dashboard-section" aria-labelledby="safe-heading">
     <div class="treasury-section-head">
-      <h3 id="safe-heading" class="section-heading">Vault: Multisig (Safe)</h3>
+      <h3 id="safe-heading" class="section-heading">Vaults</h3>
       {#if (treasurySafes?.length ?? 0) < TREASURY_SAFE_UI_CAP}
         <div class="treasury-action-btns">
           <button type="button" class="btn-primary treasury-deploy-btn" on:click={openDeploySafe}>Deploy Safe</button>
@@ -668,6 +671,7 @@
           {@const exUrl = explorerAddressUrl(parseSupportedChainId(entry.chain), entry.safeAddress)}
           {@const safeAppUrl = safeAppHomeUrl(parseSupportedChainId(entry.chain), entry.safeAddress)}
           <li class="treasury-safe-card">
+            <h4 class="treasury-vault-title">{treasuryVaultHeading(entry, pactoPayload)}</h4>
             <div class="treasury-card-top">
               <span class="treasury-pill treasury-pill-chain">{entry.chain}</span>
               {#if entry.label}
@@ -748,7 +752,14 @@
         </p>
       {/if}
       {#if permissionsCtx.catalogRows.length > 0}
-        <p class="roles-table-caption">Role model (scaffold)</p>
+        <div class="settings-actions-row">
+          <p class="roles-table-caption">Role model</p>
+          {#if pactoGovRow}
+            <button type="button" class="btn-secondary settings-roles-btn" on:click={() => (showSquadRolesModal = true)}>
+              Manage squad roles
+            </button>
+          {/if}
+        </div>
         <ul class="permissions-catalog-list" role="list">
           {#each permissionsCtx.catalogRows as row (row.id)}
             <li class="permissions-catalog-card">
@@ -818,6 +829,7 @@
     {:else}
       <p class="dashboard-placeholder-text muted">No announcements channel for this {parentType}.</p>
     {/if}
+    <SmartContractSecuritySection canManage={permissionsCtx.phase === 'pacto_gov'} />
   </section>
   {/if}
       </div>
@@ -975,6 +987,8 @@
     </div>
   </div>
 {/if}
+
+<SquadRolesModal open={showSquadRolesModal} onClose={() => (showSquadRolesModal = false)} />
 
 <style>
   .parent-dashboard-layout {
@@ -1503,12 +1517,39 @@
   }
   .treasury-section-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    flex-wrap: wrap;
     margin-bottom: 12px;
   }
+
+  .treasury-vault-title {
+    margin: 0 0 8px 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .governance-deploy-cta,
+  .roles-tree-deploy-cta {
+    margin-top: 8px;
+  }
+
+  .settings-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .settings-roles-btn {
+    font-size: 0.8125rem;
+    padding: 6px 12px;
+  }
+
   .treasury-section-head .section-heading {
     margin: 0;
   }
