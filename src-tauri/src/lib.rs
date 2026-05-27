@@ -2569,7 +2569,7 @@ async fn notifs() -> Result<bool, String> {
                                 "message": record,
                                 "group_name": group_name
                             }));
-                            db::apply_monitor_virtual_bucket_side_effects(
+                            db::apply_inbox_virtual_bucket_side_effects(
                                 &handle,
                                 record.virtual_bucket.as_deref(),
                                 &record.content,
@@ -6322,12 +6322,17 @@ pub fn run() {
             db::add_parent_treasury_safe,
             db::list_squad_infra,
             db::list_squad_infra_canonical_refs,
+            db::list_squad_contract_allowlist,
+            db::upsert_squad_contract_allowlist,
+            db::remove_squad_contract_allowlist,
             db::upsert_squad_infra,
             dashboard_poll::list_dashboard_polls,
             dashboard_poll::send_dashboard_poll_create,
             dashboard_poll::send_dashboard_poll_vote,
             db::upsert_squad_member_evm,
             db::list_squad_member_evm,
+            db::upsert_squad_member_evm_account,
+            db::resolve_squad_roster_evm_address,
             db::backfill_squad_member_evm_missing_from_profiles,
             db::get_seed,
             db::set_seed,
@@ -6433,6 +6438,7 @@ pub fn run() {
             evm::evm_accounts::set_default_shared_evm_account,
             evm::evm_accounts::set_active_advanced_evm_account,
             evm::advanced_contract_call::evm_send_advanced_contract_call,
+            evm::squad_allowlist::evm_send_squad_allowlisted_contract_call,
             evm::safe_deploy::safe_deploy_proxy,
             evm::nave_pirata_deploy::deploy_nave_pirata_for_parent,
             evm::squad_sponsor_deploy::deploy_squad_sponsor_for_parent,

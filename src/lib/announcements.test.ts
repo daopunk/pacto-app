@@ -7,13 +7,13 @@ import {
 } from './announcements';
 
 describe('buildAnnounceContent', () => {
-  it('sets pacto_virtual_bucket monitor for governance-safe automation', () => {
+  it('sets pacto_virtual_bucket inbox for governance-safe automation', () => {
     const s = buildAnnounceContent({
       type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
       payload: { parent_id: 'p', provider: 'gnosis_safe', canonical_ref: '0x1' },
     });
     const o = JSON.parse(s) as { pacto_virtual_bucket?: string };
-    expect(o.pacto_virtual_bucket).toBe('monitor');
+    expect(o.pacto_virtual_bucket).toBe('inbox');
   });
 
   it('sets pacto_virtual_bucket polls for dashboard_poll_created', () => {

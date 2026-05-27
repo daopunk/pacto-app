@@ -254,7 +254,7 @@ export async function markAsRead(chatId: string, messageId: string | null): Prom
   return ok;
 }
 
-export type MlsVirtualBucket = 'announcements' | 'monitor' | 'polls';
+export type MlsVirtualBucket = 'announcements' | 'inbox' | 'polls';
 
 export interface SendDmMessageOptions {
   /** MLS Kind 14 text only; adds rumor tag `pacto_bucket` when set. Ignored for DMs. */

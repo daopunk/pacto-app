@@ -20,6 +20,8 @@ These files are **tracked in git** and are intended for references from **source
 | [STANDALONE_SAFE_SMOKE.md](./STANDALONE_SAFE_SMOKE.md) | Manual Sepolia checklist: vault Safe deploy/import (A3). |
 | [GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md](./GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md) | Manual checklist: `governance_updated` → `squad_infra` reload / peer sync (A4). |
 | [ADVANCED_CONTRACT_SMOKE.md](./ADVANCED_CONTRACT_SMOKE.md) | Manual Sepolia checklist: viem reads + Advanced panel send / air-gap matrix (H10). |
+| [SQUAD_ALLOWLIST_SMOKE.md](./SQUAD_ALLOWLIST_SMOKE.md) | Manual Sepolia checklist: allowlist admin + squad-key sends (I12). |
+| [SQUAD_INBOX_ROSTER_SMOKE.md](./SQUAD_INBOX_ROSTER_SMOKE.md) | Manual checklist: Inbox rename + per-squad roster key on join (step 17 / G′). |
 | [PACTO_SQUAD_SPONSOR.md](./PACTO_SQUAD_SPONSOR.md) | Upstream [covenant-gov/pacto-squad-sponsor](https://github.com/covenant-gov/pacto-squad-sponsor); deploy, summary read, `squad_infra` persistence. |
 | [SQUAD_SPONSOR_SMOKE.md](./SQUAD_SPONSOR_SMOKE.md) | Manual Sepolia checklist: deploy sponsor, read balance, deposit (app + devtools). |
 
@@ -40,4 +42,5 @@ Accepting a request opens the send form pre-filled and may attach **`request_id`
 - **Squad accounts** (`purpose: squad`): DM WalletBar Send, squad roster shares, treasury deploy, and governance commands. Only squad-purpose keys may be the active signer or profile receiving address.
 - **Advanced accounts** (`purpose: advanced`): imported keys or derived advanced-only addresses. Used only from **Settings → Wallet → Advanced contract call** (`WalletAdvancedPanel.svelte`). Backend command **`evm_send_advanced_contract_call`** refuses squad signers; squad paths refuse advanced addresses (Phase G).
 - **Generic reads** (token/module observation): viem via **`src/lib/evm/read-plane.ts`** — no private key. Does not replace curated pacto-gov dashboard reads in Rust.
-- Operator smoke: [ADVANCED_CONTRACT_SMOKE.md](./ADVANCED_CONTRACT_SMOKE.md).
+- **Squad allowlisted calls:** Dashboard → Settings → **Smart contract security** — squad keys may call explicit allowlist targets + implicit deploy infra only (`evm_send_squad_allowlisted_contract_call`).
+- Operator smoke: [ADVANCED_CONTRACT_SMOKE.md](./ADVANCED_CONTRACT_SMOKE.md), [SQUAD_ALLOWLIST_SMOKE.md](./SQUAD_ALLOWLIST_SMOKE.md).

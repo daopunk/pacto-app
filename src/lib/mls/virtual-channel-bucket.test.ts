@@ -24,8 +24,8 @@ describe('deriveVirtualBucketFromMessageContent', () => {
   });
 
   it('reads pacto_virtual_bucket when valid', () => {
-    expect(deriveVirtualBucketFromMessageContent(JSON.stringify({ pacto_virtual_bucket: 'monitor', x: 1 }))).toBe(
-      'monitor'
+    expect(deriveVirtualBucketFromMessageContent(JSON.stringify({ pacto_virtual_bucket: 'inbox', x: 1 }))).toBe(
+      'inbox'
     );
   });
 
@@ -48,7 +48,7 @@ describe('deriveVirtualBucketFromMessageContent', () => {
       type: ANNOUNCE_TYPE_SQUAD_SAFE_UPDATED,
       payload: { squad_id: 's', safe_address: '0xabc' },
     });
-    expect(deriveVirtualBucketFromMessageContent(safeUpdated)).toBe('monitor');
+    expect(deriveVirtualBucketFromMessageContent(safeUpdated)).toBe('inbox');
 
     const proposal = buildAnnounceContent({
       type: ANNOUNCE_TYPE_SAFE_PROPOSAL,
@@ -61,13 +61,13 @@ describe('deriveVirtualBucketFromMessageContent', () => {
         proposer_npub: 'np',
       },
     });
-    expect(deriveVirtualBucketFromMessageContent(proposal)).toBe('monitor');
+    expect(deriveVirtualBucketFromMessageContent(proposal)).toBe('inbox');
 
     const gov = buildAnnounceContent({
       type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
       payload: { parent_id: 'p', provider: 'x', canonical_ref: 'y' },
     });
-    expect(deriveVirtualBucketFromMessageContent(gov)).toBe('monitor');
+    expect(deriveVirtualBucketFromMessageContent(gov)).toBe('inbox');
 
     const pollCreated = buildAnnounceContent({
       type: ANNOUNCE_TYPE_DASHBOARD_POLL_CREATED,
@@ -87,7 +87,7 @@ describe('deriveVirtualBucketFromMessageContent', () => {
       type: ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE,
       payload: { parent_id: 'p', evm_address: '0xdef' },
     });
-    expect(deriveVirtualBucketFromMessageContent(evmShare)).toBe('monitor');
+    expect(deriveVirtualBucketFromMessageContent(evmShare)).toBe('inbox');
   });
 
   it('treats unknown JSON as announcements', () => {
@@ -100,7 +100,7 @@ describe('defaultTrioSharesSingleMlsGroup', () => {
     expect(
       defaultTrioSharesSingleMlsGroup([
         { name: 'announcements', groupId: 'a', order: 0 },
-        { name: 'monitor', groupId: 'b', order: 1 },
+        { name: 'inbox', groupId: 'b', order: 1 },
         { name: 'polls', groupId: 'c', order: 2 },
       ])
     ).toBe(false);
@@ -110,7 +110,7 @@ describe('defaultTrioSharesSingleMlsGroup', () => {
     expect(
       defaultTrioSharesSingleMlsGroup([
         { name: 'announcements', groupId: 'g', order: 0 },
-        { name: 'monitor', groupId: 'g', order: 1 },
+        { name: 'inbox', groupId: 'g', order: 1 },
         { name: 'polls', groupId: 'g', order: 2 },
       ])
     ).toBe(true);
@@ -120,7 +120,7 @@ describe('defaultTrioSharesSingleMlsGroup', () => {
 describe('resolveHubChannelNameForGroupSelection', () => {
   const channels = [
     { name: 'announcements', groupId: 'g', order: 0 },
-    { name: 'monitor', groupId: 'g', order: 1 },
+    { name: 'inbox', groupId: 'g', order: 1 },
     { name: 'polls', groupId: 'g', order: 2 },
   ];
 
@@ -147,20 +147,20 @@ describe('groupTimelineKey / buildBackendGroupTimelineMessages', () => {
   it('splits one MLS timeline into composite buckets preserving object identity', () => {
     const parent = 'mlsG';
     const m0 = { at: 2, content: 'hey' };
-    const m1 = { at: 1, content: JSON.stringify({ pacto_virtual_bucket: 'monitor' }) };
+    const m1 = { at: 1, content: JSON.stringify({ pacto_virtual_bucket: 'inbox' }) };
     const idx = buildBackendGroupTimelineMessages({ [parent]: [m0, m1] });
     expect(idx[groupTimelineKey(parent, 'announcements')]).toEqual([m0]);
-    expect(idx[groupTimelineKey(parent, 'monitor')]).toEqual([m1]);
+    expect(idx[groupTimelineKey(parent, 'inbox')]).toEqual([m1]);
     expect(idx[groupTimelineKey(parent, 'announcements')][0]).toBe(m0);
   });
 
   it('prefers SQLite-backed virtual_bucket for partitioning', () => {
     const parent = 'g';
     const idx = buildBackendGroupTimelineMessages({
-      [parent]: [{ at: 1, content: 'hey', virtual_bucket: 'monitor' }],
+      [parent]: [{ at: 1, content: 'hey', virtual_bucket: 'inbox' }],
     });
     expect(idx[groupTimelineKey(parent, 'announcements')]).toBeUndefined();
-    expect(idx[groupTimelineKey(parent, 'monitor')]).toHaveLength(1);
+    expect(idx[groupTimelineKey(parent, 'inbox')]).toHaveLength(1);
   });
 
   it('sorts by at within each bucket', () => {
@@ -222,11 +222,11 @@ describe('announceCardAllowedForTimelineBucket', () => {
     })
   );
 
-  it('allows monitor automation cards only when timeline bucket is monitor', () => {
+  it('allows inbox automation cards only when timeline bucket is inbox', () => {
     expect(govParsed).not.toBeNull();
     if (!govParsed) return;
     expect(
-      announceCardAllowedForTimelineBucket(govParsed, { content: govContent, virtual_bucket: 'monitor' })
+      announceCardAllowedForTimelineBucket(govParsed, { content: govContent, virtual_bucket: 'inbox' })
     ).toBe(true);
     expect(
       announceCardAllowedForTimelineBucket(govParsed, { content: govContent, virtual_bucket: 'announcements' })
@@ -241,7 +241,7 @@ describe('announceCardAllowedForTimelineBucket', () => {
     ).toBe(true);
   });
 
-  it('treats squad_member_evm_share like other monitor bots', () => {
+  it('treats squad_member_evm_share like other inbox bots', () => {
     const raw = buildAnnounceContent({
       type: ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE,
       payload: { parent_id: 'p', evm_address: '0x0000000000000000000000000000000000000001' },
@@ -249,7 +249,7 @@ describe('announceCardAllowedForTimelineBucket', () => {
     const p = parseAnnouncement(raw);
     expect(p).not.toBeNull();
     if (!p) return;
-    expect(announceCardAllowedForTimelineBucket(p, { content: raw, virtual_bucket: 'monitor' })).toBe(true);
+    expect(announceCardAllowedForTimelineBucket(p, { content: raw, virtual_bucket: 'inbox' })).toBe(true);
     expect(announceCardAllowedForTimelineBucket(p, { content: raw, virtual_bucket: 'polls' })).toBe(false);
   });
 });

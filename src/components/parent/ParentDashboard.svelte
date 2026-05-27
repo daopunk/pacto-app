@@ -884,7 +884,11 @@
     {:else}
       <p class="dashboard-placeholder-text muted">No announcements channel for this {parentType}.</p>
     {/if}
-    <SmartContractSecuritySection canManage={permissionsCtx.phase === 'pacto_gov'} />
+    <SmartContractSecuritySection
+      parentId={parentId ?? ''}
+      announcementsGroupId={announcementsGroupId ?? ''}
+      canManage={permissionsCtx.phase === 'pacto_gov'}
+    />
   </section>
   {/if}
       </div>
@@ -1035,7 +1039,7 @@
     <div class="modal-content">
       <h3 id="set-safe-title">Import Safe</h3>
       <p class="modal-desc">
-        Add a Safe to this {parentType} treasury. Members see automated treasury notices in #monitor.
+        Add a Safe to this {parentType} treasury. Members see automated treasury notices in #inbox.
       </p>
       <label class="modal-field-label" for="import-safe-addr">Contract address</label>
       <input

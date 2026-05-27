@@ -401,7 +401,7 @@ export interface Channel {
 export const ANNOUNCEMENTS_CHANNEL_NAME = 'announcements';
 
 /** Application / on-chain bot-style updates (users cannot compose here). */
-export const MONITOR_CHANNEL_NAME = 'monitor';
+export const INBOX_CHANNEL_NAME = 'inbox';
 
 /** Nostr-backed squad polls (MLS channel). */
 export const POLLS_CHANNEL_NAME = 'polls';

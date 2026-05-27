@@ -1239,7 +1239,7 @@ impl MlsService {
                                         })).unwrap_or_else(|e| {
                                             eprintln!("[MLS] Failed to emit mls_message_new event: {}", e);
                                         });
-                                        crate::db::apply_monitor_virtual_bucket_side_effects(
+                                        crate::db::apply_inbox_virtual_bucket_side_effects(
                                             handle,
                                             msg.virtual_bucket.as_deref(),
                                             &msg.content,

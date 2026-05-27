@@ -2,6 +2,7 @@
 //! Kept separate from core messaging, MLS, and Nostr sync logic in the crate root.
 
 pub mod advanced_contract_call;
+pub mod contract_call_params;
 pub mod contracts;
 pub mod evm_accounts;
 pub mod evm_keys;
@@ -19,6 +20,7 @@ pub mod squad_sponsor_deposit;
 pub mod squad_sponsor_read;
 pub mod squad_admin_deploy;
 pub mod squad_admin_write;
+pub mod squad_allowlist;
 pub mod treasury_proposals_read;
 pub mod wallet_chain_config;
 pub mod wallet_ops;

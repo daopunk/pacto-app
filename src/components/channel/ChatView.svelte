@@ -13,6 +13,12 @@
     type VirtualBucket,
   } from '../../lib/mls/virtual-channel-bucket';
   import DashboardPollsPanel from '../parent/DashboardPollsPanel.svelte';
+  import SquadRosterKeyInboxCard from '../inbox/SquadRosterKeyInboxCard.svelte';
+  import {
+    needsSquadRosterKeyChoice,
+    loadDeferredSquadRosterKeyParentIds,
+  } from '../../lib/squad/squad-roster-key-choice';
+  import { onMount } from 'svelte';
   import {
     activeChannelId,
     activeHubChannelName,
@@ -34,7 +40,7 @@
     parentsCreatingAnnouncements,
     parentCreateErrorById,
     ANNOUNCEMENTS_CHANNEL_NAME,
-    MONITOR_CHANNEL_NAME,
+    INBOX_CHANNEL_NAME,
     POLLS_CHANNEL_NAME,
     DASHBOARD_CHANNEL_ID,
     membershipVersionByGroupId,
@@ -92,10 +98,10 @@
   $: channelName = activeChannel?.name || 'channel';
   $: isAnnouncementsChannel =
     (activeParent && activeChannel?.name === ANNOUNCEMENTS_CHANNEL_NAME) ?? false;
-  $: isMonitorChannel = (activeParent && activeChannel?.name === MONITOR_CHANNEL_NAME) ?? false;
+  $: isInboxChannel = (activeParent && activeChannel?.name === INBOX_CHANNEL_NAME) ?? false;
   $: isPollsChannel = (activeParent && activeChannel?.name === POLLS_CHANNEL_NAME) ?? false;
-  $: hideChannelOverflowMenu = isAnnouncementsChannel || isMonitorChannel;
-  $: channelParsesStructuredAnnounces = isAnnouncementsChannel || isMonitorChannel;
+  $: hideChannelOverflowMenu = isAnnouncementsChannel || isInboxChannel;
+  $: channelParsesStructuredAnnounces = isAnnouncementsChannel || isInboxChannel;
   $: isChannelCreating = (activeChannel?.groupId?.startsWith('creating-') ?? false);
   $: parentSettingUp = activeParent && activeParent.channels.length === 0 && $parentsCreatingAnnouncements.has(activeParent.id);
   $: parentSettingUpError = (parentSettingUp && activeParent && $parentCreateErrorById[activeParent.id]) ?? '';
@@ -113,6 +119,28 @@
   let leavingChannel = false;
   let leaveChannelError = '';
 
+  let showRosterKeyCard = false;
+
+  onMount(() => {
+    loadDeferredSquadRosterKeyParentIds();
+  });
+
+  async function refreshRosterKeyCard(): Promise<void> {
+    if (!isInboxChannel || !activeParent) {
+      showRosterKeyCard = false;
+      return;
+    }
+    showRosterKeyCard = await needsSquadRosterKeyChoice(activeParent.id, announcementsGroupIdForMembers);
+  }
+
+  $: if (isInboxChannel && activeParent && announcementsGroupIdForMembers) {
+    void refreshRosterKeyCard();
+  }
+
+  function onRosterKeyChoiceComplete(): void {
+    void refreshRosterKeyCard();
+  }
+
   $: currentMessages = (() => {
     if (!$activeChannelId) return [];
     const list = [...($backendGroupMessages[$activeChannelId] ?? [])];
@@ -122,7 +150,7 @@
 
   function channelNameToVirtualBucket(name: string): VirtualBucket | null {
     if (name === ANNOUNCEMENTS_CHANNEL_NAME) return 'announcements';
-    if (name === MONITOR_CHANNEL_NAME) return 'monitor';
+    if (name === INBOX_CHANNEL_NAME) return 'inbox';
     if (name === POLLS_CHANNEL_NAME) return 'polls';
     return null;
   }
@@ -212,7 +240,7 @@
 
   async function handleSendMessage(content: string) {
     const groupId = $activeChannelId;
-    if (!groupId || isMonitorChannel) return;
+    if (!groupId || isInboxChannel) return;
     groupSendError.set(null);
     try {
       await sendDmMessage(groupId, content, '', { virtualBucket: 'announcements' });
@@ -525,6 +553,13 @@
               </button>
             </div>
           {/if}
+          {#if isInboxChannel && showRosterKeyCard && activeParent && announcementsGroupIdForMembers}
+            <SquadRosterKeyInboxCard
+              parentId={activeParent.id}
+              announcementsGroupId={announcementsGroupIdForMembers}
+              onComplete={onRosterKeyChoiceComplete}
+            />
+          {/if}
           {#each virtualTimelineMessages as message (message.id)}
             {@const props = toMessageProps(message)}
             {@const parsed = channelParsesStructuredAnnounces ? parseAnnouncement(message.content) : null}
@@ -548,7 +583,7 @@
     {#if $groupSendError}
       <p class="channel-send-error" role="alert">{$groupSendError}</p>
     {/if}
-    <MessageInput channelName={channelName} onSend={handleSendMessage} disabled={isChannelCreating || isMonitorChannel} />
+    <MessageInput channelName={channelName} onSend={handleSendMessage} disabled={isChannelCreating || isInboxChannel} />
 
     <!-- Leave channel confirm -->
     {#if showLeaveChannelConfirm}

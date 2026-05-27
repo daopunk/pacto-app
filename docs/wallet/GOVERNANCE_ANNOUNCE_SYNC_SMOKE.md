@@ -23,7 +23,7 @@ Rust ingest: `maybe_upsert_governance_from_announce` in `src-tauri/src/db.rs`.
 
 1. Note `listSquadInfra(parentId)` **before** deploy (devtools or fresh parent).
 2. Run an in-app deploy (sponsor, Pacto Gov, Squad Admin, or vault Safe) — see linked smoke docs.
-3. In **#monitor** / automated announcements, locate the latest **`governance_updated`** message (and **`squad_safe_updated`** for Safe treasury links).
+3. In **#inbox** (automation channel), locate the latest **`governance_updated`** message (and **`squad_safe_updated`** for Safe treasury links).
 4. Confirm payload includes **`entry_id`** matching the infra row id (e.g. `sponsor-{parentId}`, `pacto-gov-{parentId}`, `squad-admin-{parentId}`, or treasury UUID for vaults).
 5. **Quit and restart** the app (or switch account away and back).
 6. Open **#dashboard** for the same parent.

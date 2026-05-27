@@ -15,7 +15,6 @@
   import { createGroupChat, getMlsGroupMembers, sendDmMessage, formatSquadInviteMessage, formatNetworkInviteMessage } from '../../lib/api/nostr';
   import { createDefaultParentChannels } from '../../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
-  import { publishSquadMemberEvmShare } from '../../lib/squad/squad-member-evm-share';
   import { pendingReadyToast } from '../../stores/toast';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
   import { getProfileDisplayName } from '../../lib/utils/profile';
@@ -336,9 +335,6 @@
               console.warn('[Navbar] send squad invite DM failed for', npub.slice(0, 20) + '…', e);
             }
           }
-          void publishSquadMemberEvmShare(groupId).then((ok) => {
-            if (!ok) console.warn('[Navbar] squad EVM share failed');
-          });
         } catch (e) {
           console.error(
             '[Navbar] createParentWithAnnouncements(squad): createGroupChat failed',
@@ -441,9 +437,6 @@
               console.warn('[Navbar] send network invite DM failed for', npub.slice(0, 20) + '…', e);
             }
           }
-          void publishSquadMemberEvmShare(groupId).then((ok) => {
-            if (!ok) console.warn('[Navbar] network EVM share failed');
-          });
         } catch (e) {
           console.error(
             '[Navbar] createParentWithAnnouncements(network): createGroupChat failed',

@@ -249,7 +249,7 @@ pub(crate) async fn get_mnemonic_for_hd<R: Runtime>(handle: AppHandle<R>) -> Res
         .ok_or_else(|| "Recovery phrase not loaded. Unlock the app again.".to_string())
 }
 
-async fn resolve_private_key_hex_for_account_id<R: Runtime>(
+pub(crate) async fn resolve_private_key_hex_for_account_id<R: Runtime>(
     handle: &AppHandle<R>,
     account_id: &str,
 ) -> Result<(String, String, String), String> {

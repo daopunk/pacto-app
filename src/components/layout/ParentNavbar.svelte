@@ -42,7 +42,6 @@
     defaultParentInvitePhysicalGroupTargets,
   } from '../../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
-  import { publishSquadMemberEvmShare } from '../../lib/squad/squad-member-evm-share';
   import {
     createGroupChat,
     getMlsGroupMembers,
@@ -487,10 +486,6 @@
             }
           }
         }
-        const annForShare = getAnnouncementsChannel(parent);
-        void publishSquadMemberEvmShare(annForShare.groupId).then((ok) => {
-          if (!ok) console.warn('[ParentNavbar] EVM share after new channel failed');
-        });
       } catch (e) {
         createChannelErrorBanner = friendlyMessage(getInvokeErrorMessage(e));
         setTimeout(() => {

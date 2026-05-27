@@ -16,7 +16,7 @@ Run on **desktop (Tauri)** with a profile that has **Sepolia ETH** for gas. **Sq
   - `PACTO_NAV_MASTER_TREASURY_AUTHORITY`
   - `PACTO_NAV_MASTER_SQUAD_ADMIN`
   - Optional reads: `PACTO_NAVE_PIRATA_REGISTRY`, `PACTO_HATS`
-- [ ] Test squad/network has **`#announcements`** (automated monitor channel) for persist + announce.
+- [ ] Test squad/network has **`#announcements`** and **`#inbox`** for persist + announce.
 - [ ] Use a **throwaway parent id** — each successful deploy mints a new on-chain hat tree.
 
 ## In-app path (preferred)

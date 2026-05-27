@@ -47,7 +47,6 @@
     type WalletPeerInfoRequestPayload,
   } from '../lib/wallet/dm-messages';
   import { getEvmAddress } from '../lib/api/auth';
-  import { publishSquadMemberEvmShare } from '../lib/squad/squad-member-evm-share';
   import { setDmPeerEvmAddress } from '../lib/api/wallet-peers';
   import { scheduleWalletSummaryBackgroundPrefetch } from '../lib/wallet/wallet-summary-prefetch';
   import { getActiveEvmSignerAddress } from '../lib/wallet/evm-accounts';
@@ -272,7 +271,7 @@
           }),
         }),
         '',
-        { virtualBucket: 'monitor' },
+        { virtualBucket: 'inbox' },
       );
     }
   }
@@ -327,7 +326,7 @@
           },
         }),
         '',
-        { virtualBucket: 'monitor' },
+        { virtualBucket: 'inbox' },
       );
       await sendDmMessage(
         gid,
@@ -342,7 +341,7 @@
           }),
         }),
         '',
-        { virtualBucket: 'monitor' },
+        { virtualBucket: 'inbox' },
       );
     }
     await mergeTreasurySafesForParent(params.parentId);
@@ -385,7 +384,7 @@
           }),
         }),
         '',
-        { virtualBucket: 'monitor' },
+        { virtualBucket: 'inbox' },
       );
     }
     await mergeSquadInfraForParent(params.parentId);
@@ -427,7 +426,7 @@
           }),
         }),
         '',
-        { virtualBucket: 'monitor' },
+        { virtualBucket: 'inbox' },
       );
     }
     await mergeSquadInfraForParent(params.parentId);
@@ -1460,9 +1459,6 @@
           group_id,
           channelInviteInfo.channelName
         );
-        void publishSquadMemberEvmShare(channelInviteInfo.parentId).then((ok) => {
-          if (!ok) dmError('publishSquadMemberEvmShare after channel welcome', new Error('share failed'));
-        });
         return;
       }
       if (acceptedSquadInviteGroupIds.has(group_id)) {
@@ -1734,7 +1730,7 @@
                       },
                     }),
                     '',
-                    { virtualBucket: 'monitor' },
+                    { virtualBucket: 'inbox' },
                   );
                 }
                 await mergeTreasurySafesForParent(p.id);

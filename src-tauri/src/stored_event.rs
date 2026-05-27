@@ -121,7 +121,7 @@ pub struct StoredEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub npub: Option<String>,
 
-    /// Normalized MLS virtual bucket (`announcements` \| `monitor` \| `polls`) when applicable.
+    /// Normalized MLS virtual bucket (`announcements` \| `inbox` \| `polls`) when applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub virtual_bucket: Option<String>,
 }

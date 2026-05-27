@@ -1,4 +1,4 @@
-//! Normalized virtual bucket for MLS default channels (`announcements` | `monitor` | `polls`).
+//! Normalized virtual bucket for MLS default channels (`announcements` | `inbox` | `polls`).
 //! Mirrors `docs/mls/VIRTUAL_CHANNEL_ROUTING_ADR.md` for SQLite persistence and list APIs.
 
 use crate::stored_event::event_kind;
@@ -17,7 +17,7 @@ pub fn normalize_virtual_bucket_for_message(kind: u16, content: &str, tags: &[Ve
         .find(|t| t.first().map(|s| s.as_str()) == Some("pacto_bucket"))
         .and_then(|t| t.get(1).map(|s| s.as_str()))
     {
-        if matches!(v, "announcements" | "monitor" | "polls") {
+        if matches!(v, "announcements" | "inbox" | "polls") {
             return Some(v.to_string());
         }
     }
@@ -26,7 +26,7 @@ pub fn normalize_virtual_bucket_for_message(kind: u16, content: &str, tags: &[Ve
     if trimmed.starts_with('{') {
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(trimmed) {
             if let Some(vb) = val.get("pacto_virtual_bucket").and_then(|x| x.as_str()) {
-                if matches!(vb, "announcements" | "monitor" | "polls") {
+                if matches!(vb, "announcements" | "inbox" | "polls") {
                     return Some(vb.to_string());
                 }
             }
@@ -48,7 +48,7 @@ pub fn normalize_virtual_bucket_for_message(kind: u16, content: &str, tags: &[Ve
                         | "governance_updated"
                 )
             ) {
-                return Some("monitor".to_string());
+                return Some("inbox".to_string());
             }
         }
     }
@@ -61,4 +61,32 @@ pub fn normalize_virtual_bucket_for_message(kind: u16, content: &str, tags: &[Ve
     }
 
     Some("announcements".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::stored_event::event_kind;
+
+    #[test]
+    fn governance_announce_derives_inbox_bucket() {
+        let content = r#"{"type":"governance_updated","payload":{"parent_id":"p"}}"#;
+        let bucket = normalize_virtual_bucket_for_message(
+            event_kind::PRIVATE_DIRECT_MESSAGE,
+            content,
+            &[],
+        );
+        assert_eq!(bucket.as_deref(), Some("inbox"));
+    }
+
+    #[test]
+    fn explicit_inbox_field_wins() {
+        let content = r#"{"pacto_virtual_bucket":"inbox","type":"note"}"#;
+        let bucket = normalize_virtual_bucket_for_message(
+            event_kind::PRIVATE_DIRECT_MESSAGE,
+            content,
+            &[],
+        );
+        assert_eq!(bucket.as_deref(), Some("inbox"));
+    }
 }

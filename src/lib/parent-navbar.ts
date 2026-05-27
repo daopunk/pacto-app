@@ -4,7 +4,7 @@
  */
 import {
   ANNOUNCEMENTS_CHANNEL_NAME,
-  MONITOR_CHANNEL_NAME,
+  INBOX_CHANNEL_NAME,
   POLLS_CHANNEL_NAME,
   type Channel,
 } from '../stores/app';
@@ -25,17 +25,17 @@ export function getAnnouncementsChannel(parent: ParentWithChannels): Channel {
   );
 }
 
-/** `#monitor` MLS channel when present. */
-export function getMonitorChannel(parent: ParentWithChannels): Channel | undefined {
-  return parent.channels.find((c) => c.name === MONITOR_CHANNEL_NAME);
+/** `#inbox` MLS channel when present. */
+export function getInboxChannel(parent: ParentWithChannels): Channel | undefined {
+  return parent.channels.find((c) => c.name === INBOX_CHANNEL_NAME);
 }
 
 /**
- * MLS group id for automated governance/treasury announce rows — prefers `#monitor`, falls back to `#announcements`.
+ * MLS group id for automated governance/treasury announce rows — prefers `#inbox`, falls back to `#announcements`.
  */
 export function resolveAutomatedAnnounceGroupId(parent: ParentWithChannels): string | null {
-  const monitor = getMonitorChannel(parent)?.groupId?.trim();
-  if (monitor) return monitor;
+  const inbox = getInboxChannel(parent)?.groupId?.trim();
+  if (inbox) return inbox;
   const ann = getAnnouncementsChannel(parent)?.groupId?.trim();
   return ann || null;
 }
@@ -49,9 +49,9 @@ export function resolvePollsMlsGroupId(parent: ParentWithChannels): string | nul
   return ann || null;
 }
 
-/** Default squad/network MLS rooms to invite people into (announce → monitor → polls). May share one physical group id. */
+/** Default squad/network MLS rooms to invite people into (announce → inbox → polls). May share one physical group id. */
 export function orderedDefaultInviteChannels(parent: ParentWithChannels): Channel[] {
-  const order = [ANNOUNCEMENTS_CHANNEL_NAME, MONITOR_CHANNEL_NAME, POLLS_CHANNEL_NAME];
+  const order = [ANNOUNCEMENTS_CHANNEL_NAME, INBOX_CHANNEL_NAME, POLLS_CHANNEL_NAME];
   return order
     .map((name) => parent.channels.find((c) => c.name === name))
     .filter((c): c is Channel => !!c);
@@ -59,7 +59,7 @@ export function orderedDefaultInviteChannels(parent: ParentWithChannels): Channe
 
 /**
  * Physical MLS groups to add an invitee to for this parent's default hub channels.
- * When announcements, monitor, and polls share one `groupId`, this returns a single entry so the backend sends one MLS welcome for the whole default scope.
+ * When announcements, inbox, and polls share one `groupId`, this returns a single entry so the backend sends one MLS welcome for the whole default scope.
  */
 export function defaultParentInvitePhysicalGroupTargets(parent: ParentWithChannels): Channel[] {
   const announcementsChannel = getAnnouncementsChannel(parent);
@@ -70,7 +70,7 @@ export function defaultParentInvitePhysicalGroupTargets(parent: ParentWithChanne
   return [announcementsChannel];
 }
 
-/** One entry per physical MLS group id; keeps first channel row per id (announce → monitor → polls order). Skips `creating-*` placeholders. */
+/** One entry per physical MLS group id; keeps first channel row per id (announce → inbox → polls order). Skips `creating-*` placeholders. */
 export function uniqueChannelsByGroupIdPreservingOrder(channels: Channel[]): Channel[] {
   const seen = new Set<string>();
   const out: Channel[] = [];
@@ -84,7 +84,7 @@ export function uniqueChannelsByGroupIdPreservingOrder(channels: Channel[]): Cha
 }
 
 /**
- * Create one MLS group for the parent default scope; announcements, monitor, and polls sidebar rows share its `groupId`.
+ * Create one MLS group for the parent default scope; announcements, inbox, and polls sidebar rows share its `groupId`.
  * Parent id remains that MLS id (roster and invites reference this id).
  */
 export async function createDefaultParentChannels(
@@ -93,7 +93,7 @@ export async function createDefaultParentChannels(
   const groupId = await createGroupChat(ANNOUNCEMENTS_CHANNEL_NAME, memberNpubs);
   const channels: Channel[] = [
     { name: ANNOUNCEMENTS_CHANNEL_NAME, groupId, order: 0 },
-    { name: MONITOR_CHANNEL_NAME, groupId, order: 1 },
+    { name: INBOX_CHANNEL_NAME, groupId, order: 1 },
     { name: POLLS_CHANNEL_NAME, groupId, order: 2 },
   ];
   return { parentId: groupId, channels };

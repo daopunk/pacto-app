@@ -153,6 +153,22 @@ CREATE TABLE IF NOT EXISTS squad_infra (
 );
 CREATE INDEX IF NOT EXISTS idx_squad_infra_parent ON squad_infra(parent_id, created_at_ms);
 
+-- Explicit squad contract allowlist (Phase I). Unofficial protocol targets beyond implicit infra refs.
+CREATE TABLE IF NOT EXISTS squad_contract_allowlist (
+    id TEXT PRIMARY KEY NOT NULL,
+    parent_id TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    added_by_npub TEXT NOT NULL,
+    abi_ref TEXT,
+    notes TEXT,
+    created_at_ms INTEGER NOT NULL,
+    updated_at_ms INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_squad_allowlist_unique ON squad_contract_allowlist(parent_id, chain, contract_address);
+CREATE INDEX IF NOT EXISTS idx_squad_allowlist_parent ON squad_contract_allowlist(parent_id, created_at_ms);
+
 -- Squad/network parent id + member npub -> EVM payout address (from MLS squad_member_evm_share)
 CREATE TABLE IF NOT EXISTS squad_member_evm (
     parent_id TEXT NOT NULL,
@@ -162,6 +178,17 @@ CREATE TABLE IF NOT EXISTS squad_member_evm (
     PRIMARY KEY (parent_id, member_npub)
 );
 CREATE INDEX IF NOT EXISTS idx_squad_member_evm_parent ON squad_member_evm(parent_id);
+
+-- Per-squad preferred squad-purpose EVM account (local roster signing identity)
+CREATE TABLE IF NOT EXISTS squad_member_evm_account (
+    parent_id TEXT NOT NULL,
+    member_npub TEXT NOT NULL,
+    evm_account_id TEXT NOT NULL,
+    updated_at_ms INTEGER NOT NULL,
+    PRIMARY KEY (parent_id, member_npub),
+    FOREIGN KEY (evm_account_id) REFERENCES evm_accounts(id)
+);
+CREATE INDEX IF NOT EXISTS idx_squad_member_evm_account_parent ON squad_member_evm_account(parent_id);
 
 -- EVM accounts (phrase-derived + imported); see `evm_accounts` module and docs/wallet/HD_DERIVATION_V1.md
 CREATE TABLE IF NOT EXISTS evm_accounts (
@@ -948,6 +975,33 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
         println!("[Migration] squad_member_evm table created");
     }
 
+    // TODO: delete after pre-alpha — squad roster account binding per parent
+    let has_squad_member_evm_account: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='squad_member_evm_account'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !has_squad_member_evm_account {
+        println!("[Migration] Creating squad_member_evm_account table...");
+        conn.execute_batch(
+            r#"CREATE TABLE IF NOT EXISTS squad_member_evm_account (
+                parent_id TEXT NOT NULL,
+                member_npub TEXT NOT NULL,
+                evm_account_id TEXT NOT NULL,
+                updated_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (parent_id, member_npub),
+                FOREIGN KEY (evm_account_id) REFERENCES evm_accounts(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_squad_member_evm_account_parent ON squad_member_evm_account(parent_id);"#,
+        )
+        .map_err(|e| format!("Failed to create squad_member_evm_account table: {}", e))?;
+        println!("[Migration] squad_member_evm_account table created");
+    }
+
     let has_evm_accounts: bool = conn
         .query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='evm_accounts'",
@@ -993,6 +1047,36 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Failed to add evm_accounts.purpose: {}", e))?;
+    }
+
+    let has_squad_allowlist: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='squad_contract_allowlist'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+    if !has_squad_allowlist {
+        // TODO: delete after pre-alpha — squad contract allowlist (Phase I).
+        println!("[Migration] Creating squad_contract_allowlist table…");
+        conn.execute_batch(
+            r#"CREATE TABLE IF NOT EXISTS squad_contract_allowlist (
+                id TEXT PRIMARY KEY NOT NULL,
+                parent_id TEXT NOT NULL,
+                chain TEXT NOT NULL,
+                contract_address TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                added_by_npub TEXT NOT NULL,
+                abi_ref TEXT,
+                notes TEXT,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_squad_allowlist_unique ON squad_contract_allowlist(parent_id, chain, contract_address);
+            CREATE INDEX IF NOT EXISTS idx_squad_allowlist_parent ON squad_contract_allowlist(parent_id, created_at_ms);"#,
+        )
+        .map_err(|e| format!("Failed to create squad_contract_allowlist table: {}", e))?;
     }
 
     // Dashboard polls replica (MLS sync; Tauri only)

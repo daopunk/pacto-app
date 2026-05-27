@@ -13,7 +13,7 @@ use super::rpc::{
     connect_signing_provider, contract_call_request, parse_salt_nonce, send_and_confirm,
     wallet_err_json, wallet_err_json_with_tx_hash,
 };
-use super::rpc::signer::{load_embedded_signer, require_treasury_signing_allowed};
+use super::rpc::signer::{load_embedded_signer, load_squad_roster_embedded_signer, require_treasury_signing_allowed};
 use super::squad_sponsor_common::require_sponsor_infra_for_parent;
 use super::wallet_chain_config;
 
@@ -78,7 +78,11 @@ pub async fn safe_deploy_proxy<R: Runtime>(
     }
 
     require_treasury_signing_allowed(app.clone()).await?;
-    let (_signer, wallet) = load_embedded_signer(app).await?;
+    let (_signer, wallet) = if let Some(pid) = parent_id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        load_squad_roster_embedded_signer(app.clone(), pid).await?
+    } else {
+        load_embedded_signer(app.clone()).await?
+    };
     let provider = connect_signing_provider(&urls, wallet).await?;
 
     let tx = contract_call_request(addrs.proxy_factory, calldata);
