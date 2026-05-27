@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { get, writable } from 'svelte/store';
-import { persistenceKey } from '../../stores/app';
 import { currentUser } from '../../stores/auth';
 import { listSquadMemberEvmInvokeArgs } from './squad-member-evm-share';
 
@@ -9,7 +8,7 @@ const DEFER_PREFIX = 'pacto_squad_roster_key_deferred';
 function deferStorageKey(): string | null {
   const npub = get(currentUser)?.npub;
   if (!npub) return null;
-  return persistenceKey(`${DEFER_PREFIX}_${npub}`);
+  return `${DEFER_PREFIX}_${npub}`;
 }
 
 function readDeferredParentIds(): string[] {
