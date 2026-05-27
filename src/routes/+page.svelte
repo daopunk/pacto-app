@@ -134,11 +134,17 @@
     squadSponsorInfraId,
     buildSponsorGovernanceAnnouncePayload,
     buildPactoGovGovernanceAnnouncePayload,
+    buildStandaloneSafeGovernanceAnnouncePayload,
     buildSquadAdminGovernanceAnnouncePayload,
     squadAdminInfraId,
     pactoGovTreasuryEntryId,
     primaryGovernanceView,
   } from '../lib/governance/api';
+  import {
+    buildStandaloneSafeProviderPayload,
+    isPactoGovTreasurySafe,
+    pactoGovPayloadFromInfra,
+  } from '../lib/governance/standalone-safe-payload';
   import { resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../lib/mls/virtual-channel-bucket';
   import { portal } from '../lib/utils/portal';
@@ -215,21 +221,33 @@
     }
   }
 
-  /** When treasury gains a Safe, align governance row + announce — skips if another provider is active (e.g. pacto_gov). */
+  /** Persist a standalone vault Safe infra row (one row per treasury entry; skips pacto-gov treasury). */
   async function syncGovernanceAfterTreasurySafe(
     p: Squad | Network,
-    params: { safeAddress: string; chain: string; entryId: string; txHash?: string },
+    params: {
+      safeAddress: string;
+      chain: string;
+      entryId: string;
+      label?: string;
+      txHash?: string;
+    },
   ) {
-    const rows = await listSquadInfra(p.id);
-    if (rows.some((r) => r.infraType === 'pacto_gov')) {
+    if (params.entryId === pactoGovTreasuryEntryId(p.id)) {
       return;
     }
+
+    const rows = await listSquadInfra(p.id);
+    const pactoPayload = pactoGovPayloadFromInfra(rows);
     const canonicalRef = governanceCanonicalSafeRef(params.safeAddress);
-    const providerPayload = JSON.stringify({
-      v: 1,
+    if (isPactoGovTreasurySafe(canonicalRef, pactoPayload)) {
+      return;
+    }
+
+    const providerPayload = buildStandaloneSafeProviderPayload({
       treasuryEntryId: params.entryId,
-      tx_hash: params.txHash,
-      safe_address: canonicalRef,
+      safeAddress: canonicalRef,
+      label: params.label,
+      txHash: params.txHash,
     });
     await upsertSquadInfra({
       id: params.entryId,
@@ -245,13 +263,13 @@
         gid,
         buildAnnounceContent({
           type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
-          payload: {
-            parent_id: p.id,
-            provider: 'gnosis_safe',
-            canonical_ref: canonicalRef,
+          payload: buildStandaloneSafeGovernanceAnnouncePayload({
+            parentId: p.id,
+            safeAddress: canonicalRef,
             chain: params.chain,
-            provider_payload: providerPayload,
-          },
+            providerPayload,
+            entryId: params.entryId,
+          }),
         }),
         '',
         { virtualBucket: 'monitor' },
@@ -1689,6 +1707,7 @@
                     safeAddress: params.safeAddress,
                     chain: params.chain,
                     entryId: params.entryId,
+                    label: params.label,
                     txHash: params.txHash,
                   });
                 } catch (e) {

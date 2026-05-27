@@ -235,6 +235,31 @@ export function buildPactoGovGovernanceAnnouncePayload(params: {
   };
 }
 
+/** Wire payload for `governance_updated` when a standalone vault Safe is linked. */
+export function buildStandaloneSafeGovernanceAnnouncePayload(params: {
+  parentId: string;
+  safeAddress: string;
+  chain: string;
+  providerPayload: string;
+  entryId: string;
+}): {
+  parent_id: string;
+  provider: 'gnosis_safe';
+  canonical_ref: string;
+  chain: string;
+  entry_id: string;
+  provider_payload: string;
+} {
+  return {
+    parent_id: params.parentId,
+    provider: 'gnosis_safe',
+    canonical_ref: params.safeAddress,
+    chain: params.chain,
+    entry_id: params.entryId,
+    provider_payload: params.providerPayload,
+  };
+}
+
 /** Mirrors `NavePirataDeployResult` from Tauri (`serde(rename_all = "camelCase")`). */
 export interface NavePirataDeployResultDto {
   txHash: string;

@@ -5,6 +5,7 @@
   export let hasSponsor: boolean;
   export let hasPactoGov: boolean;
   export let hasSquadAdmin: boolean;
+  export let vaultSafeCount = 0;
   export let hasAnnouncementsChannel: boolean;
   export let onClose: () => void;
   export let onDeploySponsor: () => void;
@@ -107,6 +108,8 @@
       <p class="launchpad-card-desc">
         {#if otherInfraLocked}
           Deploy squad sponsor first.
+        {:else if vaultSafeCount > 0}
+          {vaultSafeCount} vault {vaultSafeCount === 1 ? 'Safe' : 'Safes'} linked. Deploy another or import an existing address.
         {:else}
           Deploy a new multisig or import an existing Safe address.
         {/if}

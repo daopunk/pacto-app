@@ -36,6 +36,7 @@
     parsePactoGovProviderPayload,
   } from '../../lib/governance/pacto-gov-payload';
   import { hasSquadAdminInfra, resolveSquadAdminContext } from '../../lib/governance/squad-admin-payload';
+  import { standaloneSafeInfraRows } from '../../lib/governance/standalone-safe-payload';
   import { isTreasuryProposalActive } from '../../lib/governance/treasury-proposal-ui';
   import { treasuryVaultHeading } from '../../lib/treasury/treasury-vault-labels';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
@@ -158,6 +159,7 @@
   $: hasPactoGov = pactoGovRow != null;
   $: squadAdminCtx = resolveSquadAdminContext(squadInfraRows);
   $: hasSquadAdmin = hasSquadAdminInfra(squadInfraRows);
+  $: vaultSafeCount = standaloneSafeInfraRows(squadInfraRows).length;
   $: pactoPayload = parsePactoGovProviderPayload(pactoGovRow?.providerPayload);
   $: pactoNetwork = (pactoGovRow?.chain?.trim() || squadAdminCtx?.chain || 'sepolia') as
     | 'sepolia'
@@ -552,6 +554,8 @@
         entryId,
       });
       closeSetSafeModal();
+      selectDashboardView('treasury');
+      showToast('Safe imported and added to treasury.');
     } catch (e) {
       setSafeError = (e as Error)?.message ?? 'Failed to import Safe';
     } finally {
@@ -935,6 +939,7 @@
         txHash: params.txHash,
       });
       showToast('Safe deployed and added to treasury.');
+      selectDashboardView('treasury');
     }}
   />
 {/if}
@@ -969,6 +974,7 @@
     {hasSponsor}
     {hasPactoGov}
     {hasSquadAdmin}
+    {vaultSafeCount}
     hasAnnouncementsChannel={!!announcementsGroupId}
     onClose={() => {
       showLaunchpad = false;
