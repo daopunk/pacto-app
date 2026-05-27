@@ -38,3 +38,19 @@ pub async fn load_embedded_signer<R: Runtime>(
     let wallet = EthereumWallet::from(signer.clone());
     Ok((signer, wallet))
 }
+
+/// Advanced-purpose signer only; resolves key from `active_advanced_evm_account_id`, not squad active signer.
+pub async fn load_advanced_embedded_signer<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<(PrivateKeySigner, EthereumWallet), String> {
+    let (key_hex, _addr) = evm_accounts::resolve_advanced_signing_material(app)
+        .await
+        .map_err(|e| wallet_err_json("ADVANCED_SIGNER_REQUIRED", e, None))?;
+
+    let signer: PrivateKeySigner = key_hex
+        .parse()
+        .map_err(|_| wallet_err_json("INVALID_KEY", "Invalid EVM key format", None))?;
+
+    let wallet = EthereumWallet::from(signer.clone());
+    Ok((signer, wallet))
+}

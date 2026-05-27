@@ -6321,6 +6321,7 @@ pub fn run() {
             db::list_parent_treasury_safes,
             db::add_parent_treasury_safe,
             db::list_squad_infra,
+            db::list_squad_infra_canonical_refs,
             db::upsert_squad_infra,
             dashboard_poll::list_dashboard_polls,
             dashboard_poll::send_dashboard_poll_create,

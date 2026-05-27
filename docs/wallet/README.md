@@ -19,6 +19,7 @@ These files are **tracked in git** and are intended for references from **source
 | [NAVE_PIRATA_SMOKE.md](./NAVE_PIRATA_SMOKE.md) | Manual Sepolia checklist: Pacto Gov / Nave Pirata factory deploy (A2). |
 | [STANDALONE_SAFE_SMOKE.md](./STANDALONE_SAFE_SMOKE.md) | Manual Sepolia checklist: vault Safe deploy/import (A3). |
 | [GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md](./GOVERNANCE_ANNOUNCE_SYNC_SMOKE.md) | Manual checklist: `governance_updated` → `squad_infra` reload / peer sync (A4). |
+| [ADVANCED_CONTRACT_SMOKE.md](./ADVANCED_CONTRACT_SMOKE.md) | Manual Sepolia checklist: viem reads + Advanced panel send / air-gap matrix (H10). |
 | [PACTO_SQUAD_SPONSOR.md](./PACTO_SQUAD_SPONSOR.md) | Upstream [covenant-gov/pacto-squad-sponsor](https://github.com/covenant-gov/pacto-squad-sponsor); deploy, summary read, `squad_infra` persistence. |
 | [SQUAD_SPONSOR_SMOKE.md](./SQUAD_SPONSOR_SMOKE.md) | Manual Sepolia checklist: deploy sponsor, read balance, deposit (app + devtools). |
 
@@ -33,3 +34,10 @@ Supplementary / planning notes also live under **`ai-docs/wallet/`** (e.g. TECH 
 Accepting a request opens the send form pre-filled and may attach **`request_id`** on the announcement when present.
 
 **Balance cache:** The last successful **`get_wallet_summary`** response is stored per account as **`pacto_wallet_summary_cache_v1_<npub>`** (includes a fingerprint of the watched-token list). It is read into memory in **`loadAccountState`** and shown immediately when the WalletBar refreshes if the list still matches; see **`src/lib/wallet/wallet-summary-cache.ts`**. Cleared with other npub-scoped keys on logout (`clearAccountState`).
+
+### Squad vs Advanced keys
+
+- **Squad accounts** (`purpose: squad`): DM WalletBar Send, squad roster shares, treasury deploy, and governance commands. Only squad-purpose keys may be the active signer or profile receiving address.
+- **Advanced accounts** (`purpose: advanced`): imported keys or derived advanced-only addresses. Used only from **Settings → Wallet → Advanced contract call** (`WalletAdvancedPanel.svelte`). Backend command **`evm_send_advanced_contract_call`** refuses squad signers; squad paths refuse advanced addresses (Phase G).
+- **Generic reads** (token/module observation): viem via **`src/lib/evm/read-plane.ts`** — no private key. Does not replace curated pacto-gov dashboard reads in Rust.
+- Operator smoke: [ADVANCED_CONTRACT_SMOKE.md](./ADVANCED_CONTRACT_SMOKE.md).

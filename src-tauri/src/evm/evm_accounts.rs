@@ -315,6 +315,20 @@ async fn resolve_active_private_key_hex<R: Runtime>(
     resolve_private_key_hex_for_account_id(handle, &active_id).await
 }
 
+/// Active advanced account key material for Phase H sends (does not mutate squad signing settings).
+pub(crate) async fn resolve_advanced_signing_material<R: Runtime>(
+    handle: AppHandle<R>,
+) -> Result<(String, String), String> {
+    require_advanced_purpose_signer(handle.clone()).await?;
+    let conn = account_manager::get_db_connection(&handle)?;
+    let advanced_id = sql_get_setting(&conn, SETTING_ACTIVE_ADVANCED)?.ok_or_else(|| {
+        "No active Advanced account. Create or select one under Settings → Wallet.".to_string()
+    })?;
+    account_manager::return_db_connection(conn);
+    let (key_hex, addr, _) = resolve_private_key_hex_for_account_id(&handle, &advanced_id).await?;
+    Ok((key_hex, addr))
+}
+
 async fn persist_signing_material<R: Runtime>(
     handle: &AppHandle<R>,
     key_hex: &str,

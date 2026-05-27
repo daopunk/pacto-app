@@ -36,6 +36,7 @@
     type EvmAccountRow,
   } from '../../lib/wallet/evm-accounts';
   import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
+  import WalletAdvancedPanel from './WalletAdvancedPanel.svelte';
 
   let importModalOpen = false;
   let homeSendOpen = false;
@@ -508,6 +509,10 @@
           </ul>
         {/if}
       </section>
+
+      <div class="wallet-view-section">
+        <WalletAdvancedPanel enabledChainIds={enabledChainsOrdered} />
+      </div>
     {/if}
 
     <section class="wallet-view-section" aria-labelledby="wallet-networks-heading">

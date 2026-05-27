@@ -809,6 +809,29 @@ pub fn list_squad_infra<R: Runtime>(
     Ok(out)
 }
 
+/// Distinct on-chain refs from local `squad_infra` rows (for Advanced panel soft-deny warnings).
+#[command]
+pub fn list_squad_infra_canonical_refs<R: Runtime>(handle: AppHandle<R>) -> Result<Vec<String>, String> {
+    let conn = crate::account_manager::get_db_connection(&handle)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT lower(trim(canonical_ref)) FROM squad_infra \
+             WHERE canonical_ref IS NOT NULL AND trim(canonical_ref) != '' \
+             ORDER BY 1",
+        )
+        .map_err(|e| format!("Failed to list squad_infra refs: {}", e))?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("Failed to query squad_infra refs: {}", e))?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    drop(stmt);
+    crate::account_manager::return_db_connection(conn);
+    Ok(out)
+}
+
 fn upsert_squad_infra_inner<R: Runtime>(
     handle: &AppHandle<R>,
     id: &str,

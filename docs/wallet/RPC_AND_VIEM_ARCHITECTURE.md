@@ -51,10 +51,14 @@ Private keys remain in existing encrypted storage (PIN-derived); RPC URLs are no
 |--------|--------|-----------|
 | RPC URL selection (UI reads) | Frontend | `VITE_WALLET_*` + `getEffectiveRpcUrlsForChain` |
 | RPC URL selection (backend sends) | Backend | Env (or config file) mirroring the same per-chain lists |
-| Read-only JSON-RPC | Frontend | viem `createPublicClient` + `fallback` |
+| Read-only JSON-RPC | Frontend | viem `createPublicClient` + `fallback` via **`src/lib/evm/read-plane.ts`** |
+| Generic contract reads (observation) | Frontend | `readContract` / `multicall` in **`read-plane.ts`** — not duplicated in Rust for ad-hoc ABIs |
 | WalletBar send / raw tx | Backend | Rust (Alloy): encode, sign, `eth_sendRawTransaction` |
+| Advanced opaque contract call | Backend | **`evm_send_advanced_contract_call`** — advanced-purpose signer only (`advanced_contract_call.rs`) |
+| Squad curated deploy / gov writes | Backend | Typed Alloy commands + squad-purpose gate (unchanged) |
 | USD spot display | Backend + TS | `wallet_get_usd_spot_prices` + `src/lib/wallet/pricing.ts` |
 | Wallet send “done” + DM card | Backend policy | Wait for **successful receipt** before return; see [TRANSACTION_LIFECYCLE.md](./TRANSACTION_LIFECYCLE.md) |
+| Advanced panel (Settings → Wallet) | Frontend | **`WalletAdvancedPanel.svelte`** + `calldata-builder.ts`; simulate via viem `eth_call`, send via Tauri |
 
 ---
 

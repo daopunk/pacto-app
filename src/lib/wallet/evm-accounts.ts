@@ -63,6 +63,15 @@ export async function getActiveSquadEvmSignerAddress(): Promise<string | null> {
   return a || null;
 }
 
+/** Active advanced-purpose signing account `0x` address, if any. */
+export async function getActiveAdvancedEvmSignerAddress(): Promise<string | null> {
+  const rows = await listEvmAccounts();
+  if (!rows?.length) return null;
+  const active = rows.find((r) => r.isActiveAdvanced && isAdvancedPurposeAccount(r));
+  const a = active?.address?.trim();
+  return a || null;
+}
+
 /** @deprecated Prefer getActiveSquadEvmSignerAddress for squad/gov paths. */
 export async function getActiveEvmSignerAddress(): Promise<string | null> {
   return getActiveSquadEvmSignerAddress();
