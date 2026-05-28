@@ -3,6 +3,7 @@ import type { Address } from 'viem';
 import type { TreasurySafeEntry } from '$lib/treasury/treasury-safes';
 import { parseSupportedChainId, type SupportedChainId } from '$lib/wallet/chains';
 import { getSafeState, type SafeState } from '$lib/wallet/safe';
+import { withReadPlaneLimit } from '$lib/evm/read-plane-limiter';
 import { persistSafeStateCacheEntry } from '$lib/dashboard/safe-state-disk-cache';
 import { currentNpubForPersistence } from './persistence-context';
 
@@ -71,7 +72,9 @@ export async function refreshSafeStateForTreasuryEntry(
 
   const p = (async () => {
     try {
-      const state = await getSafeState(entry.safeAddress as Address, chainId);
+      const state = await withReadPlaneLimit(() =>
+        getSafeState(entry.safeAddress as Address, chainId),
+      );
       const lastFetchedAt = Date.now();
       safeStateByTreasuryId.update((map) => {
         const cur = map[key];
@@ -112,3 +115,5 @@ export async function refreshSafeStateForTreasuryEntry(
   inflightByTreasuryId.set(key, p);
   return p;
 }
+
+export { refreshAllSafeStates } from '$lib/dashboard/batch-safe-state-refresh';

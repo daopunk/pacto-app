@@ -31,7 +31,7 @@ Watched ERC-20 rows: `src/lib/wallet/watched-tokens.ts`. Chain and asset registr
 | Memory | Parent id → linked treasury Safe entries / infra rows / member EVM | `treasurySafesByParentId`, `squadInfraByParentId`, `squadMemberEvmByParentId` in `src/stores/squads.ts` |
 | Background | Refresh on hub / `#dashboard` intent and after login squad warmup | `scheduleHubParentPrefetch` / `scheduleDashboardPrefetch` in `src/lib/app/`; `syncTreasurySafesForParent` in `src/lib/dashboard/dashboard-data-sync.ts` |
 | Surface | Show hydrated rows immediately; “Refreshing…” while revalidate; keep snapshot on fetch error | Dashboard tabs under `src/components/parent/dashboard/` |
-| On-chain Safe state | Balance, owners, nonce per linked entry (30s in-memory SWR + 15 min disk TTL) | `refreshSafeStateForTreasuryEntry` in `src/stores/safe.ts` |
+| On-chain Safe state | Balance, owners, nonce per linked entry (30s in-memory SWR + 15 min disk TTL) | `refreshSafeStateForTreasuryEntry` / `refreshAllSafeStates` in `src/stores/safe.ts`; concurrency via `src/lib/evm/read-plane-limiter.ts` (default 3) |
 | Updates | Realtime events and deploy/import flows refresh stores + disk | `subscribeAppEvents` in `src/lib/app/tauri-subscriptions.ts`; Safe import/deploy via `ParentDashboard` → `onConfirmImportSafe` in `+page.svelte` |
 | Logout | Clear in-memory stores and npub-scoped cache keys | `src/lib/utils/clear-account-state.ts` |
 

@@ -12,7 +12,6 @@
   import { TREASURY_SAFE_UI_CAP } from '../../lib/treasury/treasury-safes';
   import { getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
-  import { refreshSafeStateForTreasuryEntry } from '../../stores/safe';
   import type { ParentGovernanceDto, SquadInfraDto, TreasuryProposalDto, HatTreeNodeDto } from '../../lib/governance/api';
   import {
     hasSponsorInfra,
@@ -26,12 +25,14 @@
   import { DEFAULT_CHAIN_ID, parseSupportedChainId, type SupportedChainId } from '../../lib/wallet/chains';
   import { currentUser } from '../../stores/auth';
   import friendsIcon from '../../icons/friends.svg';
-  import DashboardGovernanceTab from './dashboard/DashboardGovernanceTab.svelte';
-  import DashboardRolesTreeTab from './dashboard/DashboardRolesTreeTab.svelte';
-  import DashboardTreasuryTab from './dashboard/DashboardTreasuryTab.svelte';
-  import DashboardSettingsTab from './dashboard/DashboardSettingsTab.svelte';
   import ParentDashboardMembersPanel from './dashboard/ParentDashboardMembersPanel.svelte';
   import ParentDashboardModals from './dashboard/ParentDashboardModals.svelte';
+  import {
+    loadDashboardGovernanceTab,
+    loadDashboardRolesTreeTab,
+    loadDashboardSettingsTab,
+    loadDashboardTreasuryTab,
+  } from '../../lib/dashboard/dashboard-tab-components';
   import { showToast } from '../../stores/toast';
   import { resolveDashboardStructureSummary } from '../../lib/dashboard/structure-summary';
   import { resolveDashboardPermissionsContext } from '../../lib/dashboard/permissions-panel';
@@ -50,6 +51,11 @@
     persistTreasuryProposalsSnapshot,
   } from '../../lib/dashboard/governance-snapshot-cache';
   import { persistSquadMemberEvmForParent } from '../../lib/dashboard/squad-member-evm-cache';
+  import {
+    getCachedSettingsChainSnapshot,
+    persistSettingsChainSnapshot,
+    settingsChainCacheKey,
+  } from '../../lib/dashboard/settings-chain-cache';
   import { squadMemberEvmByParentId } from '../../stores/squads';
 
   type ParentDashboardView = ParentDashboardChannelMode;
@@ -125,12 +131,6 @@
   $: sponsorRow = sponsorInfraRow(squadInfraRows);
   $: hasSponsor = hasSponsorInfra(squadInfraRows);
   $: displayedTreasurySafes = [...(treasurySafes ?? [])].slice(0, TREASURY_SAFE_UI_CAP);
-  $: treasuryStateKey = displayedTreasurySafes.map((e) => e.id).join('|');
-  $: if ((dashboardView === 'treasury' || dashboardView === 'governance') && treasuryStateKey) {
-    displayedTreasurySafes.forEach((e) => {
-      refreshSafeStateForTreasuryEntry(e);
-    });
-  }
 
   $: pactoGovRow = pactoGovInfraRow(squadInfraRows);
   $: hasPactoGov = pactoGovRow != null;
@@ -176,6 +176,7 @@
   let memberHatByAddress: Record<string, string> = {};
   let memberRolesByAddress: Record<string, string> = {};
   let settingsChainLoading = false;
+  let settingsChainRefreshing = false;
   let settingsChainError = '';
   let settingsChainKey = '';
 
@@ -279,13 +280,29 @@
   async function loadSettingsChainContext() {
     const topHat = pactoGovRow?.canonicalRef?.trim() ?? null;
     const squadAdmin = squadAdminCtx?.proxy?.trim() ?? null;
-    const key = `${pactoNetwork}:${topHat ?? ''}:${squadAdmin}:${Object.keys(squadMemberEvmByNpub).join(',')}`;
-    if ((!topHat && !squadAdmin) || settingsChainKey === key) return;
-    settingsChainKey = key;
-    settingsChainLoading = true;
+    const cacheKey = settingsChainCacheKey({
+      network: pactoNetwork,
+      topHatId: topHat,
+      squadAdminProxy: squadAdmin,
+      squadMemberEvmByNpub,
+    });
+    if ((!topHat && !squadAdmin) || settingsChainKey === cacheKey) return;
+    settingsChainKey = cacheKey;
+    const npub = $currentUser?.npub;
+    const cached =
+      npub && parentId ? getCachedSettingsChainSnapshot(npub, parentId, cacheKey) : null;
+    if (cached) {
+      memberHatByAddress = cached.memberHatByAddress;
+      memberRolesByAddress = cached.memberRolesByAddress;
+      settingsChainLoading = false;
+      settingsChainRefreshing = true;
+    } else {
+      settingsChainLoading = true;
+      settingsChainRefreshing = false;
+      memberHatByAddress = {};
+      memberRolesByAddress = {};
+    }
     settingsChainError = '';
-    memberHatByAddress = {};
-    memberRolesByAddress = {};
     const result = await fetchSettingsChainMemberMaps({
       network: pactoNetwork,
       topHatId: topHat,
@@ -293,10 +310,24 @@
       squadAdminChain: squadAdminCtx?.chain ?? null,
       squadMemberEvmByNpub,
     });
-    memberHatByAddress = result.memberHatByAddress;
-    memberRolesByAddress = result.memberRolesByAddress;
-    settingsChainError = result.error;
     settingsChainLoading = false;
+    settingsChainRefreshing = false;
+    if (!result.error) {
+      memberHatByAddress = result.memberHatByAddress;
+      memberRolesByAddress = result.memberRolesByAddress;
+      if (npub && parentId) {
+        persistSettingsChainSnapshot(npub, parentId, cacheKey, {
+          memberHatByAddress: result.memberHatByAddress,
+          memberRolesByAddress: result.memberRolesByAddress,
+        });
+      }
+    } else if (cached) {
+      settingsChainError = result.error;
+    } else {
+      memberHatByAddress = result.memberHatByAddress;
+      memberRolesByAddress = result.memberRolesByAddress;
+      settingsChainError = result.error;
+    }
   }
 
   $: if (dashboardView === 'governance' && pactoPayload?.treasuryAuthority) {
@@ -540,60 +571,77 @@
         {/if}
 
         {#if dashboardView === 'governance'}
-          <DashboardGovernanceTab
-            {squadInfraRows}
-            {hasSponsor}
-            {pactoPayload}
-            {treasuryProposals}
-            {treasuryProposalsLoading}
-            treasuryProposalsRefreshing={treasuryProposalsRefreshing}
-            {treasuryProposalsError}
-            {myVoterAddress}
-            {proposalHasVotedById}
-            {proposalVotesLoading}
-            onTreasuryVoteClick={onTreasuryVoteClick}
-            onOpenLaunchpad={openLaunchpad}
-          />
+          {#await loadDashboardGovernanceTab() then GovernanceTab}
+            <GovernanceTab
+              {squadInfraRows}
+              {hasSponsor}
+              {pactoPayload}
+              {treasuryProposals}
+              {treasuryProposalsLoading}
+              treasuryProposalsRefreshing={treasuryProposalsRefreshing}
+              {treasuryProposalsError}
+              {myVoterAddress}
+              {proposalHasVotedById}
+              {proposalVotesLoading}
+              onTreasuryVoteClick={onTreasuryVoteClick}
+              onOpenLaunchpad={openLaunchpad}
+            />
+          {:catch}
+            <p class="dashboard-tab-load-error" role="alert">Could not load Governance tab.</p>
+          {/await}
         {:else if dashboardView === 'roles_tree'}
-          <DashboardRolesTreeTab
-            {squadInfraRows}
-            {hasSponsor}
-            {structureSummary}
-            {hatsTree}
-            {hatsTreeLoading}
-            hatsTreeRefreshing={hatsTreeRefreshing}
-            {hatsTreeError}
-            onOpenLaunchpad={openLaunchpad}
-          />
+          {#await loadDashboardRolesTreeTab() then RolesTreeTab}
+            <RolesTreeTab
+              {squadInfraRows}
+              {hasSponsor}
+              {structureSummary}
+              {hatsTree}
+              {hatsTreeLoading}
+              hatsTreeRefreshing={hatsTreeRefreshing}
+              {hatsTreeError}
+              onOpenLaunchpad={openLaunchpad}
+            />
+          {:catch}
+            <p class="dashboard-tab-load-error" role="alert">Could not load Roles Tree tab.</p>
+          {/await}
         {:else if dashboardView === 'treasury'}
-          <DashboardTreasuryTab
-            parentId={parentId ?? ''}
-            {sponsorRow}
-            {treasurySafes}
-            {displayedTreasurySafes}
-            {pactoPayload}
-            onOpenSponsorDeploy={openSponsorDeploy}
-            onOpenDeploySafe={openDeploySafe}
-            onOpenImportSafe={openSetSafe}
-          />
+          {#await loadDashboardTreasuryTab() then TreasuryTab}
+            <TreasuryTab
+              parentId={parentId ?? ''}
+              {sponsorRow}
+              {treasurySafes}
+              {displayedTreasurySafes}
+              {pactoPayload}
+              onOpenSponsorDeploy={openSponsorDeploy}
+              onOpenDeploySafe={openDeploySafe}
+              onOpenImportSafe={openSetSafe}
+            />
+          {:catch}
+            <p class="dashboard-tab-load-error" role="alert">Could not load Treasury tab.</p>
+          {/await}
         {:else if dashboardView === 'settings'}
-          <DashboardSettingsTab
-            {squadInfraRows}
-            {hasSponsor}
-            {permissionsCtx}
-            {squadAdminCtx}
+          {#await loadDashboardSettingsTab() then SettingsTab}
+            <SettingsTab
+              {squadInfraRows}
+              {hasSponsor}
+              {permissionsCtx}
+              {squadAdminCtx}
             {settingsChainError}
             {settingsChainLoading}
+            settingsChainRefreshing={settingsChainRefreshing}
             {announcementsGroupId}
-            parentId={parentId ?? ''}
-            {channelMembers}
-            {loadingMembers}
-            {squadMemberEvmByNpub}
-            {memberHatByAddress}
-            {memberRolesByAddress}
-            onOpenLaunchpad={openLaunchpad}
-            onOpenSquadRolesModal={() => (showSquadRolesModal = true)}
-          />
+              parentId={parentId ?? ''}
+              {channelMembers}
+              {loadingMembers}
+              {squadMemberEvmByNpub}
+              {memberHatByAddress}
+              {memberRolesByAddress}
+              onOpenLaunchpad={openLaunchpad}
+              onOpenSquadRolesModal={() => (showSquadRolesModal = true)}
+            />
+          {:catch}
+            <p class="dashboard-tab-load-error" role="alert">Could not load Settings tab.</p>
+          {/await}
         {/if}
       </div>
     </div>
@@ -875,5 +923,11 @@
     background: var(--accent);
     color: var(--accent-contrast, #fff);
     border: none;
+  }
+
+  .dashboard-tab-load-error {
+    margin: 16px;
+    font-size: 0.875rem;
+    color: var(--danger, #e53e3e);
   }
 </style>

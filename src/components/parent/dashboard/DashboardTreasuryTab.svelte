@@ -9,6 +9,7 @@
   import { treasuryVaultHeading } from '../../../lib/treasury/treasury-vault-labels';
   import { safeStateByTreasuryId } from '../../../stores/safe';
   import { treasurySafesFetchMetaByParentId } from '../../../lib/dashboard/dashboard-fetch-meta';
+  import { refreshAllSafeStates } from '../../../lib/dashboard/batch-safe-state-refresh';
 
   export let parentId = '';
   export let sponsorRow: SquadInfraDto | null = null;
@@ -35,6 +36,10 @@
   }
 
   $: treasuryFetchMeta = parentId ? ($treasurySafesFetchMetaByParentId[parentId] ?? null) : null;
+  $: treasurySafeRefreshKey = displayedTreasurySafes.map((e) => e.id).join('|');
+  $: if (treasurySafeRefreshKey) {
+    void refreshAllSafeStates(displayedTreasurySafes);
+  }
 </script>
 
 <SquadSponsorTreasuryPanel {parentId} {sponsorRow} onOpenDeploy={onOpenSponsorDeploy} />

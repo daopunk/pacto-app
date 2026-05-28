@@ -1,13 +1,16 @@
 <script lang="ts">
-  import DeploySafeModal from '../DeploySafeModal.svelte';
-  import DeployNavePirataWizard from '../governance/DeployNavePirataWizard.svelte';
-  import DeploySquadSponsorModal from '../governance/DeploySquadSponsorModal.svelte';
-  import DeploySquadAdminModal from '../governance/DeploySquadAdminModal.svelte';
+  import type { Component } from 'svelte';
   import LaunchpadModal from '../governance/LaunchpadModal.svelte';
   import SquadRolesModal from '../governance/SquadRolesModal.svelte';
   import ChainIdSelect from '../../wallet/ChainIdSelect.svelte';
   import type { SupportedChainId } from '../../../lib/wallet/chains';
   import { DEFAULT_CHAIN_ID } from '../../../lib/wallet/chains';
+  import {
+    loadDeployNavePirataWizard,
+    loadDeploySafeModal,
+    loadDeploySquadAdminModal,
+    loadDeploySquadSponsorModal,
+  } from '../../../lib/parent/deploy-wizard-components';
 
   export let parentId: string;
   export let announcementsGroupId: string | null = null;
@@ -73,24 +76,62 @@
   export let onDeployPactoGov: () => void = () => {};
   export let onDeploySafe: () => void = () => {};
   export let onImportSafe: () => void = () => {};
+
+  let DeploySafeModalComponent: Component | null = null;
+  let DeployNaveWizardComponent: Component | null = null;
+  let DeploySquadSponsorComponent: Component | null = null;
+  let DeploySquadAdminComponent: Component | null = null;
+
+  $: if (showDeploySafeModal && !DeploySafeModalComponent) {
+    void loadDeploySafeModal().then((c) => {
+      DeploySafeModalComponent = c;
+    });
+  }
+  $: if (showNaveWizard && !DeployNaveWizardComponent) {
+    void loadDeployNavePirataWizard().then((c) => {
+      DeployNaveWizardComponent = c;
+    });
+  }
+  $: if (showSponsorDeploy && !DeploySquadSponsorComponent) {
+    void loadDeploySquadSponsorModal().then((c) => {
+      DeploySquadSponsorComponent = c;
+    });
+  }
+  $: if (showSquadAdminDeploy && !DeploySquadAdminComponent) {
+    void loadDeploySquadAdminModal().then((c) => {
+      DeploySquadAdminComponent = c;
+    });
+  }
 </script>
 
 {#if showDeploySafeModal && parentId}
-  <DeploySafeModal
-    {parentId}
-    {announcementsGroupId}
-    {treasurySafeCount}
-    onClose={onCloseDeploySafe}
-    onSuccess={onDeploySafeSuccess}
-  />
+  {#if DeploySafeModalComponent}
+    <DeploySafeModalComponent
+      {parentId}
+      {announcementsGroupId}
+      {treasurySafeCount}
+      onClose={onCloseDeploySafe}
+      onSuccess={onDeploySafeSuccess}
+    />
+  {:else}
+    <div class="modal-overlay wizard-loading-overlay" role="status" aria-live="polite">
+      <p class="wizard-loading-text">Loading deploy wizard…</p>
+    </div>
+  {/if}
 {/if}
 
 {#if showNaveWizard && parentId.trim()}
-  <DeployNavePirataWizard
-    parentId={parentId.trim()}
-    onClose={onCloseNaveWizard}
-    onComplete={onNaveComplete}
-  />
+  {#if DeployNaveWizardComponent}
+    <DeployNaveWizardComponent
+      parentId={parentId.trim()}
+      onClose={onCloseNaveWizard}
+      onComplete={onNaveComplete}
+    />
+  {:else}
+    <div class="modal-overlay wizard-loading-overlay" role="status" aria-live="polite">
+      <p class="wizard-loading-text">Loading deploy wizard…</p>
+    </div>
+  {/if}
 {/if}
 
 {#if showLaunchpad && parentId}
@@ -110,19 +151,31 @@
 {/if}
 
 {#if showSquadAdminDeploy && parentId.trim()}
-  <DeploySquadAdminModal
-    parentId={parentId.trim()}
-    onClose={onCloseSquadAdminDeploy}
-    onComplete={onSquadAdminComplete}
-  />
+  {#if DeploySquadAdminComponent}
+    <DeploySquadAdminComponent
+      parentId={parentId.trim()}
+      onClose={onCloseSquadAdminDeploy}
+      onComplete={onSquadAdminComplete}
+    />
+  {:else}
+    <div class="modal-overlay wizard-loading-overlay" role="status" aria-live="polite">
+      <p class="wizard-loading-text">Loading deploy wizard…</p>
+    </div>
+  {/if}
 {/if}
 
 {#if showSponsorDeploy && parentId.trim()}
-  <DeploySquadSponsorModal
-    parentId={parentId.trim()}
-    onClose={onCloseSponsorDeploy}
-    onComplete={onSponsorComplete}
-  />
+  {#if DeploySquadSponsorComponent}
+    <DeploySquadSponsorComponent
+      parentId={parentId.trim()}
+      onClose={onCloseSponsorDeploy}
+      onComplete={onSponsorComplete}
+    />
+  {:else}
+    <div class="modal-overlay wizard-loading-overlay" role="status" aria-live="polite">
+      <p class="wizard-loading-text">Loading deploy wizard…</p>
+    </div>
+  {/if}
 {/if}
 
 {#if showSetSafeModal}
@@ -255,5 +308,15 @@
     gap: 12px;
     justify-content: flex-end;
     margin-top: 16px;
+  }
+
+  .wizard-loading-overlay {
+    z-index: 1001;
+  }
+
+  .wizard-loading-text {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
   }
 </style>

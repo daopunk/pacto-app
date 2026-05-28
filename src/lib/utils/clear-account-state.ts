@@ -68,6 +68,7 @@ import { safeStateByTreasuryId } from '../../stores/safe';
 import { clearWalletSummaryCacheStore } from '../wallet/wallet-summary-cache';
 import { clearDashboardFetchMetaStores } from '../dashboard/dashboard-fetch-meta';
 import { clearGovernanceSnapshotCacheStore } from '../dashboard/governance-snapshot-cache';
+import { clearSettingsChainCacheStore, SETTINGS_CHAIN_CACHE_PREFIX } from '../dashboard/settings-chain-cache';
 import { TREASURY_SAFES_CACHE_PREFIX } from '../dashboard/treasury-safes-cache';
 import { SQUAD_INFRA_CACHE_PREFIX } from '../dashboard/squad-infra-cache';
 import { SQUAD_MEMBER_EVM_CACHE_PREFIX } from '../dashboard/squad-member-evm-cache';
@@ -108,6 +109,7 @@ const SCOPED_KEY_PREFIXES = [
   SQUAD_INFRA_CACHE_PREFIX,
   SQUAD_MEMBER_EVM_CACHE_PREFIX,
   GOVERNANCE_SNAPSHOT_CACHE_PREFIX,
+  SETTINGS_CHAIN_CACHE_PREFIX,
   SAFE_STATE_DISK_CACHE_PREFIX,
   'pacto_wallet_ui_enabled_chains_v1',
   'pacto_wallet_preferred_network_v1',
@@ -148,6 +150,7 @@ export function clearAccountState(npub?: string): void {
   clearWalletSummaryCacheStore();
   clearDashboardFetchMetaStores();
   clearGovernanceSnapshotCacheStore();
+  clearSettingsChainCacheStore();
   clearAccountLocalStorage(npub);
 
   treasurySafesByParentId.set({});

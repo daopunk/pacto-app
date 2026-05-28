@@ -11,6 +11,7 @@
   export let squadAdminCtx: ResolvedSquadAdminContext | null = null;
   export let settingsChainError = '';
   export let settingsChainLoading = false;
+  export let settingsChainRefreshing = false;
   export let announcementsGroupId: string | null = null;
   export let parentId = '';
   export let channelMembers: string[] = [];
@@ -63,7 +64,13 @@
       </ul>
     {/if}
   {/if}
-  {#if settingsChainError}
+  {#if settingsChainRefreshing}
+    <p class="dashboard-refresh-note muted" role="status">Refreshing on-chain member roles…</p>
+  {/if}
+  {#if settingsChainError && (Object.keys(memberHatByAddress).length > 0 || Object.keys(memberRolesByAddress).length > 0)}
+    <p class="chain-read-error" role="alert">{settingsChainError}</p>
+  {/if}
+  {#if settingsChainError && Object.keys(memberHatByAddress).length === 0 && Object.keys(memberRolesByAddress).length === 0}
     <p class="chain-read-error" role="alert">{settingsChainError}</p>
   {/if}
   {#if announcementsGroupId}
@@ -96,7 +103,7 @@
               >
               <span class="roles-col-label">Hats</span>
               <span class="roles-col-value" class:muted={!rosterEvm || !memberHatByAddress[rosterEvm.toLowerCase()]}
-                >{settingsChainLoading
+                >{settingsChainLoading && !memberHatByAddress[rosterEvm?.toLowerCase() ?? '']
                   ? 'Loading…'
                   : rosterEvm
                     ? memberHatByAddress[rosterEvm.toLowerCase()] || '—'
@@ -106,7 +113,7 @@
               <span
                 class="roles-col-value"
                 class:muted={!rosterEvm || !memberRolesByAddress[rosterEvm.toLowerCase()]}
-                >{settingsChainLoading
+                >{settingsChainLoading && !memberRolesByAddress[rosterEvm?.toLowerCase() ?? '']
                   ? 'Loading…'
                   : rosterEvm
                     ? memberRolesByAddress[rosterEvm.toLowerCase()] || '—'

@@ -16,6 +16,7 @@ import {
 import { isTreasuryProposalActive } from '../governance/treasury-proposal-ui';
 import { getInvokeErrorMessage } from '../utils/tauri-errors';
 import { listSquadMemberEvmInvokeArgs } from '../squad/squad-member-evm-share';
+import { withReadPlaneLimit } from '../evm/read-plane-limiter';
 
 import { parseSupportedChainId, type SupportedChainId } from '../wallet/chains';
 
@@ -57,15 +58,17 @@ export async function fetchTreasuryProposalVoteMap(params: {
   const active = params.proposals.filter((p) => isTreasuryProposalActive(p.status));
   if (active.length === 0) return {};
   const pairs = await Promise.all(
-    active.map(async (p) => {
-      const voted = await treasuryProposalHasVoted({
-        network: params.network,
-        treasuryAuthority: params.treasuryAuthority,
-        proposalId: p.proposalId,
-        voter: params.voterAddress,
-      });
-      return [p.proposalId, voted] as const;
-    }),
+    active.map((p) =>
+      withReadPlaneLimit(async () => {
+        const voted = await treasuryProposalHasVoted({
+          network: params.network,
+          treasuryAuthority: params.treasuryAuthority,
+          proposalId: p.proposalId,
+          voter: params.voterAddress,
+        });
+        return [p.proposalId, voted] as const;
+      }),
+    ),
   );
   const map: Record<string, boolean> = {};
   for (const [id, voted] of pairs) map[id] = voted;
@@ -150,17 +153,19 @@ export async function fetchSettingsChainMemberMaps(params: {
     if (params.squadAdminProxy) {
       const roleNetwork = parseSupportedChainId(params.squadAdminChain?.trim() || params.network);
       const roleRows = await Promise.all(
-        evmAddresses.map(async (addr) => {
-          const roles = await getSquadAdminExecutorRoles({
-            network: roleNetwork,
-            squadAdminProxy: params.squadAdminProxy!,
-            executorAddress: addr,
-          });
-          return {
-            address: addr.toLowerCase(),
-            label: formatSquadAdminExecutorRoles(roles),
-          };
-        }),
+        evmAddresses.map((addr) =>
+          withReadPlaneLimit(async () => {
+            const roles = await getSquadAdminExecutorRoles({
+              network: roleNetwork,
+              squadAdminProxy: params.squadAdminProxy!,
+              executorAddress: addr,
+            });
+            return {
+              address: addr.toLowerCase(),
+              label: formatSquadAdminExecutorRoles(roles),
+            };
+          }),
+        ),
       );
       const roleMap: Record<string, string> = {};
       for (const row of roleRows) {

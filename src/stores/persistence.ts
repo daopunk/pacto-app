@@ -3,6 +3,7 @@ import { hydrateTreasurySafesCacheFromDisk } from '../lib/dashboard/treasury-saf
 import { hydrateSquadInfraCacheFromDisk } from '../lib/dashboard/squad-infra-cache';
 import { hydrateSquadMemberEvmCacheFromDisk } from '../lib/dashboard/squad-member-evm-cache';
 import { hydrateGovernanceSnapshotCacheFromDisk } from '../lib/dashboard/governance-snapshot-cache';
+import { hydrateSettingsChainCacheFromDisk } from '../lib/dashboard/settings-chain-cache';
 import { hydrateSafeStateCacheFromDisk } from '../lib/dashboard/safe-state-disk-cache';
 import { safeStateByTreasuryId } from './safe';
 import { loadDeferredSquadRosterKeyParentIds } from '../lib/squad/squad-roster-key-choice';
@@ -30,12 +31,8 @@ import {
   PACTO_APP_INBOX_PREFIX,
   LAST_DM_NPUB_PREFIX,
 } from './dm';
-import {
-  squads,
-  PACTO_SQUADS_PREFIX,
-  normalizeSquadFromStorage,
-  type Squad,
-} from './squads';
+import { hydrateSquadsFromDisk } from './squads';
+import { restoreSquadsHubSelection } from '../lib/squad-hub-nav';
 
 export {
   currentNpubForPersistence,
@@ -47,16 +44,8 @@ export {
 export function loadAccountState(npub: string): void {
   setCurrentNpubForPersistence(npub);
   if (typeof localStorage === 'undefined') return;
+  hydrateSquadsFromDisk(npub);
   try {
-    const squadsKey = `${PACTO_SQUADS_PREFIX}_${npub}`;
-    const rawSquads = localStorage.getItem(squadsKey);
-    let loadedSquads: Squad[] = [];
-    if (rawSquads) {
-      const parsed = JSON.parse(rawSquads) as unknown;
-      const list = Array.isArray(parsed) ? (parsed as Squad[]) : [];
-      loadedSquads = list.map((s) => normalizeSquadFromStorage(s));
-    }
-    squads.set(loadedSquads);
     const pinnedKey = `${PINNED_DM_NPUBS_PREFIX}_${npub}`;
     const rawPinned = localStorage.getItem(pinnedKey);
     if (rawPinned) {
@@ -123,7 +112,9 @@ export function loadAccountState(npub: string): void {
   hydrateSquadInfraCacheFromDisk(npub);
   hydrateSquadMemberEvmCacheFromDisk(npub);
   hydrateGovernanceSnapshotCacheFromDisk(npub);
+  hydrateSettingsChainCacheFromDisk(npub);
   hydrateSafeStateCacheFromDisk(npub, (rows) => {
     safeStateByTreasuryId.update((cur) => ({ ...cur, ...rows }));
   });
+  restoreSquadsHubSelection();
 }
