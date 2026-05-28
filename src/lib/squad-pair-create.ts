@@ -1,8 +1,31 @@
 /** Squad-pair creation helpers — see ai-docs/networks/RNF_PLAN.md */
 
-import { getAnnouncementsChannel } from './parent-navbar';
+import { get } from 'svelte/store';
+import { createDefaultParentChannels, getAnnouncementsChannel } from './parent-navbar';
+import { getInvokeErrorMessage, friendlyMessage } from './utils/tauri-errors';
+import { sendSquadInviteDm } from './pacto-app-inbox';
+import { activateSquadHub } from './squad-hub-nav';
+import { currentUser } from '../stores/auth';
+import {
+  squads,
+  addParentCreatingAnnouncements,
+  removeParentCreatingAnnouncements,
+  parentCreateErrorById,
+  parentPendingCreateMembers,
+  ANNOUNCEMENTS_CHANNEL_NAME,
+  type Squad,
+} from '../stores/squads';
+import {
+  activeSquadId,
+  activeChannelId,
+  activeHubChannelName,
+  activeView,
+  activeTopNavTab,
+  lastChannelBySquadId,
+  lastHubChannelNameBySquadId,
+} from '../stores/navigation';
+import { pendingReadyToast } from '../stores/toast';
 import type { PairedSquads } from './squad-pair';
-import type { Squad } from '../stores/app';
 
 export interface SquadPairAnchorRef {
   id: string;
@@ -55,12 +78,12 @@ type MlsMembersResult = { members?: string[] };
 
 /** Union of MLS members from two squads' announcements groups, excluding the current user. */
 export async function collectInviteNpubsForSquads(
-  squads: Squad[],
+  squadList: Squad[],
   excludeNpub: string | undefined,
   fetchMembers: (announcementsGroupId: string) => Promise<MlsMembersResult>
 ): Promise<string[]> {
   const allNpubs = new Set<string>();
-  for (const squad of squads) {
+  for (const squad of squadList) {
     const ann = getAnnouncementsChannel(squad);
     if (!ann?.groupId?.trim() || ann.groupId.startsWith('creating-')) {
       throw new Error(`Squad "${squad.name}" has no announcements channel`);
@@ -71,4 +94,166 @@ export async function collectInviteNpubsForSquads(
     }
   }
   return [...allNpubs];
+}
+
+/** Optimistic squad-pair row + background announcements MLS create and invite DMs. */
+export function runSquadPairCreateFlow(
+  name: string,
+  memberNpubs: string[],
+  anchor: Squad,
+  partner: Squad,
+  iconUrl?: string
+): void {
+  const pairedSquads = buildPairedSquads(anchor, partner);
+  const now = Date.now();
+  const tempId = 'creating-squad-pair-' + now;
+  const squadPair: Squad = {
+    id: tempId,
+    name,
+    iconUrl,
+    channels: [],
+    kind: 'squad-pair',
+    pairedSquads,
+    createdAt: now,
+    updatedAt: now,
+  };
+  addParentCreatingAnnouncements(squadPair.id);
+  parentPendingCreateMembers.update((m) => ({ ...m, [squadPair.id]: memberNpubs }));
+  squads.update((list) => [...list, squadPair]);
+  activeSquadId.set(tempId);
+  activeChannelId.set(null);
+  activeHubChannelName.set(null);
+  activeView.set('hub');
+  activeTopNavTab.set('squads');
+
+  void (async () => {
+    try {
+      const { parentId, channels } = await createDefaultParentChannels(memberNpubs);
+      const groupId = parentId;
+      const paired = buildPairedSquads(anchor, partner);
+      squads.update((list) =>
+        list.map((s) =>
+          s.id !== tempId
+            ? s
+            : {
+                ...s,
+                id: groupId,
+                channels,
+                kind: 'squad-pair' as const,
+                pairedSquads: paired,
+                updatedAt: Date.now(),
+              }
+        )
+      );
+      removeParentCreatingAnnouncements(tempId);
+      parentCreateErrorById.update((m) => {
+        const next = { ...m };
+        delete next[tempId];
+        return next;
+      });
+      parentPendingCreateMembers.update((m) => {
+        const next = { ...m };
+        delete next[tempId];
+        return next;
+      });
+      activateSquadHub(groupId);
+      pendingReadyToast.set({
+        text: `${name} is ready!`,
+        goTo: {
+          type: 'squad',
+          name,
+          id: groupId,
+          channelId: groupId,
+          hubChannelName:
+            channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name,
+        },
+      });
+      const myNpub = get(currentUser)?.npub;
+      for (const npub of memberNpubs) {
+        try {
+          await sendSquadInviteDm(
+            npub,
+            { squadName: name, groupId, kind: 'squad-pair', pairedSquads: paired },
+            myNpub
+          );
+        } catch (e) {
+          console.warn('[squad-pair-create] invite DM failed for', npub.slice(0, 20) + '…', e);
+        }
+      }
+    } catch (e) {
+      removeParentCreatingAnnouncements(tempId);
+      parentCreateErrorById.update((m) => ({
+        ...m,
+        [tempId]: friendlyMessage(
+          getInvokeErrorMessage(e, 'Failed to create partner squad announcements channel')
+        ),
+      }));
+      squads.update((list) => list.filter((s) => s.id !== tempId));
+      if (get(activeSquadId) === tempId) {
+        activeSquadId.set(anchor.id);
+        activeChannelId.set(null);
+        activeHubChannelName.set(null);
+      }
+    }
+  })();
+}
+
+/** Retry failed announcements channel create for a squad still in `creating` state. */
+export async function retryParentAnnouncementsCreate(parent: Squad): Promise<void> {
+  const memberIds = get(parentPendingCreateMembers)[parent.id];
+  if (!memberIds?.length) return;
+
+  const { parentId: gid, channels } = await createDefaultParentChannels(memberIds);
+  squads.update((list) =>
+    list.map((s) => (s.id !== parent.id ? s : { ...s, id: gid, channels, updatedAt: Date.now() }))
+  );
+  if (get(activeSquadId) === parent.id) {
+    activeSquadId.set(gid);
+    activeChannelId.set(gid);
+    const hub =
+      channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name ?? null;
+    activeHubChannelName.set(hub);
+  }
+  lastChannelBySquadId.update((m) => {
+    const next = { ...m };
+    delete next[parent.id];
+    return { ...next, [gid]: gid };
+  });
+  lastHubChannelNameBySquadId.update((m) => {
+    const next = { ...m };
+    delete next[parent.id];
+    const hubName =
+      channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name ?? '';
+    return hubName ? { ...next, [gid]: hubName } : next;
+  });
+  pendingReadyToast.set({
+    text: `${parent.name} is ready!`,
+    goTo: {
+      type: 'squad',
+      name: parent.name,
+      id: gid,
+      channelId: gid,
+      hubChannelName:
+        channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name,
+    },
+  });
+  removeParentCreatingAnnouncements(parent.id);
+  parentCreateErrorById.update((m) => {
+    const next = { ...m };
+    delete next[parent.id];
+    return next;
+  });
+  parentPendingCreateMembers.update((m) => {
+    const next = { ...m };
+    delete next[parent.id];
+    return next;
+  });
+  const myNpub = get(currentUser)?.npub;
+  for (const npub of memberIds) {
+    try {
+      await sendSquadInviteDm(npub, { squadName: parent.name, groupId: gid }, myNpub);
+    } catch (e) {
+      console.warn('[squad-pair-create] retry invite DM failed for', npub.slice(0, 20) + '…', e);
+    }
+  }
 }

@@ -6,7 +6,7 @@ import {
   resolvePairAnchorFromHub,
   partnerSquadCandidates,
 } from './squad-pair-create';
-import type { Squad } from '../stores/app';
+import type { Squad } from '../stores/squads';
 
 const anchor: Squad = {
   id: 'anchor',

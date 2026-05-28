@@ -4,41 +4,30 @@
  * the previous account's squads, DMs, or related state.
  */
 
+import { setCurrentNpubForPersistence } from '../../stores/persistence-context';
 import {
-  squads,
+  activeTopNavTab,
+  activeView,
+  activeSquadId,
+  activeChannelId,
+  activeHubChannelName,
+  lastOpenedSquadId,
+  lastOpenedChannelId,
+  lastChannelBySquadId,
+  lastHubChannelNameBySquadId,
+  showMembersPanel,
+  parentDashboardChannelMode,
+  dashboardPollReplicaNonceByParentId,
+} from '../../stores/navigation';
+import {
   pinnedDmNpubs,
   blockedDmNpubs,
   dmChatsByNpub,
   activeDmId,
   lastOpenedDmByTab,
-  lastOpenedSquadId,
-  lastOpenedChannelId,
-  lastChannelBySquadId,
-  lastHubChannelNameBySquadId,
-  activeSquadId,
-  activeChannelId,
-  activeHubChannelName,
-  acceptedSquadInviteIds,
-  declinedSquadInviteIds,
-  acceptedChannelInviteMessageIds,
-  declinedChannelInviteMessageIds,
-  declinedWalletTxRequestMessageIds,
-  acceptedWalletPeerInfoRequestMessageIds,
-  declinedWalletPeerInfoRequestMessageIds,
   dmWalletPeerExchangeTick,
-  backendGroupMessages,
-  groupSendError,
-  pendingMlsWelcomes,
-  parentsCreatingAnnouncements,
-  parentCreateErrorById,
-  parentPendingCreateMembers,
-  ungroupedChannels,
-  channelMessages,
   composingNewChat,
-  activeTopNavTab,
   activeDmTab,
-  activeView,
-  showMembersPanel,
   walletSidebarOpen,
   walletSendPrefillFromRequest,
   backendDmMessages,
@@ -49,12 +38,31 @@ import {
   dmSyncStatus,
   typingByChat,
   dmSendError,
-  setCurrentNpubForPersistence,
+} from '../../stores/dm';
+import {
+  acceptedSquadInviteIds,
+  declinedSquadInviteIds,
+  acceptedChannelInviteMessageIds,
+  declinedChannelInviteMessageIds,
+  declinedWalletTxRequestMessageIds,
+  acceptedWalletPeerInfoRequestMessageIds,
+  declinedWalletPeerInfoRequestMessageIds,
+} from '../../stores/invite-decisions';
+import {
+  squads,
   treasurySafesByParentId,
   squadInfraByParentId,
-  parentDashboardChannelMode,
-  dashboardPollReplicaNonceByParentId,
-} from '../../stores/app';
+  parentsCreatingAnnouncements,
+  parentCreateErrorById,
+  parentPendingCreateMembers,
+  ungroupedChannels,
+  channelMessages,
+} from '../../stores/squads';
+import {
+  backendGroupMessages,
+  groupSendError,
+  pendingMlsWelcomes,
+} from '../../stores/mls-chat';
 import { safeStateByTreasuryId } from '../../stores/safe';
 import { clearWalletSummaryCacheStore } from '../wallet/wallet-summary-cache';
 import { resetInviteAcceptState } from '../invites/accept-invite';

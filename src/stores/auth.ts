@@ -5,7 +5,9 @@ import { hasStoredKey, encryptAndSaveKey, encryptAndSaveEvmKey, loadAndDecryptKe
 import { refreshProfileNow, fetchMessages } from '../lib/api/nostr';
 import { dmLog } from '../lib/utils/dm-debug';
 import { clearAccountState } from '../lib/utils/clear-account-state';
-import { dmSyncStatus, activeTopNavTab, loadAccountState } from './app';
+import { dmSyncStatus } from './dm';
+import { activeTopNavTab } from './navigation';
+import { loadAccountState } from './persistence';
 
 // Auth state
 export const isAuthenticated = writable<boolean>(false);
@@ -196,15 +198,15 @@ export async function unlockWithPin(pin: string): Promise<void> {
     });
     activeTopNavTab.set('squads');
     loadAccountState(npub);
-    authLoading.set(false);
     runPostLoginNetworkSync(npub);
 
     dmLog('unlockWithPin: done');
   } catch (error: any) {
     console.error('Unlock failed:', error);
     authError.set(error.message || 'Incorrect PIN or failed to decrypt');
-    authLoading.set(false);
     throw error;
+  } finally {
+    authLoading.set(false);
   }
 }
 

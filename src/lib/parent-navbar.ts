@@ -1,6 +1,5 @@
 /**
- * Shared logic for squad and network sidebars (ParentNavbar behaviour).
- * Used by ParentNavbar.svelte so squad and network behaviour is not duplicated.
+ * Shared channel helpers for squad parent sidebars (ParentNavbar).
  */
 import {
   ANNOUNCEMENTS_CHANNEL_NAME,

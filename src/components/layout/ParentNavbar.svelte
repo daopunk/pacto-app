@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { get } from 'svelte/store';
   import ParentSidebar from './ParentSidebar.svelte';
   import CreateChannelModal from '../channel/CreateChannelModal.svelte';
   import InviteToParentModal from '../channel/InviteToParentModal.svelte';
@@ -7,58 +6,47 @@
   import PairWithSquadModal from '../squad/PairWithSquadModal.svelte';
   import {
     squads,
+    parentsCreatingAnnouncements,
+    parentCreateErrorById,
+    parentPendingCreateMembers,
+    DASHBOARD_CHANNEL_ID,
+    DASHBOARD_CHANNEL_NAME,
+    type Squad,
+  } from '../../stores/squads';
+  import {
     activeSquadId,
     activeChannelId,
     activeHubChannelName,
     activeView,
-    activeTopNavTab,
     lastChannelBySquadId,
     lastHubChannelNameBySquadId,
-    dmList,
-    requestsList,
-    pendingList,
-    parentsCreatingAnnouncements,
-    parentCreateErrorById,
-    parentPendingCreateMembers,
-    addParentCreatingAnnouncements,
-    removeParentCreatingAnnouncements,
-    DASHBOARD_CHANNEL_ID,
-    DASHBOARD_CHANNEL_NAME,
-    ANNOUNCEMENTS_CHANNEL_NAME,
-    type Channel as ChannelType,
-    type Squad,
-  } from '../../stores/app';
-  import {
-    getAnnouncementsChannel,
-    createDefaultParentChannels,
-    uniqueChannelsByGroupIdPreservingOrder,
-    loadMembersForParent,
-    defaultParentInvitePhysicalGroupTargets,
-  } from '../../lib/parent-navbar';
-  import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
-  import {
-    createGroupChat,
-    getMlsGroupMembers,
-    inviteMemberToGroup,
-    sendDmMessage,
-    formatChannelInSquadMessage,
-    leaveMlsGroup,
-  } from '../../lib/api/nostr';
+  } from '../../stores/navigation';
+  import { dmList, requestsList, pendingList } from '../../stores/dm';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
-  import { pendingReadyToast, showToast } from '../../stores/toast';
+  import { showToast } from '../../stores/toast';
   import { getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
   import { currentUser } from '../../stores/auth';
   import { partnerSquadsForHubParent } from '../../lib/squad-pair';
   import { activateSquadHub } from '../../lib/squad-hub-nav';
   import {
-    buildPairedSquads,
     collectInviteNpubsForSquads,
     pairPartnerExcludeSquadIds,
     resolvePairAnchorFromHub,
     partnerSquadCandidates,
+    runSquadPairCreateFlow,
+    retryParentAnnouncementsCreate,
   } from '../../lib/squad-pair-create';
-  import { sendSquadInviteDm } from '../../lib/pacto-app-inbox';
+  import { getMlsGroupMembers } from '../../lib/api/nostr';
+  import {
+    loadCreateChannelMemberList,
+    runCreateChannelInParent,
+  } from '../../lib/parent/create-channel-flow';
+  import {
+    loadInviteCandidateNpubs,
+    runInviteMembersToParent,
+  } from '../../lib/parent/invite-members-flow';
+  import { runExitParent } from '../../lib/parent/exit-parent-flow';
 
   $: activeParent = $squads.find((s) => s.id === $activeSquadId) as Squad | undefined;
 
@@ -159,118 +147,12 @@
         return;
       }
       showPairWithSquadModal = false;
-      createSquadPairWithAnnouncements(params.name, memberNpubs, anchor, partner, params.iconUrl);
+      runSquadPairCreateFlow(params.name, memberNpubs, anchor, partner, params.iconUrl);
     } catch (e) {
       pairCreateError = friendlyMessage(getInvokeErrorMessage(e));
     } finally {
       pairCreating = false;
     }
-  }
-
-  function createSquadPairWithAnnouncements(
-    name: string,
-    memberNpubs: string[],
-    anchor: Squad,
-    partner: Squad,
-    iconUrl?: string
-  ) {
-    const pairedSquads = buildPairedSquads(anchor, partner);
-    const now = Date.now();
-    const tempId = 'creating-squad-pair-' + now;
-    const squadPair: Squad = {
-      id: tempId,
-      name,
-      iconUrl,
-      channels: [],
-      kind: 'squad-pair',
-      pairedSquads,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addParentCreatingAnnouncements(squadPair.id);
-    parentPendingCreateMembers.update((m) => ({ ...m, [squadPair.id]: memberNpubs }));
-    squads.update((list) => [...list, squadPair]);
-    activeSquadId.set(tempId);
-    activeChannelId.set(null);
-    activeHubChannelName.set(null);
-    activeView.set('hub');
-    activeTopNavTab.set('squads');
-
-    (async () => {
-      try {
-        const { parentId, channels } = await createDefaultParentChannels(memberNpubs);
-        const groupId = parentId;
-        const paired = buildPairedSquads(anchor, partner);
-        squads.update((list) =>
-          list.map((s) =>
-            s.id !== tempId
-              ? s
-              : {
-                  ...s,
-                  id: groupId,
-                  channels,
-                  kind: 'squad-pair' as const,
-                  pairedSquads: paired,
-                  updatedAt: Date.now(),
-                }
-          )
-        );
-        removeParentCreatingAnnouncements(tempId);
-        parentCreateErrorById.update((m) => {
-          const next = { ...m };
-          delete next[tempId];
-          return next;
-        });
-        parentPendingCreateMembers.update((m) => {
-          const next = { ...m };
-          delete next[tempId];
-          return next;
-        });
-        activateSquadHub(groupId);
-        pendingReadyToast.set({
-          text: `${name} is ready!`,
-          goTo: {
-            type: 'squad',
-            name,
-            id: groupId,
-            channelId: groupId,
-            hubChannelName:
-              channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name,
-          },
-        });
-        const myNpub = get(currentUser)?.npub;
-        for (const npub of memberNpubs) {
-          try {
-            await sendSquadInviteDm(
-              npub,
-              {
-                squadName: name,
-                groupId,
-                kind: 'squad-pair',
-                pairedSquads: paired,
-              },
-              myNpub
-            );
-          } catch (e) {
-            console.warn('[ParentNavbar] send squad-pair invite failed for', npub.slice(0, 20) + '…', e);
-          }
-        }
-      } catch (e) {
-        removeParentCreatingAnnouncements(tempId);
-        parentCreateErrorById.update((m) => ({
-          ...m,
-          [tempId]: friendlyMessage(
-            getInvokeErrorMessage(e, 'Failed to create partner squad announcements channel')
-          ),
-        }));
-        squads.update((list) => list.filter((s) => s.id !== tempId));
-        if (get(activeSquadId) === tempId) {
-          activeSquadId.set(anchor.id);
-          activeChannelId.set(null);
-          activeHubChannelName.set(null);
-        }
-      }
-    })();
   }
 
   $: emptyMessage = 'Select a squad';
@@ -311,65 +193,10 @@
   async function handleRetryCreate() {
     const parent = activeParent;
     if (!parent || !createError || retryingCreate) return;
-    const memberIds = $parentPendingCreateMembers[parent.id];
-    if (!memberIds?.length) return;
+    if (!$parentPendingCreateMembers[parent.id]?.length) return;
     retryingCreate = true;
     try {
-      const { parentId: gid, channels } = await createDefaultParentChannels(memberIds);
-      squads.update((list) =>
-        list.map((s) =>
-          s.id !== parent.id ? s : { ...s, id: gid, channels, updatedAt: Date.now() }
-        )
-      );
-      if (get(activeSquadId) === parent.id) {
-        activeSquadId.set(gid);
-        activeChannelId.set(gid);
-        const hub =
-          channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name ?? null;
-        activeHubChannelName.set(hub);
-      }
-      lastChannelBySquadId.update((m) => {
-        const next = { ...m };
-        delete next[parent.id];
-        return { ...next, [gid]: gid };
-      });
-      lastHubChannelNameBySquadId.update((m) => {
-        const next = { ...m };
-        delete next[parent.id];
-        const hubName =
-          channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name ?? '';
-        return hubName ? { ...next, [gid]: hubName } : next;
-      });
-      pendingReadyToast.set({
-        text: `${parent.name} is ready!`,
-        goTo: {
-          type: 'squad',
-          name: parent.name,
-          id: gid,
-          channelId: gid,
-          hubChannelName:
-            channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name,
-        },
-      });
-      removeParentCreatingAnnouncements(parent.id);
-      parentCreateErrorById.update((m) => {
-        const next = { ...m };
-        delete next[parent.id];
-        return next;
-      });
-      parentPendingCreateMembers.update((m) => {
-        const next = { ...m };
-        delete next[parent.id];
-        return next;
-      });
-      const myNpub = get(currentUser)?.npub;
-      for (const npub of memberIds) {
-        try {
-          await sendSquadInviteDm(npub, { squadName: parent.name, groupId: gid }, myNpub);
-        } catch (e) {
-          console.warn('[ParentNavbar] retry send squad invite DM failed for', npub.slice(0, 20) + '…', e);
-        }
-      }
+      await retryParentAnnouncementsCreate(parent);
     } catch (e) {
       parentCreateErrorById.update((m) => ({
         ...m,
@@ -393,7 +220,7 @@
     selectedNpubs = [];
     createChannelError = '';
     createChannelMemberList = [];
-    loadCreateChannelMembers();
+    void loadCreateChannelMembers();
   }
 
   async function loadCreateChannelMembers() {
@@ -401,7 +228,7 @@
     if (!parent) return;
     loadingCreateChannelMembers = true;
     try {
-      createChannelMemberList = await loadMembersForParent(parent, $currentUser?.npub);
+      createChannelMemberList = await loadCreateChannelMemberList(parent, $currentUser?.npub);
     } catch {
       createChannelMemberList = [];
     } finally {
@@ -427,14 +254,10 @@
     createChannelMemberList.every((n) => selectedNpubs.includes(n));
 
   function toggleCreateChannelSelectEveryone() {
-    if (createChannelAllSelected) {
-      selectedNpubs = [];
-    } else {
-      selectedNpubs = [...createChannelMemberList];
-    }
+    selectedNpubs = createChannelAllSelected ? [] : [...createChannelMemberList];
   }
 
-  async function handleCreateChannel() {
+  function handleCreateChannel() {
     const name = createChannelName.trim();
     if (!name) return;
     if (selectedNpubs.length === 0) {
@@ -442,83 +265,26 @@
       return;
     }
     const parent = activeParent;
-    if (!parent) {
+    const squadId = $activeSquadId;
+    if (!parent || !squadId) {
       createChannelError = 'Squad not found';
       return;
     }
     createChannelError = '';
     createChannelErrorBanner = '';
-    const placeholderId = `creating-${Date.now()}`;
-    const placeholderChannel: ChannelType = { name, groupId: placeholderId, order: parent.channels.length };
-
-    squads.update((list) =>
-      list.map((s) =>
-        s.id !== $activeSquadId ? s : { ...s, channels: [...s.channels, placeholderChannel] }
-      )
-    );
-    activeChannelId.set(placeholderId);
-    activeHubChannelName.set(name);
-    activeView.set('hub');
-    lastChannelBySquadId.update((m) => ({ ...m, [$activeSquadId!]: placeholderId }));
-    lastHubChannelNameBySquadId.update((m) => ({ ...m, [$activeSquadId!]: name }));
-
     closeCreateChannelModal();
-
-    ;(async () => {
-      try {
-        const groupId = await createGroupChat(name, selectedNpubs);
-        const squadId = get(activeSquadId);
-        squads.update((list) =>
-          list.map((s) => {
-            if (s.id !== squadId) return s;
-            const chs = s.channels.map((ch) =>
-              ch.groupId === placeholderId ? { name, groupId, order: ch.order } : ch
-            );
-            return { ...s, channels: chs };
-          })
-        );
-        if (get(activeChannelId) === placeholderId) {
-          activeChannelId.set(groupId);
-          activeHubChannelName.set(name);
-        }
-        const announcementsChannel = getAnnouncementsChannel(parent);
-        const payload = formatChannelInSquadMessage({
-          type: 'channel_in_squad',
-          squadName: parent.name,
-          announcementsGroupId: announcementsChannel.groupId,
-          channelGroupId: groupId,
-          channelName: name,
-        });
-        for (const npub of selectedNpubs) {
-          try {
-            await sendDmMessage(npub, payload);
-          } catch (e) {
-            console.warn('[ParentNavbar] send channel_in_squad DM failed for', npub.slice(0, 20) + '…', e);
-          }
-        }
-      } catch (e) {
-        createChannelErrorBanner = friendlyMessage(getInvokeErrorMessage(e));
+    runCreateChannelInParent({
+      parent,
+      squadId,
+      name,
+      selectedNpubs,
+      onErrorBanner: (message) => {
+        createChannelErrorBanner = message;
         setTimeout(() => {
           createChannelErrorBanner = '';
         }, 8000);
-        const squadId = get(activeSquadId);
-        squads.update((list) =>
-          list.map((s) => {
-            if (s.id !== squadId) return s;
-            const chs = s.channels.filter((ch) => ch.groupId !== placeholderId);
-            return { ...s, channels: chs };
-          })
-        );
-        if (get(activeChannelId) === placeholderId) {
-          const list = get(squads);
-          const still = list.find((s) => s.id === squadId);
-          const sorted = still?.channels.slice().sort((a, b) => a.order - b.order) ?? [];
-          const gid = sorted[0]?.groupId ?? null;
-          activeChannelId.set(gid);
-          activeHubChannelName.set(gid ? resolveHubChannelNameForGroupSelection(sorted, gid, null) : null);
-        }
-      }
-    })();
+      },
+    });
   }
 
   function getMemberDisplayName(npub: string) {
@@ -538,7 +304,7 @@
     selectedInviteNpubs = [];
     inviteByNpub = '';
     inviteError = '';
-    loadInviteCandidates();
+    void loadInviteCandidates();
   }
 
   function toggleInviteCandidate(npub: string) {
@@ -552,13 +318,8 @@
     if (!parent) return;
     loadingInvite = true;
     try {
-      const inParent = new Set(await loadMembersForParent(parent, undefined));
-      const dmListSnap = $dmList;
-      const requestsSnap = $requestsList;
-      const pendingSnap = $pendingList;
-      const allDmNpubs = [...dmListSnap, ...requestsSnap, ...pendingSnap].map((e) => e.npub);
-      const uniqueNpubs = [...new Set(allDmNpubs)];
-      inviteCandidates = uniqueNpubs.filter((npub) => !inParent.has(npub));
+      const dmNpubs = [...$dmList, ...$requestsList, ...$pendingList].map((e) => e.npub);
+      inviteCandidates = await loadInviteCandidateNpubs(parent, dmNpubs, $currentUser?.npub);
     } catch {
       inviteCandidates = [];
     } finally {
@@ -570,7 +331,7 @@
     if (!inviting) showInviteModal = false;
   }
 
-  async function handleInvite() {
+  function handleInvite() {
     const parent = activeParent;
     if (!parent) return;
     const extraNpub = inviteByNpub.trim();
@@ -593,37 +354,19 @@
     inviteErrorBanner = '';
     showInviteModal = false;
     inviting = true;
-    const announcementsChannel = getAnnouncementsChannel(parent);
-    const inviteTargets = defaultParentInvitePhysicalGroupTargets(parent);
-    const groupId = announcementsChannel.groupId;
-
-    ;(async () => {
-      let lastErr = '';
-      const myNpub = get(currentUser)?.npub;
-      for (const npub of npubsToInvite) {
-        for (const ch of inviteTargets) {
-          try {
-            await inviteMemberToGroup(ch.groupId, npub);
-          } catch (e) {
-            console.warn('[ParentNavbar] invite to squad MLS channel failed for', npub.slice(0, 20) + '…', e);
-            lastErr = friendlyMessage(getInvokeErrorMessage(e));
-          }
-        }
-        try {
-          await sendSquadInviteDm(npub, { squadName: parent.name, groupId }, myNpub);
-        } catch (e) {
-          console.warn('[ParentNavbar] invite to squad failed for', npub.slice(0, 20) + '…', e);
-          lastErr = friendlyMessage(getInvokeErrorMessage(e));
-        }
-      }
-      if (lastErr) {
-        inviteErrorBanner = lastErr;
+    runInviteMembersToParent({
+      parent,
+      npubsToInvite,
+      onErrorBanner: (message) => {
+        inviteErrorBanner = message;
         setTimeout(() => {
           inviteErrorBanner = '';
         }, 8000);
-      }
-      inviting = false;
-    })();
+      },
+      onComplete: () => {
+        inviting = false;
+      },
+    });
   }
 
   let showExitModal = false;
@@ -631,9 +374,7 @@
 
   function showChangeEvmSignerPlaceholder() {
     if (!canShowParentMenuActions || !activeParent) return;
-    showToast(
-      'Set your squad signer under Settings → Default wallet config (Edit).'
-    );
+    showToast('Set your squad signer under Settings → Default wallet config (Edit).');
   }
 
   function openExitModal() {
@@ -648,43 +389,14 @@
   function handleExitParent() {
     const squad = $squads.find((s) => s.id === $activeSquadId);
     if (!squad) return;
-    const wasActive = $activeSquadId === squad.id;
-    const previousChannelId = $activeChannelId;
-
-    squads.update((list) => list.filter((s) => s.id !== squad.id));
-    if (wasActive) {
-      activeSquadId.set(null);
-      activeChannelId.set(null);
-      activeHubChannelName.set(null);
-    }
     showExitModal = false;
     exitError = '';
-
-    (async () => {
-      try {
-        for (const ch of uniqueChannelsByGroupIdPreservingOrder(squad.channels)) {
-          await leaveMlsGroup(ch.groupId);
-        }
-      } catch (e) {
-        const msg = friendlyMessage(getInvokeErrorMessage(e));
-        squads.update((list) => [...list, squad]);
-        if (wasActive) {
-          activeSquadId.set(squad.id);
-          const gid = previousChannelId ?? squad.channels[0]?.groupId ?? null;
-          activeChannelId.set(gid);
-          activeHubChannelName.set(
-            gid
-              ? resolveHubChannelNameForGroupSelection(
-                  squad.channels,
-                  gid,
-                  get(lastHubChannelNameBySquadId)[squad.id] || null
-                )
-              : null
-          );
-        }
-        showToast(`Could not exit squad "${squad.name}": ${msg}`);
-      }
-    })();
+    runExitParent({
+      squad,
+      wasActive: $activeSquadId === squad.id,
+      previousChannelId: $activeChannelId,
+      onFailure: (msg) => showToast(`Could not exit squad "${squad.name}": ${msg}`),
+    });
   }
 </script>
 
