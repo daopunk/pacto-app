@@ -12,9 +12,11 @@
   import { get } from 'svelte/store';
   import { squads, networks, activeSquadId, activeChannelId, activeHubChannelName, activeView, activeTopNavTab, activeDmTab, activeDmId, activeNetworkId, lastOpenedSquadId, lastOpenedChannelId, lastOpenedNetworkId, lastOpenedNetworkChannelId, lastChannelBySquadId, lastChannelByNetworkId, lastHubChannelNameBySquadId, lastHubChannelNameByNetworkId, composingNewChat, dmList, pinnedList, addParentCreatingAnnouncements, removeParentCreatingAnnouncements, parentCreateErrorById, parentPendingCreateMembers, ANNOUNCEMENTS_CHANNEL_NAME, DASHBOARD_CHANNEL_ID, type TopNavTab, type DmTab, type Squad, type Channel, type Network } from '../../stores/app';
   import { currentUser } from '../../stores/auth';
-  import { createGroupChat, getMlsGroupMembers, sendDmMessage, formatSquadInviteMessage, formatNetworkInviteMessage } from '../../lib/api/nostr';
+  import { createGroupChat, getMlsGroupMembers, sendDmMessage, formatNetworkInviteMessage } from '../../lib/api/nostr';
+  import { sendSquadInviteDm } from '../../lib/pacto-app-inbox';
   import { createDefaultParentChannels } from '../../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
+  import { activateSquadHub } from '../../lib/squad-hub-nav';
   import { pendingReadyToast } from '../../stores/toast';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
   import { getProfileDisplayName } from '../../lib/utils/profile';
@@ -52,6 +54,11 @@
   }
 
   function selectNetwork(networkId: string) {
+    // TODO: delete after RNF-5 — squad-pairs route through Squads hub, not Networks tab.
+    if ($squads.some((s) => s.id === networkId && s.kind === 'squad-pair')) {
+      activateSquadHub(networkId);
+      return;
+    }
     const net = $networks.find((n) => n.id === networkId);
     if (!net) return;
     const sortedChannels = [...net.channels].sort((a, b) => a.order - b.order);
@@ -267,6 +274,7 @@
         name,
         iconUrl: options.iconUrl,
         channels: [],
+        kind: 'squad',
         createdAt: now,
         updatedAt: now,
       };
@@ -327,10 +335,10 @@
                 channels.find((c) => c.name === ANNOUNCEMENTS_CHANNEL_NAME)?.name ?? channels[0]?.name,
             },
           });
-          const payload = formatSquadInviteMessage({ type: 'squad_invite', squadName: name, groupId });
+          const myNpub = get(currentUser)?.npub;
           for (const npub of memberNpubs) {
             try {
-              await sendDmMessage(npub, payload);
+              await sendSquadInviteDm(npub, { squadName: name, groupId }, myNpub);
             } catch (e) {
               console.warn('[Navbar] send squad invite DM failed for', npub.slice(0, 20) + '…', e);
             }

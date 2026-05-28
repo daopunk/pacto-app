@@ -3,7 +3,7 @@
    * Unified invite card for DM thread: squad, network, channel-in-squad, channel-in-network.
    * Same layout and behavior; variant controls title, subtitle, body text, and optional badge.
    */
-  export let variant: 'squad' | 'network' | 'channel-in-squad' | 'channel-in-network';
+  export let variant: 'squad' | 'squad-pair' | 'network' | 'channel-in-squad' | 'channel-in-network';
   export let squadName = '';
   export let networkName = '';
   export let channelName = '';
@@ -15,9 +15,11 @@
   export let accepting: boolean;
   export let onAccept: () => void;
   export let onDecline: () => void;
+  /** Opens a DM with the inviter (Pacto App inbox). */
+  export let onMessageInviter: (() => void) | undefined = undefined;
 
   $: title = (() => {
-    if (variant === 'squad') return squadName;
+    if (variant === 'squad' || variant === 'squad-pair') return squadName;
     if (variant === 'network') return networkName;
     if (variant === 'channel-in-squad') return `${squadName} · #${channelName}`;
     return `${networkName} · #${channelName}`;
@@ -26,13 +28,23 @@
   $: memberSquadsLabel =
     memberSquads?.length > 0 ? memberSquads.map((s) => s.name).join(', ') : '';
   $: subtitle =
-    (variant === 'network' || variant === 'channel-in-network') && memberSquadsLabel
-      ? `Includes squads: ${memberSquadsLabel}`
+    (variant === 'network' || variant === 'channel-in-network' || variant === 'squad-pair') &&
+    memberSquadsLabel
+      ? variant === 'squad-pair'
+        ? `Partner squads: ${memberSquadsLabel}`
+        : `Includes squads: ${memberSquadsLabel}`
       : '';
 
   $: bodyText = (() => {
     if (variant === 'squad') {
-      return isMine ? `You invited ${inviterName} to this squad.` : `${inviterName} invited you to this squad.`;
+      return isMine
+        ? `You invited ${inviterName} to this squad.`
+        : `${inviterName} invited you to join this squad.`;
+    }
+    if (variant === 'squad-pair') {
+      return isMine
+        ? `You invited ${inviterName} to this partner squad.`
+        : `${inviterName} invited you to join this partner squad.`;
     }
     if (variant === 'network') {
       return isMine ? `You invited ${inviterName} to this network.` : `${inviterName} invited you to this network.`;
@@ -48,14 +60,17 @@
   })();
 
   $: iconPlaceholder =
-    variant === 'squad' && squadName
-      ? squadName.charAt(0).toUpperCase()
+    variant === 'squad' || variant === 'squad-pair'
+      ? squadName
+        ? squadName.charAt(0).toUpperCase()
+        : 'S'
       : variant === 'network'
         ? 'N'
         : '#';
 
-  $: showBadge = variant === 'network';
+  $: showBadge = variant === 'network' || variant === 'squad-pair';
   $: isNetworkVariant = variant === 'network';
+  $: badgeLabel = variant === 'squad-pair' ? 'Partner squad' : 'Network';
   $: collapsed = status === 'accepted' || status === 'declined';
 </script>
 
@@ -74,18 +89,27 @@
   </div>
   <div class="invite-card-body">
     {#if showBadge}
-      <p class="invite-card-badge">Network</p>
+      <p class="invite-card-badge">{badgeLabel}</p>
     {/if}
     <p class="invite-card-title">{title}</p>
     {#if subtitle}
       <p class="invite-card-subtitle">{subtitle}</p>
     {/if}
-    <p class="invite-card-text">{bodyText}</p>
+    <p class="invite-card-text">
+      {#if !isMine && onMessageInviter}
+        <button type="button" class="invite-card-inviter-link" on:click={onMessageInviter}>
+          {inviterName}
+        </button>
+        {variant === 'squad-pair' ? ' invited you to join this partner squad.' : variant === 'squad' ? ' invited you to join this squad.' : ` invited you.`}
+      {:else}
+        {bodyText}
+      {/if}
+    </p>
     {#if isMine}
       <!-- Sender: no actions -->
     {:else if status === 'accepted'}
       <p class="invite-card-status invite-card-status-accepted" aria-live="polite">Accepted</p>
-      {#if variant === 'squad'}
+      {#if variant === 'squad' || variant === 'squad-pair'}
         <p class="invite-card-evm-caption muted">
           Set your roster signer in the squad <strong>#inbox</strong> channel when you open it.
         </p>
@@ -203,6 +227,21 @@
     font-size: 0.8125rem;
     color: var(--text-secondary);
     line-height: 1.4;
+  }
+
+  .invite-card-inviter-link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .invite-card-inviter-link:hover {
+    color: var(--accent-hover, var(--accent));
   }
 
   .invite-card.collapsed .invite-card-text,

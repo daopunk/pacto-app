@@ -609,6 +609,12 @@
         {(parent as Network).memberSquads.map((s) => s.name).join(', ')}
       </p>
     </div>
+  {:else if (parent as Squad).kind === 'squad-pair' && (parent as Squad).pairedSquads?.length}
+    <div class="dashboard-header">
+      <p class="dashboard-subtitle">
+        {(parent as Squad).pairedSquads!.map((s) => s.name).join(', ')}
+      </p>
+    </div>
   {/if}
 
   {#if dashboardView === 'governance'}

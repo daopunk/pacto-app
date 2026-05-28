@@ -18,6 +18,12 @@
   import { setDmPeerEvmAddress } from '../../lib/api/wallet-peers';
   import { notifyUserAction } from '../../lib/utils/desktop-notify';
   import {
+    isPactoAppThreadId,
+    PACTO_APP_DISPLAY_NAME,
+    resolveInviteInviterNpub,
+    type PactoAppInboxEntry,
+  } from '../../lib/pacto-app-inbox';
+  import {
     parseChannelInSquadMessage,
     parseChannelInNetworkMessage,
     parseNetworkInviteMessage,
@@ -92,8 +98,9 @@
     payload: WalletPeerInfoRequestPayload
   ) => void | Promise<void>) = () => {};
   export let acceptingWalletPeerInfoRequestId: string | null = null;
+  export let onOpenInviterChat: ((inviterNpub: string) => void) | undefined = undefined;
 
-  /** Apply inbound grant messages once so the peer payout address is persisted without showing it in the UI. */
+  $: isPactoAppThread = isPactoAppThreadId(npub);
   let appliedWalletGrantIds = new Set<string>();
   let appliedWalletGrantsForNpub: string | null = null;
 
@@ -147,14 +154,27 @@
   }
   $: if (npub !== scrollPrevNpub && messages.length === 0) scrollPrevNpub = npub;
 
-  $: contactProfile = npub ? $profiles[npub] : null;
+  $: contactProfile = isPactoAppThread ? null : npub ? $profiles[npub] : null;
   $: peerBlockedByMe = contactProfile?.blocked === true;
-  $: contactAvatarSrc = getProfileAvatarSrc(contactProfile);
-  $: contactDisplayName = contactProfile
-    ? getProfileDisplayName(contactProfile)
-    : npub
-      ? truncateNpub(npub)
-      : 'Unknown';
+  $: contactAvatarSrc = isPactoAppThread ? null : getProfileAvatarSrc(contactProfile);
+  $: contactDisplayName = isPactoAppThread
+    ? PACTO_APP_DISPLAY_NAME
+    : contactProfile
+      ? getProfileDisplayName(contactProfile)
+      : npub
+        ? truncateNpub(npub)
+        : 'Unknown';
+
+  function getInviterDisplayFromNpub(
+    inviterNpub: string | null | undefined,
+    profilesMap: Record<string, NostrProfile | undefined>
+  ): { inviterName: string; inviterAvatarSrc: string | null } {
+    if (!inviterNpub) return { inviterName: 'Someone', inviterAvatarSrc: null };
+    const profile = profilesMap[inviterNpub];
+    const inviterName = getProfileDisplayName(profile ?? null) || inviterNpub.slice(0, 12) + '…';
+    const inviterAvatarSrc = profile ? getProfileAvatarSrc(profile) : null;
+    return { inviterName, inviterAvatarSrc };
+  }
 
   function getInviterDisplay(
     msg: DmMessage,
@@ -162,11 +182,17 @@
     profilesMap: Record<string, NostrProfile | undefined>
   ): { inviterName: string; inviterAvatarSrc: string | null } {
     const otherNpub = msg.mine ? activeDmId : msg.npub ?? activeDmId;
-    if (!otherNpub) return { inviterName: 'Someone', inviterAvatarSrc: null };
-    const profile = profilesMap[otherNpub];
-    const inviterName = getProfileDisplayName(profile ?? null) || otherNpub.slice(0, 12) + '…';
-    const inviterAvatarSrc = profile ? getProfileAvatarSrc(profile) : null;
-    return { inviterName, inviterAvatarSrc };
+    return getInviterDisplayFromNpub(otherNpub, profilesMap);
+  }
+
+  function inviteInviterNpub(msg: DmMessage, threadId: string): string | null {
+    if (isPactoAppThreadId(threadId)) {
+      const entry = msg as PactoAppInboxEntry;
+      if (entry.inviterNpub?.trim()) return entry.inviterNpub.trim();
+    }
+    const content = msg.content ?? '';
+    const resolved = resolveInviteInviterNpub(msg, threadId, content);
+    return resolved?.startsWith('npub1') ? resolved : null;
   }
 
   function toMessageProps(msg: DmMessage) {
@@ -299,11 +325,11 @@
 
 <div class="dm-thread">
   <div class="dm-thread-header">
-    <div class="dm-thread-header-avatar">
+    <div class="dm-thread-header-avatar" class:pacto-app-avatar={isPactoAppThread}>
       {#if contactAvatarSrc}
         <img src={contactAvatarSrc} alt="" class="dm-thread-header-avatar-img" />
       {:else}
-        <span class="dm-thread-header-avatar-placeholder">{contactDisplayName.charAt(0).toUpperCase()}</span>
+        <span class="dm-thread-header-avatar-placeholder">{isPactoAppThread ? 'P' : contactDisplayName.charAt(0).toUpperCase()}</span>
       {/if}
     </div>
     <div class="dm-thread-header-info">
@@ -330,7 +356,7 @@
         <div class="dm-thread-header-title-row">
           <div class="dm-thread-title-left">
             <h3 class="dm-thread-title">{contactDisplayName}</h3>
-            {#if showOptionsMenu}
+            {#if showOptionsMenu && !isPactoAppThread}
               <div class="dm-thread-header-actions">
                 <button
                   type="button"
@@ -383,7 +409,7 @@
               </div>
             {/if}
           </div>
-          {#if showWalletButton}
+          {#if showWalletButton && !isPactoAppThread}
             <button
               type="button"
               class="dm-thread-wallet-btn"
@@ -411,6 +437,7 @@
             </button>
           {/if}
         </div>
+        {#if !isPactoAppThread}
         <div class="dm-thread-npub-row">
           <span class="dm-thread-npub">{truncateNpub(npub)}</span>
           <button
@@ -427,6 +454,7 @@
             </span>
           </button>
         </div>
+        {/if}
       {/if}
     </div>
   </div>
@@ -453,7 +481,9 @@
         {@const walletTxRequestPayload = parseWalletTxRequest(msg.content ?? '')}
         {@const walletTxAnnouncementPayload = parseWalletTxAnnouncement(msg.content ?? '')}
         {@const isInvite = !!(channelInSquadPayload || channelInNetworkPayload || networkInvitePayload || invitePayload)}
-        {@const inviterDisplay = isInvite ? getInviterDisplay(msg, npub, $profiles) : { inviterName: '', inviterAvatarSrc: null }}
+        {@const inviterNpubForCard = isInvite ? inviteInviterNpub(msg, npub) : null}
+        {@const inviterDisplay = isInvite ? getInviterDisplayFromNpub(inviterNpubForCard, $profiles) : { inviterName: '', inviterAvatarSrc: null }}
+        {@const openInviter = isPactoAppThread && !msg.mine && inviterNpubForCard && onOpenInviterChat ? () => onOpenInviterChat(inviterNpubForCard) : undefined}
         {#if channelInSquadPayload}
           {@const channelInviteStatus = $acceptedChannelInviteMessageIds.includes(msg.id) ? 'accepted' : $declinedChannelInviteMessageIds.includes(msg.id) ? 'declined' : 'pending'}
           <InviteCard
@@ -496,12 +526,14 @@
             accepting={acceptingNetworkInviteId === msg.id}
             onAccept={() => onAcceptNetworkInvite(msg, networkInvitePayload)}
             onDecline={() => onDeclineNetwork(msg)}
+            onMessageInviter={openInviter}
           />
         {:else if invitePayload}
           {@const inviteStatus = $acceptedSquadInviteIds.includes(msg.id) ? 'accepted' : $declinedSquadInviteIds.includes(msg.id) ? 'declined' : 'pending'}
           <InviteCard
-            variant="squad"
+            variant={invitePayload.kind === 'squad-pair' ? 'squad-pair' : 'squad'}
             squadName={invitePayload.squadName}
+            memberSquads={invitePayload.pairedSquads ?? []}
             isMine={msg.mine}
             inviterName={inviterDisplay.inviterName}
             inviterAvatarSrc={inviterDisplay.inviterAvatarSrc}
@@ -509,6 +541,7 @@
             accepting={acceptingSquadInviteId === msg.id}
             onAccept={() => onAcceptSquadInvite(msg, invitePayload.groupId)}
             onDecline={() => onDeclineSquad(msg)}
+            onMessageInviter={openInviter}
           />
         {:else if walletPeerInfoRequestPayload}
           {@const wpeerReqStatus = $acceptedWalletPeerInfoRequestMessageIds.includes(msg.id)
@@ -596,6 +629,7 @@
   {#if $dmSendError}
     <p class="dm-thread-error" role="alert">{$dmSendError}</p>
   {/if}
+  {#if !isPactoAppThread}
   <MessageInput
     channelName={truncateNpub(npub)}
     placeholderOverride={peerBlockedByMe ? `Blocked #${truncateNpub(npub)}` : undefined}
@@ -603,6 +637,7 @@
     onSend={onSend}
     onTyping={onTyping}
   />
+  {/if}
 </div>
 
 <style>

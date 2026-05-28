@@ -52,6 +52,12 @@
   import { getActiveEvmSignerAddress } from '../lib/wallet/evm-accounts';
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
+  import {
+    isPactoAppRoutableInviteContent,
+    isPactoAppThreadId,
+    filterPeerThreadMessages,
+    resolveInviteInviterNpub,
+  } from '../lib/pacto-app-inbox';
   import { isAuthenticated, currentUser } from '../stores/auth';
   import { profiles } from '../stores/profiles';
   import {
@@ -67,6 +73,9 @@
     walletSidebarOpen,
     backendDmMessages,
     dmThreadAnnouncementsByNpub,
+    pactoAppInboxMessages,
+    appendPactoAppInboxMessage,
+    migrateInvitesToPactoAppInbox,
     backendGroupMessages,
     pendingMlsWelcomes,
     ungroupedChannels,
@@ -144,8 +153,10 @@
     isPactoGovTreasurySafe,
     pactoGovPayloadFromInfra,
   } from '../lib/governance/standalone-safe-payload';
-  import { resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
+  import { defaultChannelRowsForGroupId, resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../lib/mls/virtual-channel-bucket';
+  import { resolveOpenHubParent } from '../lib/squad-hub-nav';
+  import { normalizeStoredSquad } from '../lib/squad-pair';
   import { portal } from '../lib/utils/portal';
 
   const PAGE_SIZE = 100;
@@ -156,12 +167,22 @@
     pendingReadyToast.set(null);
   }
 
+  $: openHubParent = resolveOpenHubParent(
+    $squads,
+    $activeTopNavTab,
+    $activeSquadId,
+    $activeNetworkId
+  );
+  /** TODO: delete after RNF-5 — ParentDashboard still accepts legacy network parentType. */
+  $: openHubParentLegacyType = $activeTopNavTab === 'networks' ? ('network' as const) : ('squad' as const);
+
   /** When true, the DM wallet panel is not shown (other top nav, DM tab, or new chat), but open state stays until the user closes it. */
   $: walletSidebarInvalidContext =
     $activeTopNavTab !== 'dms' ||
     $activeView !== 'hub' ||
     ($activeDmTab !== 'friends' && $activeDmTab !== 'pinned') ||
-    $composingNewChat;
+    $composingNewChat ||
+    isPactoAppThreadId($activeDmId);
 
   $: dmWalletSidebarVisible =
     $walletSidebarOpen && !!$activeDmId && !walletSidebarInvalidContext;
@@ -432,7 +453,8 @@
     await mergeSquadInfraForParent(params.parentId);
   }
 
-  $: dashboardParentId = $activeChannelId === DASHBOARD_CHANNEL_ID ? ($activeTopNavTab === 'squads' ? $activeSquadId : $activeNetworkId) ?? null : null;
+  $: dashboardParentId =
+    $activeChannelId === DASHBOARD_CHANNEL_ID ? openHubParent?.id ?? null : null;
   $: if (dashboardParentId && !treasuryHydratedIds.has(dashboardParentId)) {
     treasuryHydratedIds.add(dashboardParentId);
     mergeTreasurySafesForParent(dashboardParentId);
@@ -685,19 +707,20 @@
 
   // Backend messages for active DM, sorted by at (oldest first). Backend emits message_new on send.
   $: mergedDmMessages = (() => {
-    const npub = $activeDmId;
-    if (!npub) return [];
-    const backend = [...($backendDmMessages[npub] ?? [])];
-    const announcements = [...($dmThreadAnnouncementsByNpub[npub] ?? [])];
+    const id = $activeDmId;
+    if (!id) return [];
+    if (isPactoAppThreadId(id)) {
+      return [...$pactoAppInboxMessages].sort((a: DmMessage, b: DmMessage) => a.at - b.at);
+    }
+    const backend = filterPeerThreadMessages([...($backendDmMessages[id] ?? [])]);
+    const announcements = [...($dmThreadAnnouncementsByNpub[id] ?? [])];
     const list = [...backend, ...announcements];
     list.sort((a: DmMessage, b: DmMessage) => a.at - b.at);
-    const squadInviteCount = list.filter((m: DmMessage) => parseSquadInviteMessage(m.content ?? '') !== null).length;
-    if (list.length > 0 || npub) console.log('[Squad/Invite] mergedDmMessages for', npub?.slice(0, 24) + '…', 'count=', list.length, 'squadInviteMsgs=', squadInviteCount);
     return list;
   })();
 
   // Load backend messages when active DM changes; queue profile sync, get total count.
-  $: if ($activeDmId && $activeTopNavTab === 'dms') {
+  $: if ($activeDmId && $activeTopNavTab === 'dms' && !isPactoAppThreadId($activeDmId)) {
     const npub = $activeDmId;
     dmLog('open conversation', { npub: npub.slice(0, 20) + '…', tab: 'dms' });
     queueProfileSync(npub).catch(() => {});
@@ -711,15 +734,16 @@
     getDmMessages(npub, PAGE_SIZE, 0)
       .then((msgs) => {
         dmLog('open conversation: messages loaded', { npub: npub.slice(0, 20) + '…', count: msgs.length });
-        const loaded = msgs as DmMessage[];
+        const loaded = filterPeerThreadMessages(msgs as DmMessage[]);
         backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
           const existing = byNpub[npub] ?? [];
           const loadedIds = new Set(loaded.map((m) => m.id));
-          // Keep messages from state that aren't in the loaded set (e.g. just-sent squad invite from message_new)
+          // Keep messages from state that aren't in the loaded set (e.g. just-sent from message_new)
           const fromExisting = existing.filter((m) => !loadedIds.has(m.id));
           const merged = [...loaded, ...fromExisting];
           return { ...byNpub, [npub]: merged };
         });
+        migrateInvitesToPactoAppInbox();
         loadedOffsetByChat.update((by: Record<string, number>) => ({ ...by, [npub]: PAGE_SIZE }));
         // Mark as read up to the latest message (backend returns newest first)
         const lastMessageId = msgs.length > 0 ? (msgs[0] as DmMessage).id : null;
@@ -760,7 +784,7 @@
 
   async function loadOlder() {
     const npub = $activeDmId;
-    if (!npub || loadingOlder) return;
+    if (!npub || loadingOlder || isPactoAppThreadId(npub)) return;
     const currentOffset = $loadedOffsetByChat[npub] ?? PAGE_SIZE;
     loadingOlder = true;
     dmLog('loadOlder', { npub: npub.slice(0, 20) + '…', offset: currentOffset });
@@ -769,7 +793,7 @@
       backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
         const list = byNpub[npub] ?? [];
         const ids = new Set(list.map((m) => m.id));
-        const newMsgs = (older as DmMessage[]).filter((m) => !ids.has(m.id));
+        const newMsgs = filterPeerThreadMessages(older as DmMessage[]).filter((m) => !ids.has(m.id));
         if (newMsgs.length === 0) return byNpub;
         dmLog('loadOlder: prepending', { count: newMsgs.length });
         return { ...byNpub, [npub]: [...newMsgs, ...list] };
@@ -787,6 +811,7 @@
 
   $: canLoadOlder =
     $activeDmId &&
+    !isPactoAppThreadId($activeDmId) &&
     !loadingOlder &&
     (($messageCountByChat[$activeDmId] ?? 0) > ($backendDmMessages[$activeDmId]?.length ?? 0));
 
@@ -883,16 +908,13 @@
     acceptedSquadInviteGroupIds.add(payload.groupId);
     await acceptMlsWelcome(welcome.id);
     const now = Date.now();
-    const announcementsChannel: Channel = {
-      name: ANNOUNCEMENTS_CHANNEL_NAME,
-      groupId: payload.groupId,
-      order: 0,
-    };
+    const defaultChannels = defaultChannelRowsForGroupId(payload.groupId);
     if (type === 'squad') {
-      const newSquad = {
+      const newSquad: Squad = {
         id: payload.groupId,
         name: payload.name,
-        channels: [announcementsChannel],
+        channels: defaultChannels,
+        kind: 'squad',
         createdAt: now,
         updatedAt: now,
       };
@@ -903,19 +925,30 @@
       activeView.set('hub');
       acceptedSquadInviteIds.update((ids: string[]) => (ids.includes(messageId) ? ids : [...ids, messageId]));
     } else {
+      const newSquadPair = normalizeStoredSquad({
+        id: payload.groupId,
+        name: payload.name,
+        channels: defaultChannels,
+        kind: 'squad-pair',
+        pairedSquads: payload.memberSquads,
+        createdAt: now,
+        updatedAt: now,
+      }) as Squad;
+      squads.update((list: Squad[]) => [...list.filter((s) => s.id !== newSquadPair.id), newSquadPair]);
+      // TODO: delete after RNF-5 — legacy network store row for Networks tab.
       const newNetwork: Network = {
         id: payload.groupId,
         name: payload.name,
-        channels: [announcementsChannel],
+        channels: defaultChannels,
         memberSquads: payload.memberSquads ?? [],
         createdAt: now,
         updatedAt: now,
       };
-      networks.update((list: Network[]) => [...list, newNetwork]);
-      activeNetworkId.set(newNetwork.id);
+      networks.update((list: Network[]) => [...list.filter((n) => n.id !== newNetwork.id), newNetwork]);
+      activeSquadId.set(newNetwork.id);
       activeChannelId.set(payload.groupId);
       activeHubChannelName.set(ANNOUNCEMENTS_CHANNEL_NAME);
-      activeTopNavTab.set('networks');
+      activeTopNavTab.set('squads');
       activeView.set('hub');
       acceptedNetworkInviteIds.update((ids: string[]) => (ids.includes(messageId) ? ids : [...ids, messageId]));
     }
@@ -943,7 +976,7 @@
               channelId: payload.groupId,
             }
           : {
-              type: 'network',
+              type: 'squad',
               name: payload.name,
               id: payload.groupId,
               channelId: payload.groupId,
@@ -1069,7 +1102,7 @@
 
   async function handleDmSend(content: string): Promise<boolean> {
     const id = $activeDmId;
-    if (!id) return false;
+    if (!id || isPactoAppThreadId(id)) return false;
     dmLog('handleDmSend', { receiver: id.slice(0, 20) + '…', contentLen: content.length });
     $dmSendError = null;
     try {
@@ -1087,6 +1120,17 @@
       $dmSendError = friendlyMessage(raw, 'dm_send');
       dmError('handleDmSend error', e);
       return false;
+    }
+  }
+
+  function openInviterDm(inviterNpub: string) {
+    if (!inviterNpub.startsWith('npub1')) return;
+    queueProfileSync(inviterNpub).catch(() => {});
+    activeDmId.set(inviterNpub);
+    const tab = dmSidebarCategoryForNpub(inviterNpub, get(dmChatsByNpub), get(pinnedDmNpubs)) as DmTab;
+    if (tab !== 'search') {
+      activeDmTab.set(tab);
+      lastOpenedDmByTab.update((m) => ({ ...m, [tab]: inviterNpub }));
     }
   }
 
@@ -1249,12 +1293,9 @@
     const unlistenNew = listen<{ message: DmMessage; chat_id: string }>('message_new', (event) => {
       const { message, chat_id } = event.payload;
       dmLog('message_new', { chat_id: chat_id.slice(0, 20) + '…', messageId: message.id?.slice(0, 12), mine: message.mine });
-      // Squad/network/channel-in-squad invites are normal DMs: no friend check. Receiver sees in Requests, sender in Pending; Accept/Decline in thread.
-      const isSquadInvite = parseSquadInviteMessage(message.content ?? '') !== null;
-      const isNetworkInvite = parseNetworkInviteMessage(message.content ?? '') !== null;
-      const isInviteDm = isSquadInvite || isNetworkInvite || parseChannelInSquadMessage(message.content ?? '') !== null;
-      console.log('[Squad/Invite] message_new: chat_id=', chat_id?.slice(0, 24) + '…', 'mine=', message.mine, 'isInviteDm=', isInviteDm, 'contentPreview=', (message.content ?? '').slice(0, 60) + (message.content && message.content.length > 60 ? '…' : ''));
       if (!chat_id.startsWith('npub1')) return;
+      const content = message.content ?? '';
+      const isPactoRoutableInvite = isPactoAppRoutableInviteContent(content);
       const m: DmMessage = {
         id: message.id,
         content: message.content,
@@ -1269,30 +1310,32 @@
         replied_to_npub: (message as { replied_to_npub?: string | null }).replied_to_npub,
         replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
       };
-      backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
-        const list = byNpub[chat_id] ?? [];
-        if (list.some((x) => x.id === m.id)) return byNpub;
-        // Replace optimistic message (opt-*) with same content when backend confirms (avoids duplicate)
-        const withoutOpt = list.filter(
-          (x) => !(x.id.startsWith('opt-') && x.mine && x.content === m.content)
-        );
-        return { ...byNpub, [chat_id]: [...withoutOpt, m] };
-      });
-      // Update Friends/Requests/Pending: OR in message flags so we never lose a true (chat can move to Friends when they reply)
-      dmChatsByNpub.update((map: Record<string, DmChatState>) => {
-        const cur = map[chat_id];
-        const hadChat = chat_id in map;
-        const next = {
-          npub: chat_id,
-          name: cur?.name,
-          avatar: cur?.avatar,
-          hasFromMe: (cur?.hasFromMe ?? false) || m.mine,
-          hasFromThem: (cur?.hasFromThem ?? false) || !m.mine,
-          lastAt: Math.max(cur?.lastAt ?? 0, m.at),
-        };
-        if (isInviteDm && !hadChat) console.log('[Squad/Invite] message_new: invite DM added chat (receiver=Requests, sender=Pending)', chat_id?.slice(0, 24) + '…');
-        return { ...map, [chat_id]: next };
-      });
+      if (isPactoRoutableInvite) {
+        if (!m.mine) {
+          appendPactoAppInboxMessage(m, resolveInviteInviterNpub(m, chat_id, content));
+        }
+      } else {
+        backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
+          const list = byNpub[chat_id] ?? [];
+          if (list.some((x) => x.id === m.id)) return byNpub;
+          const withoutOpt = list.filter(
+            (x) => !(x.id.startsWith('opt-') && x.mine && x.content === m.content)
+          );
+          return { ...byNpub, [chat_id]: [...withoutOpt, m] };
+        });
+        dmChatsByNpub.update((map: Record<string, DmChatState>) => {
+          const cur = map[chat_id];
+          const next = {
+            npub: chat_id,
+            name: cur?.name,
+            avatar: cur?.avatar,
+            hasFromMe: (cur?.hasFromMe ?? false) || m.mine,
+            hasFromThem: (cur?.hasFromThem ?? false) || !m.mine,
+            lastAt: Math.max(cur?.lastAt ?? 0, m.at),
+          };
+          return { ...map, [chat_id]: next };
+        });
+      }
       // Sender sent a message — clear "Typing" for this chat and cancel expiry timeout
       const clearTimeoutId = typingClearTimeouts.get(chat_id);
       if (clearTimeoutId) {
@@ -1325,14 +1368,21 @@
           replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
         };
         if (chat_id.startsWith('npub1')) {
-          backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
-            const list = byNpub[chat_id] ?? [];
-            const out = list.filter((x) => x.id !== old_id && x.id !== m.id);
-            return {
-              ...byNpub,
-              [chat_id]: [...out, m].sort((a: DmMessage, b: DmMessage) => a.at - b.at),
-            };
-          });
+          const msgContent = m.content ?? '';
+          if (isPactoAppRoutableInviteContent(msgContent)) {
+            if (!m.mine) {
+              appendPactoAppInboxMessage(m, resolveInviteInviterNpub(m, chat_id, msgContent));
+            }
+          } else {
+            backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
+              const list = byNpub[chat_id] ?? [];
+              const out = list.filter((x) => x.id !== old_id && x.id !== m.id);
+              return {
+                ...byNpub,
+                [chat_id]: [...out, m].sort((a: DmMessage, b: DmMessage) => a.at - b.at),
+              };
+            });
+          }
         } else {
           // Group chat: replace old_id with real message so sender doesn't see duplicate (pending-* → real id)
           backendGroupMessages.update((byGroup: Record<string, DmMessage[]>) => {
@@ -1369,6 +1419,7 @@
 
     const unlistenSyncFinished = listen('sync_finished', () => {
       dmLog('sync_finished (historical sync complete)');
+      migrateInvitesToPactoAppInbox();
       dmSyncStatus.set('finished');
       setTimeout(() => dmSyncStatus.set('idle'), 2500);
     });
@@ -1585,6 +1636,7 @@
                   declinedChannelInviteMessageIds.update((ids: string[]) =>
                     ids.includes(msg.id) ? ids : [...ids, msg.id]
                   )}
+                onOpenInviterChat={openInviterDm}
                 acceptingSquadInviteId={acceptingSquadInviteId}
                 acceptingChannelInSquadId={acceptingChannelInSquadId}
                 acceptingChannelInNetworkId={acceptingChannelInNetworkId}
@@ -1603,7 +1655,9 @@
                     throw new Error(getInvokeErrorMessage(e, 'Failed to set nickname'));
                   }
                 }}
-                onDeleteChat={() => {
+                onDeleteChat={isPactoAppThreadId($activeDmId)
+                  ? undefined
+                  : () => {
                   const id = $activeDmId;
                   if (!id) return;
                   const snapshot: DmChatSnapshot = {
@@ -1619,7 +1673,8 @@
                     showToast('Could not delete chat. Please try again.');
                   });
                 }}
-                showWalletButton={$activeDmTab === 'friends' || $activeDmTab === 'pinned' /* wallet: Friends + Pinned only; not Pending/Requests/new chat */ }
+                showWalletButton={($activeDmTab === 'friends' || $activeDmTab === 'pinned') &&
+                  !isPactoAppThreadId($activeDmId) /* wallet: Friends + Pinned only; not Pending/Requests/new chat */ }
               />
             {:else}
               <div class="dm-empty">
@@ -1645,34 +1700,20 @@
       {:else}
         <div class="parent-area">
           <ParentNavbar type={$activeTopNavTab === 'networks' ? 'network' : 'squad'} />
-          {#if $activeChannelId === DASHBOARD_CHANNEL_ID && ($activeTopNavTab === 'squads' ? $squads.find((s: Squad) => s.id === $activeSquadId) : $networks.find((n: Network) => n.id === $activeNetworkId))}
+          {#if $activeChannelId === DASHBOARD_CHANNEL_ID && openHubParent}
             <ParentDashboard
-              parent={$activeTopNavTab === 'squads'
-                ? $squads.find((s: Squad) => s.id === $activeSquadId)!
-                : $networks.find((n: Network) => n.id === $activeNetworkId)!}
-              parentType={$activeTopNavTab === 'networks' ? 'network' : 'squad'}
-              treasurySafes={$treasurySafesByParentId[
-                ($activeTopNavTab === 'squads'
-                  ? $squads.find((s: Squad) => s.id === $activeSquadId)
-                  : $networks.find((n: Network) => n.id === $activeNetworkId))?.id ?? ''
-              ] ?? []}
+              parent={openHubParent}
+              parentType={openHubParentLegacyType}
+              treasurySafes={$treasurySafesByParentId[openHubParent.id] ?? []}
               governanceConfig={(() => {
-                const id =
-                  ($activeTopNavTab === 'squads'
-                    ? $squads.find((s: Squad) => s.id === $activeSquadId)
-                    : $networks.find((n: Network) => n.id === $activeNetworkId))?.id ?? '';
-                if (!id) return undefined;
+                const id = openHubParent.id;
                 const rows = $squadInfraByParentId[id];
                 return Object.prototype.hasOwnProperty.call($squadInfraByParentId, id)
                   ? primaryGovernanceView(rows)
                   : undefined;
               })()}
               squadInfraRows={(() => {
-                const id =
-                  ($activeTopNavTab === 'squads'
-                    ? $squads.find((s: Squad) => s.id === $activeSquadId)
-                    : $networks.find((n: Network) => n.id === $activeNetworkId))?.id ?? '';
-                if (!id) return undefined;
+                const id = openHubParent.id;
                 return Object.prototype.hasOwnProperty.call($squadInfraByParentId, id)
                   ? ($squadInfraByParentId[id] ?? [])
                   : undefined;
@@ -1684,10 +1725,7 @@
                 entryId: string;
                 txHash?: string;
               }) => {
-                const p =
-                  $activeTopNavTab === 'squads'
-                    ? $squads.find((s: Squad) => s.id === $activeSquadId)!
-                    : $networks.find((n: Network) => n.id === $activeNetworkId)!;
+                const p = openHubParent;
                 await addParentTreasurySafe(p.id, params.safeAddress, {
                   chain: params.chain,
                   label: params.label,

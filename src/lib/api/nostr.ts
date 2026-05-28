@@ -391,11 +391,14 @@ export async function getMlsGroupMetadata(): Promise<MlsGroupMetadataItem[]> {
   return meta;
 }
 
-/** Structured payload for squad invite sent via DM (Approach A). */
+/** Structured payload for squad / squad-pair invite (DM until RNF-4 Pacto App thread). */
 export interface SquadInvitePayload {
   type: 'squad_invite';
   squadName: string;
   groupId: string;
+  kind?: 'squad' | 'squad-pair';
+  pairedSquads?: [{ id: string; name: string }, { id: string; name: string }];
+  invitedByNpub?: string;
 }
 
 const SQUAD_INVITE_TYPE = 'squad_invite';
@@ -406,7 +409,15 @@ export function parseSquadInviteMessage(content: string): SquadInvitePayload | n
     if (parsed && typeof parsed === 'object' && (parsed as { type?: string }).type === SQUAD_INVITE_TYPE) {
       const p = parsed as { squadName?: string; groupId?: string };
       if (typeof p.squadName === 'string' && typeof p.groupId === 'string') {
-        return { type: SQUAD_INVITE_TYPE, squadName: p.squadName, groupId: p.groupId };
+        const raw = parsed as SquadInvitePayload;
+        return {
+          type: SQUAD_INVITE_TYPE,
+          squadName: raw.squadName,
+          groupId: raw.groupId,
+          kind: raw.kind === 'squad-pair' ? 'squad-pair' : raw.kind === 'squad' ? 'squad' : undefined,
+          pairedSquads: raw.pairedSquads,
+          invitedByNpub: typeof raw.invitedByNpub === 'string' ? raw.invitedByNpub : undefined,
+        };
       }
     }
   } catch {

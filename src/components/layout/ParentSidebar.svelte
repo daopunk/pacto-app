@@ -44,6 +44,15 @@
   /** Only used when type === 'network'. */
   export let onExitNetwork: (() => void) | undefined = undefined;
 
+  /** Partner squad-pairs for the anchor squad (regular squads only). */
+  export let partnerSquads: { id: string; name: string }[] = [];
+  export let activePartnerSquadId: string | null = null;
+  export let onSelectPartnerSquad: (id: string) => void = () => {};
+
+  /** Show on regular anchor squads (not squad-pairs). */
+  export let showPairWithSquadAction = false;
+  export let onPairWithSquad: (() => void) | undefined = undefined;
+
   let menuOpen = false;
   const createErrorId = 'parent-create-error';
 
@@ -59,6 +68,7 @@
     return m;
   })();
 
+  $: showPartnerSquads = type === 'squad' && partnerSquads.length > 0;
   $: inviteLabel = type === 'squad' ? 'Invite to Squad' : 'Invite to Network';
   $: showChangeEvmSigner = typeof onChangeEvmSigner === 'function';
   $: showExitSquad = type === 'squad' && typeof onExitSquad === 'function';
@@ -186,6 +196,28 @@
         {#if channels.length > 0}
           <button type="button" class="parent-create-channel-btn" on:click={onCreateChannel}>
             + Create channel
+          </button>
+        {/if}
+        {#if showPartnerSquads}
+          <div class="partner-squads-section" role="navigation" aria-label="Partner Squads">
+            <p class="partner-squads-heading">Partner Squads</p>
+            <div class="partner-squad-list">
+              {#each partnerSquads as partner (partner.id)}
+                <button
+                  type="button"
+                  class="partner-squad-item"
+                  class:active={activePartnerSquadId === partner.id && activeView === 'hub'}
+                  on:click={() => onSelectPartnerSquad(partner.id)}
+                >
+                  {partner.name}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+        {#if showPairWithSquadAction && typeof onPairWithSquad === 'function' && !creating}
+          <button type="button" class="parent-pair-squad-btn" on:click={onPairWithSquad}>
+            + Pair with squad…
           </button>
         {/if}
       {/if}
@@ -367,6 +399,72 @@
   }
 
   .parent-create-channel-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    border-color: var(--border);
+  }
+
+  .partner-squads-section {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .partner-squads-heading {
+    margin: 0 0 8px 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .partner-squad-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .partner-squad-item {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .partner-squad-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .partner-squad-item.active {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .parent-pair-squad-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .parent-pair-squad-btn:hover {
     background: var(--bg-hover);
     color: var(--text-secondary);
     border-color: var(--border);

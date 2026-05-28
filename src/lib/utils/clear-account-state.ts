@@ -51,6 +51,7 @@ import {
   walletSendPrefillFromRequest,
   backendDmMessages,
   dmThreadAnnouncementsByNpub,
+  pactoAppInboxMessages,
   messageCountByChat,
   loadedOffsetByChat,
   dmSyncStatus,
@@ -100,6 +101,7 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_last_hub_channel_name_by_network',
   'pacto_parent_dashboard_mode',
   'pacto_pinned_dm_npubs',
+  'pacto_app_inbox',
   'pacto_wallet_summary_cache_v1',
   'pacto_wallet_ui_enabled_chains_v1',
   'pacto_wallet_preferred_network_v1',
@@ -196,6 +198,7 @@ export function clearAccountState(npub?: string): void {
 
   backendDmMessages.set({});
   dmThreadAnnouncementsByNpub.set({});
+  pactoAppInboxMessages.set([]);
   messageCountByChat.set({});
   loadedOffsetByChat.set({});
   dmSyncStatus.set('idle');

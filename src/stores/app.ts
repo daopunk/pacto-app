@@ -19,6 +19,17 @@ import {
   acceptedWalletPeerInfoRequestMessageIds,
   declinedWalletPeerInfoRequestMessageIds,
 } from './invite-decisions';
+import type { PactoAppInboxEntry } from '../lib/pacto-app-inbox';
+import {
+  isPactoAppRoutableInviteContent,
+  mergePactoAppInboxEntry,
+  PACTO_APP_DM_THREAD_ID,
+  resolveInviteInviterNpub,
+  toPactoAppInboxEntry,
+} from '../lib/pacto-app-inbox';
+
+export type { PactoAppInboxEntry };
+export { PACTO_APP_DM_THREAD_ID, PACTO_APP_DISPLAY_NAME, isPactoAppThreadId } from '../lib/pacto-app-inbox';
 
 // Re-export invite decision stores for consumers (e.g. +page, clear-account-state)
 export {
@@ -221,6 +232,7 @@ export function dmSidebarCategoryForNpub(
   chats: Record<string, DmChatState>,
   pinned: Set<string>
 ): DmSidebarCategory {
+  if (npub === PACTO_APP_DM_THREAD_ID) return 'pinned';
   const c = chats[npub];
   if (!c) return 'friends';
   if (pinned.has(npub) && c.hasFromMe && c.hasFromThem) return 'pinned';
@@ -357,6 +369,75 @@ export const backendDmMessages = writable<Record<string, DmMessage[]>>({});
 /** Local-only lines shown in the thread (e.g. block / unblock). Merged at display time; not sent to relays. */
 export const dmThreadAnnouncementsByNpub = writable<Record<string, DmMessage[]>>({});
 
+const PACTO_APP_INBOX_PREFIX = 'pacto_app_inbox';
+
+/** Synthetic Pacto App thread: squad / squad-pair invites for the signed-in user. */
+export const pactoAppInboxMessages = writable<PactoAppInboxEntry[]>([]);
+
+pactoAppInboxMessages.subscribe((value) => {
+  if (typeof localStorage === 'undefined') return;
+  const key = persistenceKey(PACTO_APP_INBOX_PREFIX);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore quota
+  }
+});
+
+export function appendPactoAppInboxMessage(message: DmMessage, inviterNpub: string): void {
+  const entry = toPactoAppInboxEntry(message, inviterNpub);
+  pactoAppInboxMessages.update((list) => mergePactoAppInboxEntry(list, entry));
+}
+
+/** Move inbound invite DMs from peer threads into the Pacto App inbox (idempotent). */
+export function migrateInvitesToPactoAppInbox(): void {
+  let inboxSnapshot: PactoAppInboxEntry[] = [];
+  pactoAppInboxMessages.update((list) => {
+    inboxSnapshot = [...list];
+    return list;
+  });
+  const peersEmptied: string[] = [];
+  backendDmMessages.update((byNpub) => {
+    const nextByNpub: Record<string, DmMessage[]> = {};
+    for (const [peer, msgs] of Object.entries(byNpub)) {
+      const kept: DmMessage[] = [];
+      for (const m of msgs) {
+        const content = m.content ?? '';
+        if (isPactoAppRoutableInviteContent(content)) {
+          if (!m.mine) {
+            const entry = toPactoAppInboxEntry(
+              m,
+              resolveInviteInviterNpub(m, peer, content)
+            );
+            if (!inboxSnapshot.some((x) => x.id === entry.id)) {
+              inboxSnapshot = mergePactoAppInboxEntry(inboxSnapshot, entry);
+            }
+          }
+        } else {
+          kept.push(m);
+        }
+      }
+      if (kept.length > 0) {
+        nextByNpub[peer] = kept;
+      } else if (msgs.length > 0) {
+        peersEmptied.push(peer);
+      }
+    }
+    pactoAppInboxMessages.set(inboxSnapshot);
+    return nextByNpub;
+  });
+  if (peersEmptied.length > 0) {
+    dmChatsByNpub.update((map) => {
+      const next = { ...map };
+      for (const peer of peersEmptied) {
+        delete next[peer];
+      }
+      return next;
+    });
+  }
+}
+
 export function appendDmThreadAnnouncement(npub: string, content: string): void {
   const trimmedNpub = npub.trim();
   if (!trimmedNpub) return;
@@ -422,14 +503,35 @@ export const treasurySafesByParentId = writable<Record<string, TreasurySafeEntry
 export type { TreasurySafeEntry };
 export type { SquadInfraDto };
 
+import { ensureDefaultHubChannelRows } from '../lib/parent-navbar';
+import {
+  mergeNetworkRowsIntoSquads,
+  networkToSquadPair,
+  normalizeStoredSquad,
+  squadsToNetworkView,
+  type PairedSquads,
+  type PairedSquadRef,
+  type SquadKind,
+} from '../lib/squad-pair';
+
+export type { SquadKind, PairedSquadRef, PairedSquads };
+export { partnerSquadsForAnchor } from '../lib/squad-pair';
+
 /** Normalize a channel from storage (drops legacy `id` if present). Renames pre–step-17 `monitor` → `inbox`. */
 export function normalizeStoredChannel(ch: { name: string; groupId: string; order: number }): Channel {
   const name = ch.name === 'monitor' ? INBOX_CHANNEL_NAME : ch.name;
   return { name, groupId: ch.groupId, order: ch.order };
 }
 
-function normalizeChannel(ch: { name: string; groupId: string; order: number }): Channel {
-  return normalizeStoredChannel(ch);
+function normalizeParentChannels(channels: Channel[]): Channel[] {
+  return ensureDefaultHubChannelRows(channels.map(normalizeStoredChannel));
+}
+
+function normalizeSquadFromStorage(raw: Squad): Squad {
+  return normalizeStoredSquad({
+    ...raw,
+    channels: normalizeParentChannels(raw.channels),
+  }) as Squad;
 }
 
 // Squad = frontend-only container (name, icon, ordered channels). Persisted to localStorage.
@@ -438,6 +540,9 @@ export interface Squad {
   name: string;
   iconUrl?: string;
   channels: Channel[];
+  kind: SquadKind;
+  /** Anchor squads when kind === 'squad-pair'. */
+  pairedSquads?: PairedSquads;
   createdAt: number;
   updatedAt: number;
 }
@@ -471,16 +576,18 @@ squads.subscribe((value) => {
 
 const PACTO_NETWORKS_PREFIX = 'pacto_networks';
 
+/** TODO: delete after RNF-5 — legacy Network store; squad-pairs live in `squads`. */
 export const networks = writable<Network[]>([]);
 
-networks.subscribe((value) => {
-  if (typeof localStorage === 'undefined') return;
-  const key = persistenceKey(PACTO_NETWORKS_PREFIX);
-  if (!key) return;
+/** TODO: delete after RNF-5 — mirror legacy network rows into squads until Networks tab is removed. */
+let mirroringNetworksIntoSquads = false;
+networks.subscribe((networkList) => {
+  if (mirroringNetworksIntoSquads) return;
+  mirroringNetworksIntoSquads = true;
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore quota or serialization errors
+    squads.update((list) => mergeNetworkRowsIntoSquads(list, networkList) as Squad[]);
+  } finally {
+    mirroringNetworksIntoSquads = false;
   }
 });
 
@@ -685,12 +792,35 @@ export function loadAccountState(npub: string): void {
   try {
     const squadsKey = `${PACTO_SQUADS_PREFIX}_${npub}`;
     const rawSquads = localStorage.getItem(squadsKey);
+    let loadedSquads: Squad[] = [];
     if (rawSquads) {
       const parsed = JSON.parse(rawSquads) as unknown;
       const list = Array.isArray(parsed) ? (parsed as Squad[]) : [];
-      squads.set(
-        list.map((s) => ({ ...s, channels: s.channels.map(normalizeChannel) }))
-      );
+      loadedSquads = list.map((s) => normalizeSquadFromStorage(s));
+    }
+    // TODO: delete after RNF-5 — one-time migrate pacto_networks_* into squads as squad-pair.
+    const rawNetworks = localStorage.getItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
+    if (rawNetworks) {
+      const parsed = JSON.parse(rawNetworks) as unknown;
+      const legacy = Array.isArray(parsed) ? (parsed as Network[]) : [];
+      for (const n of legacy) {
+        const migrated = networkToSquadPair({
+          ...n,
+          channels: normalizeParentChannels(n.channels),
+        }) as Squad;
+        if (!loadedSquads.some((s) => s.id === migrated.id)) {
+          loadedSquads.push(migrated);
+        }
+      }
+      localStorage.removeItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
+    }
+    squads.set(loadedSquads);
+    // TODO: delete after RNF-5 — populate legacy networks store for Networks tab until removed.
+    mirroringNetworksIntoSquads = true;
+    try {
+      networks.set(squadsToNetworkView(loadedSquads) as Network[]);
+    } finally {
+      mirroringNetworksIntoSquads = false;
     }
     const pinnedKey = `${PINNED_DM_NPUBS_PREFIX}_${npub}`;
     const rawPinned = localStorage.getItem(pinnedKey);
@@ -698,6 +828,18 @@ export function loadAccountState(npub: string): void {
       const parsed = JSON.parse(rawPinned) as unknown;
       const arr = Array.isArray(parsed) ? (parsed as string[]).filter((x) => typeof x === 'string') : [];
       pinnedDmNpubs.set(new Set(arr));
+    }
+    const rawPactoInbox = localStorage.getItem(`${PACTO_APP_INBOX_PREFIX}_${npub}`);
+    if (rawPactoInbox) {
+      try {
+        const parsed = JSON.parse(rawPactoInbox) as unknown;
+        const list = Array.isArray(parsed) ? (parsed as PactoAppInboxEntry[]) : [];
+        pactoAppInboxMessages.set(list.filter((m) => typeof m?.id === 'string' && typeof m.inviterNpub === 'string'));
+      } catch {
+        pactoAppInboxMessages.set([]);
+      }
+    } else {
+      pactoAppInboxMessages.set([]);
     }
     const lastDm = localStorage.getItem(`${LAST_DM_NPUB_PREFIX}_${npub}`)?.trim();
     if (lastDm) activeDmId.set(lastDm);
@@ -725,14 +867,7 @@ export function loadAccountState(npub: string): void {
         lastHubChannelNameBySquadId.set({});
       }
     }
-    const rawNetworks = localStorage.getItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
-    if (rawNetworks) {
-      const parsed = JSON.parse(rawNetworks) as unknown;
-      const list = Array.isArray(parsed) ? (parsed as Network[]) : [];
-      networks.set(
-        list.map((n) => ({ ...n, channels: n.channels.map(normalizeChannel) }))
-      );
-    }
+
     const lastNetwork = localStorage.getItem(`${LAST_NETWORK_ID_PREFIX}_${npub}`);
     if (lastNetwork) lastOpenedNetworkId.set(lastNetwork);
     const lastNetworkChannel = localStorage.getItem(`${LAST_NETWORK_CHANNEL_ID_PREFIX}_${npub}`);
