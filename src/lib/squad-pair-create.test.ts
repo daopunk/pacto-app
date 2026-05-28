@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildPairedSquads,
   collectInviteNpubsForSquads,
+  pairPartnerExcludeSquadIds,
+  resolvePairAnchorFromHub,
   partnerSquadCandidates,
 } from './squad-pair-create';
 import type { Squad } from '../stores/app';
@@ -36,6 +38,26 @@ const existingPair: Squad = {
   createdAt: 3,
   updatedAt: 3,
 };
+
+describe('resolvePairAnchorFromHub', () => {
+  it('returns the hub when it is a regular squad', () => {
+    expect(resolvePairAnchorFromHub(anchor, [anchor, partner])).toEqual(anchor);
+  });
+
+  it('returns the first anchor squad when the hub is a squad-pair', () => {
+    expect(resolvePairAnchorFromHub(existingPair, [anchor, partner, existingPair])).toEqual(anchor);
+  });
+});
+
+describe('pairPartnerExcludeSquadIds', () => {
+  it('excludes sibling anchors when pairing from a squad-pair hub', () => {
+    expect(pairPartnerExcludeSquadIds(existingPair, anchor)).toEqual(['partner']);
+  });
+
+  it('returns empty when pairing from a regular squad', () => {
+    expect(pairPartnerExcludeSquadIds(anchor, anchor)).toEqual([]);
+  });
+});
 
 describe('partnerSquadCandidates', () => {
   it('excludes anchor, squad-pairs, and squads without channels', () => {

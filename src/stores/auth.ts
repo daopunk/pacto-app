@@ -26,6 +26,28 @@ export const isLoggedIn = derived(
   ([$isAuthenticated, $currentUser]) => $isAuthenticated && $currentUser !== null
 );
 
+/** Relay connect + DM sync + profile refresh — must not block PIN unlock UI. */
+function runPostLoginNetworkSync(npub: string): void {
+  void (async () => {
+    try {
+      dmLog('post-login: connect()');
+      await apiConnect();
+      dmLog('post-login: connect() done');
+    } catch (e) {
+      console.error('connect after login failed:', e);
+    }
+    dmLog('post-login: fetchMessages(true)');
+    dmSyncStatus.set('syncing');
+    fetchMessages(true).catch((e) => console.error('fetch_messages failed:', e));
+    try {
+      await refreshProfileNow(npub);
+    } catch (e) {
+      console.error('Auto profile refresh failed:', e);
+    }
+    dmLog('post-login: network sync done');
+  })();
+}
+
 /**
  * Check auth status on app startup
  * Determines if user needs to login or if they have stored keys
@@ -142,21 +164,10 @@ export async function importAccount(recoveryPhrase: string, pin: string): Promis
     });
     activeTopNavTab.set('squads');
     loadAccountState(npub);
-    // Pull DMs from Nostr relays (backend fetches Gift Wraps, emits init_finished with chats)
-    dmLog('importAccount: fetchMessages(true)');
-    dmSyncStatus.set('syncing');
-    fetchMessages(true).catch((e) => console.error('fetch_messages failed:', e));
-
-    // Auto-refresh profile on login
-    try {
-      await refreshProfileNow(npub);
-    } catch (e) {
-      console.error('Auto profile refresh failed:', e);
-      // Don't fail login if profile refresh fails
-    }
+    authLoading.set(false);
+    runPostLoginNetworkSync(npub);
 
     dmLog('importAccount: done');
-    authLoading.set(false);
   } catch (error: any) {
     console.error('Import account failed:', error);
     authError.set(error.message || 'Failed to import account');
@@ -174,21 +185,10 @@ export async function unlockWithPin(pin: string): Promise<void> {
   authError.set(null);
 
   try {
-    // Decrypt the stored key
     const privateKey = await loadAndDecryptKey(pin);
-    
-    // Login with the decrypted key
     const keys = await apiLogin(privateKey);
-    
-    // Connect to relays
-    dmLog('unlockWithPin: connect()');
-    await apiConnect();
-    dmLog('unlockWithPin: connect() done');
-
-    // Get current account npub from backend
     const npub = await getCurrentAccount();
 
-    // Set auth state and load npub-scoped persistence (squads, last open, etc.)
     isAuthenticated.set(true);
     currentUser.set({
       npub: npub,
@@ -196,21 +196,10 @@ export async function unlockWithPin(pin: string): Promise<void> {
     });
     activeTopNavTab.set('squads');
     loadAccountState(npub);
-    // Pull DMs from Nostr relays (backend fetches Gift Wraps, emits init_finished with chats)
-    dmLog('unlockWithPin: fetchMessages(true)');
-    dmSyncStatus.set('syncing');
-    fetchMessages(true).catch((e) => console.error('fetch_messages failed:', e));
-
-    // Auto-refresh profile on login
-    try {
-      await refreshProfileNow(npub);
-    } catch (e) {
-      console.error('Auto profile refresh failed:', e);
-      // Don't fail login if profile refresh fails
-    }
+    authLoading.set(false);
+    runPostLoginNetworkSync(npub);
 
     dmLog('unlockWithPin: done');
-    authLoading.set(false);
   } catch (error: any) {
     console.error('Unlock failed:', error);
     authError.set(error.message || 'Incorrect PIN or failed to decrypt');

@@ -9,11 +9,36 @@ export interface SquadPairAnchorRef {
   name: string;
 }
 
-/** Regular squads the user can pair with (excludes anchor and existing squad-pairs). */
-export function partnerSquadCandidates(allSquads: Squad[], anchorSquadId: string): Squad[] {
+/** Regular squad used when creating a pair from the active hub. */
+export function resolvePairAnchorFromHub(hub: Squad, allSquads: Squad[]): Squad | undefined {
+  if (hub.kind !== 'squad-pair') {
+    return (hub.channels?.length ?? 0) > 0 ? hub : undefined;
+  }
+  for (const ref of hub.pairedSquads ?? []) {
+    const squad = allSquads.find((s) => s.id === ref.id);
+    if (squad && squad.kind !== 'squad-pair' && (squad.channels?.length ?? 0) > 0) {
+      return squad;
+    }
+  }
+  return undefined;
+}
+
+/** Ids to exclude from the partner picker (other anchors when pairing from a squad-pair hub). */
+export function pairPartnerExcludeSquadIds(hub: Squad, anchor: Squad): string[] {
+  if (hub.kind !== 'squad-pair') return [];
+  return (hub.pairedSquads ?? []).map((p) => p.id).filter((id) => id !== anchor.id);
+}
+
+/** Regular squads the user can pair with (excludes anchor, optional extra ids, and squad-pairs). */
+export function partnerSquadCandidates(
+  allSquads: Squad[],
+  anchorSquadId: string,
+  alsoExcludeSquadIds: string[] = []
+): Squad[] {
+  const excluded = new Set([anchorSquadId, ...alsoExcludeSquadIds]);
   return allSquads.filter(
     (s) =>
-      s.id !== anchorSquadId &&
+      !excluded.has(s.id) &&
       s.kind !== 'squad-pair' &&
       (s.channels?.length ?? 0) > 0
   );

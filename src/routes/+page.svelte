@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { listen } from '@tauri-apps/api/event';
   import Navbar from '../components/layout/Navbar.svelte';
   import TopNavbar from '../components/layout/TopNavbar.svelte';
   import ParentNavbar from '../components/layout/ParentNavbar.svelte';
@@ -23,21 +22,12 @@
     markAsRead,
     startTyping,
     setNickname,
-    listPendingMlsWelcomes,
-    acceptMlsWelcome,
-    parseSquadInviteMessage,
-    parseChannelInSquadMessage,
-    parseChannelInNetworkMessage,
-    parseNetworkInviteMessage,
     syncMlsGroupsNow,
-    getMlsGroupMembers,
-    backfillSquadMemberEvmFromProfiles,
     deleteDmChatBackend,
     listParentTreasurySafes,
     addParentTreasurySafe,
-    type PendingMlsWelcome,
   } from '../lib/api/nostr';
-  import { buildAnnounceContent, ANNOUNCE_TYPE_SAFE_UPDATED, ANNOUNCE_TYPE_GOVERNANCE_UPDATED, parseAnnouncement } from '../lib/announcements';
+  import { buildAnnounceContent, ANNOUNCE_TYPE_SAFE_UPDATED, ANNOUNCE_TYPE_GOVERNANCE_UPDATED } from '../lib/announcements';
   import { getExplorerTxUrl } from '../lib/wallet/assets';
   import { parseSupportedChainId } from '../lib/wallet/chains';
   import { getAddress } from 'viem';
@@ -53,10 +43,8 @@
   import { getInvokeErrorMessage, friendlyMessage } from '../lib/utils/tauri-errors';
   import { dmLog, dmError } from '../lib/utils/dm-debug';
   import {
-    isPactoAppRoutableInviteContent,
     isPactoAppThreadId,
     filterPeerThreadMessages,
-    resolveInviteInviterNpub,
   } from '../lib/pacto-app-inbox';
   import { isAuthenticated, currentUser } from '../stores/auth';
   import { profiles } from '../stores/profiles';
@@ -74,15 +62,12 @@
     backendDmMessages,
     dmThreadAnnouncementsByNpub,
     pactoAppInboxMessages,
-    appendPactoAppInboxMessage,
-    migrateInvitesToPactoAppInbox,
+    reconcilePeerThreadInvites,
     backendGroupMessages,
-    pendingMlsWelcomes,
     ungroupedChannels,
     messageCountByChat,
     loadedOffsetByChat,
     dmSyncStatus,
-    typingByChat,
     dmList,
     requestsList,
     pendingList,
@@ -94,17 +79,7 @@
     lastOpenedChannelId,
     lastChannelBySquadId,
     lastHubChannelNameBySquadId,
-    lastChannelByNetworkId,
-    lastHubChannelNameByNetworkId,
-    networks,
-    activeNetworkId,
-    lastOpenedNetworkId,
-    lastOpenedNetworkChannelId,
-    acceptedSquadInviteIds,
     declinedSquadInviteIds,
-    acceptedNetworkInviteIds,
-    declinedNetworkInviteIds,
-    acceptedChannelInviteMessageIds,
     declinedChannelInviteMessageIds,
     dmChatsByNpub,
     pinnedDmNpubs,
@@ -113,22 +88,15 @@
     deleteDmChat,
     revertDmChat,
     type DmChatSnapshot,
-    updateChannelNameIfPlaceholder,
-    bumpMembershipVersion,
-    ANNOUNCEMENTS_CHANNEL_NAME,
     DASHBOARD_CHANNEL_ID,
     treasurySafesByParentId,
     squadInfraByParentId,
-    dashboardPollReplicaNonceByParentId,
     type TreasurySafeEntry,
     type SquadInfraDto,
     type DmMessage,
     type DmTab,
     type DmEntry,
-    type DmChatState,
-    type SyncStatus,
     type Channel,
-    type Network,
     type Squad,
     acceptedWalletPeerInfoRequestMessageIds,
     declinedWalletPeerInfoRequestMessageIds,
@@ -153,28 +121,27 @@
     isPactoGovTreasurySafe,
     pactoGovPayloadFromInfra,
   } from '../lib/governance/standalone-safe-payload';
-  import { defaultChannelRowsForGroupId, resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
+  import { resolveAutomatedAnnounceGroupId } from '../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../lib/mls/virtual-channel-bucket';
   import { resolveOpenHubParent } from '../lib/squad-hub-nav';
-  import { normalizeStoredSquad } from '../lib/squad-pair';
   import { portal } from '../lib/utils/portal';
+  import { subscribeAppEvents } from '../lib/app/tauri-subscriptions';
+  import {
+    acceptSquadOrPairInvite,
+    acceptChannelInSquadInvite,
+    acceptingSquadInviteId,
+    acceptingChannelInSquadId,
+  } from '../lib/invites/accept-invite';
 
   const PAGE_SIZE = 100;
 
-  // Show "X is ready!" toast from root so it appears regardless of active view (DMs / Squads / Networks)
+  // Show "X is ready!" toast from root so it appears regardless of active view (DMs / Squads)
   $: if ($pendingReadyToast) {
     showToast($pendingReadyToast.text, $pendingReadyToast.goTo);
     pendingReadyToast.set(null);
   }
 
-  $: openHubParent = resolveOpenHubParent(
-    $squads,
-    $activeTopNavTab,
-    $activeSquadId,
-    $activeNetworkId
-  );
-  /** TODO: delete after RNF-5 — ParentDashboard still accepts legacy network parentType. */
-  $: openHubParentLegacyType = $activeTopNavTab === 'networks' ? ('network' as const) : ('squad' as const);
+  $: openHubParent = resolveOpenHubParent($squads, $activeSquadId);
 
   /** When true, the DM wallet panel is not shown (other top nav, DM tab, or new chat), but open state stays until the user closes it. */
   $: walletSidebarInvalidContext =
@@ -202,10 +169,7 @@
 
   const LOAD_OLDER_PAGE_SIZE = 50;
 
-  /** Group IDs we just accepted as squad invites — skip "Add to squad" modal for these. */
-  let acceptedSquadInviteGroupIds = new Set<string>();
-
-  /** Hydrate treasury Safes from backend when dashboard is shown or via background prefetch (once per squad/network). */
+  /** Hydrate treasury Safes from backend when dashboard is shown or via background prefetch (once per squad). */
   let treasuryHydratedIds = new Set<string>();
   async function mergeTreasurySafesForParent(parentId: string) {
     if (!parentId) return;
@@ -243,7 +207,7 @@
 
   /** Persist a standalone vault Safe infra row (one row per treasury entry; skips pacto-gov treasury). */
   async function syncGovernanceAfterTreasurySafe(
-    p: Squad | Network,
+    p: Squad,
     params: {
       safeAddress: string;
       chain: string;
@@ -315,9 +279,7 @@
       canonicalRef: params.topHatId,
       providerPayload: params.providerPayload,
     });
-    const row =
-      get(squads).find((s: Squad) => s.id === params.parentId) ??
-      get(networks).find((n: Network) => n.id === params.parentId);
+    const row = get(squads).find((s: Squad) => s.id === params.parentId);
     const gid =
       (row ? resolveAutomatedAnnounceGroupId(row) : null) ?? params.announcementsGroupId.trim();
 
@@ -385,9 +347,7 @@
       canonicalRef: params.sponsorAddress,
       providerPayload: params.providerPayload,
     });
-    const row =
-      get(squads).find((s: Squad) => s.id === params.parentId) ??
-      get(networks).find((n: Network) => n.id === params.parentId);
+    const row = get(squads).find((s: Squad) => s.id === params.parentId);
     const gid =
       (row ? resolveAutomatedAnnounceGroupId(row) : null) ?? params.announcementsGroupId.trim();
     const entryId = params.infraRowId || squadSponsorInfraId(params.parentId);
@@ -428,9 +388,7 @@
       canonicalRef: params.squadAdminProxy,
       providerPayload: params.providerPayload,
     });
-    const row =
-      get(squads).find((s: Squad) => s.id === params.parentId) ??
-      get(networks).find((n: Network) => n.id === params.parentId);
+    const row = get(squads).find((s: Squad) => s.id === params.parentId);
     const gid =
       (row ? resolveAutomatedAnnounceGroupId(row) : null) ?? params.announcementsGroupId.trim();
     if (gid) {
@@ -473,58 +431,16 @@
     }
   }
 
-  /** Background prefetch: on app start/load, best-effort fetch of Safe addresses for all known parents (squads + networks). */
+  /** Background prefetch: on app start/load, best-effort fetch of Safe addresses for all known squads. */
   let initialTreasuryPrefetchDone = false;
-  $: if (!initialTreasuryPrefetchDone && ($squads.length > 0 || $networks.length > 0)) {
+  $: if (!initialTreasuryPrefetchDone && $squads.length > 0) {
     initialTreasuryPrefetchDone = true;
-    const parentIds = [
-      ...$squads.map((s: Squad) => s.id),
-      ...$networks.map((n: Network) => n.id),
-    ];
+    const parentIds = $squads.map((s: Squad) => s.id);
     for (const pid of parentIds) {
       if (!pid || treasuryHydratedIds.has(pid)) continue;
       treasuryHydratedIds.add(pid);
       mergeTreasurySafesForParent(pid).catch(() => {});
       mergeSquadInfraForParent(pid).catch(() => {});
-    }
-  }
-
-  /** When user accepts a channel invite (squad or network) we store mapping so mls_welcome_accepted can add channel to the right parent. */
-  let channelInvitePendingAccept = new Map<
-    string,
-    { parentType: 'squad' | 'network'; parentId: string; channelName: string }
-  >();
-
-  /** Add a channel to a squad or network. parentId is the parent's id (announcements group id for both). */
-  function addChannelToParent(
-    parentType: 'squad' | 'network',
-    parentId: string,
-    channelGroupId: string,
-    channelName: string
-  ) {
-    const newChannel: Channel = {
-      name: channelName,
-      groupId: channelGroupId,
-      order: 0,
-    };
-    if (parentType === 'squad') {
-      const list = get(squads);
-      const squad = list.find((s: Squad) => s.id === parentId);
-      if (squad) {
-        newChannel.order = squad.channels.length;
-        squads.update((l: Squad[]) =>
-          l.map((s: Squad) => (s.id !== squad.id ? s : { ...s, channels: [...s.channels, newChannel] }))
-        );
-      }
-    } else {
-      const list = get(networks);
-      const network = list.find((n: Network) => n.id === parentId);
-      if (network) {
-        newChannel.order = network.channels.length;
-        networks.update((l: Network[]) =>
-          l.map((n: Network) => (n.id !== network.id ? n : { ...n, channels: [...n.channels, newChannel] }))
-        );
-      }
     }
   }
 
@@ -582,7 +498,6 @@
 
   const SQUAD_CHANNEL_DEBUG = false; // [SquadChannel] set true to trace squad channel persistence
   // Remember last opened squad/channel (so switching to Squads view restores it) and per-squad last channel.
-  // Only write channel when it belongs to this squad (avoid overwriting with network channel when we've just switched to Squads and activeChannelId is still the network channel).
   $: if ($activeTopNavTab === 'squads' && $activeSquadId) {
     const sid = $activeSquadId;
     lastOpenedSquadId.set(sid);
@@ -606,31 +521,6 @@
           return next;
         });
       } else if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page on-squads skip persist (cid not in squad)', { sid: sid.slice(0, 12), cid: cid.slice(0, 20) });
-    }
-  }
-
-  // Persist last-opened network/channel and per-network last channel when user selects in Networks tab (only network stores).
-  // Only write channel when it belongs to this network (avoid overwriting with squad channel when we've just switched to Networks and activeChannelId is still a squad channel).
-  $: if ($activeTopNavTab === 'networks' && $activeNetworkId) {
-    const nid = $activeNetworkId;
-    lastOpenedNetworkId.set(nid);
-    const networkCid = $activeChannelId;
-    if (networkCid && !networkCid.startsWith('creating-')) {
-      const net = $networks.find((n: Network) => n.id === nid);
-      const cidBelongsToNetwork = net?.channels.some((c: Channel) => c.groupId === networkCid) ?? false;
-      if (cidBelongsToNetwork && net) {
-        if (SQUAD_CHANNEL_DEBUG) console.log('[SquadChannel] +page on-networks persist (network only)', { nid: nid?.slice(0, 12), networkCid: networkCid?.slice(0, 20) });
-        lastOpenedNetworkChannelId.set(networkCid);
-        lastChannelByNetworkId.update((m: Record<string, string>) => ({ ...m, [nid]: networkCid }));
-        const hub =
-          resolveHubChannelNameForGroupSelection(net.channels, networkCid, $activeHubChannelName) ?? '';
-        lastHubChannelNameByNetworkId.update((m) => {
-          const next = { ...m };
-          if (!hub) delete next[nid];
-          else next[nid] = hub;
-          return next;
-        });
-      }
     }
   }
 
@@ -658,35 +548,6 @@
         const hub =
           validChannel !== DASHBOARD_CHANNEL_ID
             ? resolveHubChannelNameForGroupSelection(sorted, validChannel, $lastHubChannelNameBySquadId[sid])
-            : null;
-        activeHubChannelName.set(hub);
-      }
-    }
-  }
-
-  // Never leave channel empty when a network is selected: restore last channel for this network or default to first (announcements). Dashboard (virtual channel) is valid.
-  $: if ($activeTopNavTab === 'networks' && $activeNetworkId && $networks.length > 0) {
-    const nid = $activeNetworkId;
-    const net = $networks.find((n: Network) => n.id === nid);
-    if (net) {
-      const sorted = [...net.channels].sort((a: Channel, b: Channel) => a.order - b.order);
-      const firstCh = sorted[0];
-      const lastForNet = $lastChannelByNetworkId[nid];
-      const activeInNet =
-        $activeChannelId &&
-        (sorted.some((c: Channel) => c.groupId === $activeChannelId) || $activeChannelId === DASHBOARD_CHANNEL_ID);
-      const lastInNet =
-        lastForNet &&
-        (sorted.some((c: Channel) => c.groupId === lastForNet) || lastForNet === DASHBOARD_CHANNEL_ID);
-      const validChannel =
-        activeInNet ? $activeChannelId
-          : lastInNet ? lastForNet
-            : firstCh ? DASHBOARD_CHANNEL_ID : null;
-      if (validChannel && $activeChannelId !== validChannel) {
-        activeChannelId.set(validChannel);
-        const hub =
-          validChannel !== DASHBOARD_CHANNEL_ID
-            ? resolveHubChannelNameForGroupSelection(sorted, validChannel, $lastHubChannelNameByNetworkId[nid])
             : null;
         activeHubChannelName.set(hub);
       }
@@ -743,7 +604,7 @@
           const merged = [...loaded, ...fromExisting];
           return { ...byNpub, [npub]: merged };
         });
-        migrateInvitesToPactoAppInbox();
+        reconcilePeerThreadInvites();
         loadedOffsetByChat.update((by: Record<string, number>) => ({ ...by, [npub]: PAGE_SIZE }));
         // Mark as read up to the latest message (backend returns newest first)
         const lastMessageId = msgs.length > 0 ? (msgs[0] as DmMessage).id : null;
@@ -754,14 +615,14 @@
       });
   }
 
-  // Load group messages when opening a squad or network channel. Skip placeholder "creating-*" and the
+  // Load group messages when opening a squad channel. Skip placeholder "creating-*" and the
   // virtual #dashboard view (not an MLS group).
-  // Only when Squads/Networks is active: `activeChannelId` persists when switching to DMs — do not call DM/group APIs from DMs tab.
+  // Only when Squads is active: `activeChannelId` persists when switching to DMs — do not call DM/group APIs from DMs tab.
   $: if (
     $activeChannelId &&
     $activeChannelId !== DASHBOARD_CHANNEL_ID &&
     !$activeChannelId.startsWith('creating-') &&
-    ($activeTopNavTab === 'squads' || $activeTopNavTab === 'networks')
+    $activeTopNavTab === 'squads'
   ) {
     const groupId = $activeChannelId;
     dmLog('open channel', { groupId: groupId.slice(0, 20) + '…' });
@@ -815,11 +676,7 @@
     !loadingOlder &&
     (($messageCountByChat[$activeDmId] ?? 0) > ($backendDmMessages[$activeDmId]?.length ?? 0));
 
-  // Squad/network/channel-in-squad invite cards: accepted/declined are persisted in app store; accepting is transient
-  let acceptingSquadInviteId: string | null = null;
-  let acceptingChannelInSquadId: string | null = null;
-  let acceptingChannelInNetworkId: string | null = null;
-  let acceptingNetworkInviteId: string | null = null;
+  // Squad/channel invite cards: accepted/declined are persisted in app store; accepting is transient
   let acceptingWalletPeerInfoRequestId: string | null = null;
 
   async function handleAcceptWalletPeerInfoRequest(
@@ -893,202 +750,7 @@
     if (!ok) showToast('Could not send decline.');
   }
 
-  async function acceptAnnouncementsInvite(
-    type: 'squad' | 'network',
-    payload: { groupId: string; name: string; memberSquads?: { id: string; name: string }[] },
-    messageId: string
-  ): Promise<void> {
-    const welcomes = await listPendingMlsWelcomes();
-    const welcome = welcomes.find((w: PendingMlsWelcome) => w.nostr_group_id === payload.groupId);
-    if (!welcome) {
-      const err = new Error('No pending welcome') as Error & { noWelcome?: boolean };
-      err.noWelcome = true;
-      throw err;
-    }
-    acceptedSquadInviteGroupIds.add(payload.groupId);
-    await acceptMlsWelcome(welcome.id);
-    const now = Date.now();
-    const defaultChannels = defaultChannelRowsForGroupId(payload.groupId);
-    if (type === 'squad') {
-      const newSquad: Squad = {
-        id: payload.groupId,
-        name: payload.name,
-        channels: defaultChannels,
-        kind: 'squad',
-        createdAt: now,
-        updatedAt: now,
-      };
-      squads.update((list: Squad[]) => [...list, newSquad]);
-      activeSquadId.set(newSquad.id);
-      activeChannelId.set(payload.groupId);
-      activeHubChannelName.set(ANNOUNCEMENTS_CHANNEL_NAME);
-      activeView.set('hub');
-      acceptedSquadInviteIds.update((ids: string[]) => (ids.includes(messageId) ? ids : [...ids, messageId]));
-    } else {
-      const newSquadPair = normalizeStoredSquad({
-        id: payload.groupId,
-        name: payload.name,
-        channels: defaultChannels,
-        kind: 'squad-pair',
-        pairedSquads: payload.memberSquads,
-        createdAt: now,
-        updatedAt: now,
-      }) as Squad;
-      squads.update((list: Squad[]) => [...list.filter((s) => s.id !== newSquadPair.id), newSquadPair]);
-      // TODO: delete after RNF-5 — legacy network store row for Networks tab.
-      const newNetwork: Network = {
-        id: payload.groupId,
-        name: payload.name,
-        channels: defaultChannels,
-        memberSquads: payload.memberSquads ?? [],
-        createdAt: now,
-        updatedAt: now,
-      };
-      networks.update((list: Network[]) => [...list.filter((n) => n.id !== newNetwork.id), newNetwork]);
-      activeSquadId.set(newNetwork.id);
-      activeChannelId.set(payload.groupId);
-      activeHubChannelName.set(ANNOUNCEMENTS_CHANNEL_NAME);
-      activeTopNavTab.set('squads');
-      activeView.set('hub');
-      acceptedNetworkInviteIds.update((ids: string[]) => (ids.includes(messageId) ? ids : [...ids, messageId]));
-    }
-    try {
-      await syncMlsGroupsNow(payload.groupId);
-    } catch (e) {
-      dmError('syncMlsGroupsNow after accept invite', e);
-    }
-    try {
-      const membersResult = await getMlsGroupMembers(payload.groupId);
-      const memberNpubs = (membersResult.members ?? []) as string[];
-      await backfillSquadMemberEvmFromProfiles(payload.groupId, memberNpubs);
-    } catch (e) {
-      dmError('backfillSquadMemberEvmFromProfiles after accept', e);
-    }
-    bumpMembershipVersion(payload.groupId);
-    pendingReadyToast.set({
-      text: `${payload.name} is ready!`,
-      goTo:
-        type === 'squad'
-          ? {
-              type: 'squad',
-              name: payload.name,
-              id: payload.groupId,
-              channelId: payload.groupId,
-            }
-          : {
-              type: 'squad',
-              name: payload.name,
-              id: payload.groupId,
-              channelId: payload.groupId,
-            },
-    });
-  }
-
-  async function handleAcceptSquadInvite(msg: DmMessage, groupId: string) {
-    const payload = parseSquadInviteMessage(msg.content);
-    if (!payload) return;
-    if (acceptingSquadInviteId) return;
-    acceptingSquadInviteId = msg.id;
-    try {
-      await acceptAnnouncementsInvite('squad', { groupId: payload.groupId, name: payload.squadName }, msg.id);
-    } catch (e) {
-      dmError('Accept squad invite failed', e);
-    } finally {
-      acceptingSquadInviteId = null;
-    }
-  }
-
-  async function handleAcceptChannelInSquad(msg: DmMessage, payload: { channelGroupId: string; announcementsGroupId: string; channelName: string }) {
-    if (acceptingChannelInSquadId) return;
-    acceptingChannelInSquadId = msg.id;
-    try {
-      const welcomes = await listPendingMlsWelcomes();
-      const welcome = welcomes.find((w: PendingMlsWelcome) => w.nostr_group_id === payload.channelGroupId);
-      if (!welcome) {
-        dmError('Accept channel in squad: no pending welcome for channel', payload.channelGroupId);
-        return;
-      }
-      channelInvitePendingAccept.set(payload.channelGroupId, {
-        parentType: 'squad',
-        parentId: payload.announcementsGroupId,
-        channelName: payload.channelName,
-      });
-      acceptedSquadInviteGroupIds.add(payload.channelGroupId);
-      await acceptMlsWelcome(welcome.id);
-      acceptedChannelInviteMessageIds.update((ids: string[]) =>
-        ids.includes(msg.id) ? ids : [...ids, msg.id]
-      );
-    } catch (e) {
-      dmError('Accept channel invite failed', e);
-      channelInvitePendingAccept.delete(payload.channelGroupId);
-      acceptedSquadInviteGroupIds.delete(payload.channelGroupId);
-    } finally {
-      acceptingChannelInSquadId = null;
-    }
-  }
-
-  async function handleAcceptChannelInNetwork(
-    msg: DmMessage,
-    payload: { networkId: string; channelGroupId: string; channelName: string }
-  ) {
-    if (acceptingChannelInNetworkId) return;
-    acceptingChannelInNetworkId = msg.id;
-    try {
-      const welcomes = await listPendingMlsWelcomes();
-      const welcome = welcomes.find((w: PendingMlsWelcome) => w.nostr_group_id === payload.channelGroupId);
-      if (!welcome) {
-        dmError('Accept channel in network: no pending welcome for channel', payload.channelGroupId);
-        return;
-      }
-      channelInvitePendingAccept.set(payload.channelGroupId, {
-        parentType: 'network',
-        parentId: payload.networkId,
-        channelName: payload.channelName,
-      });
-      acceptedSquadInviteGroupIds.add(payload.channelGroupId);
-      await acceptMlsWelcome(welcome.id);
-      acceptedChannelInviteMessageIds.update((ids: string[]) =>
-        ids.includes(msg.id) ? ids : [...ids, msg.id]
-      );
-    } catch (e) {
-      dmError('Accept channel in network invite failed', e);
-      channelInvitePendingAccept.delete(payload.channelGroupId);
-      acceptedSquadInviteGroupIds.delete(payload.channelGroupId);
-    } finally {
-      acceptingChannelInNetworkId = null;
-    }
-  }
-
-  async function handleAcceptNetworkInvite(
-    msg: DmMessage,
-    payload: { networkName: string; groupId: string; memberSquads: { id: string; name: string }[] }
-  ) {
-    if (acceptingNetworkInviteId) return;
-    acceptingNetworkInviteId = msg.id;
-    dmSendError.set(null);
-    try {
-      await acceptAnnouncementsInvite('network', {
-        groupId: payload.groupId,
-        name: payload.networkName,
-        memberSquads: payload.memberSquads,
-      }, msg.id);
-    } catch (e) {
-      const err = e as Error & { noWelcome?: boolean };
-      if (err?.noWelcome) {
-        dmSendError.set('No pending invite for this network. The invite may have expired.');
-      } else {
-        dmError('Accept network invite failed', e);
-        dmSendError.set(friendlyMessage(getInvokeErrorMessage(e)) || 'Failed to accept network invite.');
-      }
-    } finally {
-      acceptingNetworkInviteId = null;
-    }
-  }
-
   let dmTypingTimeout: ReturnType<typeof setTimeout> | null = null;
-  /** Timeouts that clear "Typing" after no updates (backend doesn't emit when typing expires). */
-  const typingClearTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
-  const TYPING_EXPIRY_SEC = 15;
 
   function handleDmTyping() {
     const npub = $activeDmId;
@@ -1144,7 +806,7 @@
     prevTopNavTab = 'squads';
     syncMlsGroupsNow(null).catch(() => {});
     clearUngroupedChannels();
-    // Restore last opened squad/channel: use per-squad last channel only (so Networks tab can't overwrite it), else first (announcements)
+    // Restore last opened squad/channel: use per-squad last channel, else first (announcements)
     const lastSquadId = $lastOpenedSquadId;
     const squad = lastSquadId ? $squads.find((s: Squad) => s.id === lastSquadId) : null;
     const mapSnapshot = { ...$lastChannelBySquadId };
@@ -1177,43 +839,6 @@
       activeChannelId.set(sorted[0]?.groupId ?? null);
       activeHubChannelName.set(sorted[0]?.name ?? null);
     }
-  } else if ($activeTopNavTab === 'networks' && prevTopNavTab !== 'networks') {
-    prevTopNavTab = 'networks';
-    // Restore last-opened network/channel: prefer per-network last channel, then global last, then first (announcements)
-    const lastNetId = $lastOpenedNetworkId;
-    const net = lastNetId ? $networks.find((n: Network) => n.id === lastNetId) : null;
-    if (net) {
-      activeNetworkId.set(net.id);
-      const sorted = [...net.channels].sort((a: Channel, b: Channel) => a.order - b.order);
-      const firstCh = sorted[0];
-      const lastChanId = $lastOpenedNetworkChannelId;
-      const lastForNet = $lastChannelByNetworkId[net.id];
-      const lastIsDashboard = lastChanId === DASHBOARD_CHANNEL_ID || lastForNet === DASHBOARD_CHANNEL_ID;
-      const ch =
-        lastIsDashboard
-          ? null
-          : lastChanId && sorted.some((c: Channel) => c.groupId === lastChanId)
-            ? sorted.find((c: Channel) => c.groupId === lastChanId)
-            : lastForNet && sorted.some((c: Channel) => c.groupId === lastForNet)
-              ? sorted.find((c: Channel) => c.groupId === lastForNet)
-              : firstCh;
-      const netCid = lastIsDashboard ? DASHBOARD_CHANNEL_ID : (ch?.groupId ?? firstCh?.groupId ?? null);
-      activeChannelId.set(netCid);
-      const hub =
-        netCid && netCid !== DASHBOARD_CHANNEL_ID
-          ? resolveHubChannelNameForGroupSelection(sorted, netCid, $lastHubChannelNameByNetworkId[net.id])
-          : null;
-      activeHubChannelName.set(hub);
-    } else if ($networks.length > 0) {
-      const currentNet = $activeNetworkId ? $networks.find((n: Network) => n.id === $activeNetworkId) : null;
-      if (!currentNet) {
-        const first = $networks[0];
-        const firstCh = first.channels.slice().sort((a: Channel, b: Channel) => a.order - b.order)[0];
-        activeNetworkId.set(first.id);
-        activeChannelId.set(firstCh?.groupId ?? null);
-        activeHubChannelName.set(firstCh?.name ?? null);
-      }
-    }
   } else if ($activeTopNavTab !== 'squads') {
     // Persist squad channel when leaving Squads tab so it restores correctly when returning
     if (prevTopNavTab === 'squads' && $activeSquadId) {
@@ -1243,33 +868,6 @@
         }
       }
     }
-    // Persist network channel when leaving Networks tab so it restores correctly when returning
-    if (prevTopNavTab === 'networks' && $activeNetworkId) {
-      const nid = $activeNetworkId;
-      const cid = $activeChannelId;
-      if (cid && !cid.startsWith('creating-')) {
-        lastOpenedNetworkId.set(nid);
-        lastOpenedNetworkChannelId.set(cid);
-        lastChannelByNetworkId.update((m: Record<string, string>) => ({ ...m, [nid]: cid }));
-        const net = $networks.find((n: Network) => n.id === nid);
-        if (cid === DASHBOARD_CHANNEL_ID) {
-          lastHubChannelNameByNetworkId.update((m) => {
-            const next = { ...m };
-            delete next[nid];
-            return next;
-          });
-        } else if (net) {
-          const hub =
-            resolveHubChannelNameForGroupSelection(net.channels, cid, $activeHubChannelName) ?? '';
-          lastHubChannelNameByNetworkId.update((m) => {
-            const next = { ...m };
-            if (!hub) delete next[nid];
-            else next[nid] = hub;
-            return next;
-          });
-        }
-      }
-    }
     prevTopNavTab = $activeTopNavTab;
   }
 
@@ -1290,307 +888,10 @@
       clearUngroupedChannels();
     }
 
-    const unlistenNew = listen<{ message: DmMessage; chat_id: string }>('message_new', (event) => {
-      const { message, chat_id } = event.payload;
-      dmLog('message_new', { chat_id: chat_id.slice(0, 20) + '…', messageId: message.id?.slice(0, 12), mine: message.mine });
-      if (!chat_id.startsWith('npub1')) return;
-      const content = message.content ?? '';
-      const isPactoRoutableInvite = isPactoAppRoutableInviteContent(content);
-      const m: DmMessage = {
-        id: message.id,
-        content: message.content,
-        at: message.at,
-        mine: message.mine,
-        npub: message.npub,
-        pending: message.pending,
-        failed: message.failed,
-        virtual_bucket: (message as { virtual_bucket?: string | null }).virtual_bucket,
-        replied_to: (message as { replied_to?: string }).replied_to,
-        replied_to_content: (message as { replied_to_content?: string | null }).replied_to_content,
-        replied_to_npub: (message as { replied_to_npub?: string | null }).replied_to_npub,
-        replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
-      };
-      if (isPactoRoutableInvite) {
-        if (!m.mine) {
-          appendPactoAppInboxMessage(m, resolveInviteInviterNpub(m, chat_id, content));
-        }
-      } else {
-        backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
-          const list = byNpub[chat_id] ?? [];
-          if (list.some((x) => x.id === m.id)) return byNpub;
-          const withoutOpt = list.filter(
-            (x) => !(x.id.startsWith('opt-') && x.mine && x.content === m.content)
-          );
-          return { ...byNpub, [chat_id]: [...withoutOpt, m] };
-        });
-        dmChatsByNpub.update((map: Record<string, DmChatState>) => {
-          const cur = map[chat_id];
-          const next = {
-            npub: chat_id,
-            name: cur?.name,
-            avatar: cur?.avatar,
-            hasFromMe: (cur?.hasFromMe ?? false) || m.mine,
-            hasFromThem: (cur?.hasFromThem ?? false) || !m.mine,
-            lastAt: Math.max(cur?.lastAt ?? 0, m.at),
-          };
-          return { ...map, [chat_id]: next };
-        });
-      }
-      // Sender sent a message — clear "Typing" for this chat and cancel expiry timeout
-      const clearTimeoutId = typingClearTimeouts.get(chat_id);
-      if (clearTimeoutId) {
-        clearTimeout(clearTimeoutId);
-        typingClearTimeouts.delete(chat_id);
-      }
-      typingByChat.update((by: Record<string, string[]>) => {
-        if (!by[chat_id]?.length) return by;
-        return { ...by, [chat_id]: [] };
-      });
+    return subscribeAppEvents({
+      mergeTreasurySafesForParent,
+      mergeSquadInfraForParent,
     });
-
-    const unlistenUpdate = listen<{ old_id: string; message: DmMessage; chat_id: string }>(
-      'message_update',
-      (event) => {
-        const { old_id, message, chat_id } = event.payload;
-        dmLog('message_update', { chat_id: chat_id.slice(0, 20) + '…', old_id: old_id?.slice(0, 12), new_id: message.id?.slice(0, 12) });
-        const m: DmMessage = {
-          id: message.id,
-          content: message.content,
-          at: message.at,
-          mine: message.mine,
-          npub: message.npub,
-          pending: message.pending,
-          failed: message.failed,
-          virtual_bucket: (message as { virtual_bucket?: string | null }).virtual_bucket,
-          replied_to: (message as { replied_to?: string }).replied_to,
-          replied_to_content: (message as { replied_to_content?: string | null }).replied_to_content,
-          replied_to_npub: (message as { replied_to_npub?: string | null }).replied_to_npub,
-          replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
-        };
-        if (chat_id.startsWith('npub1')) {
-          const msgContent = m.content ?? '';
-          if (isPactoAppRoutableInviteContent(msgContent)) {
-            if (!m.mine) {
-              appendPactoAppInboxMessage(m, resolveInviteInviterNpub(m, chat_id, msgContent));
-            }
-          } else {
-            backendDmMessages.update((byNpub: Record<string, DmMessage[]>) => {
-              const list = byNpub[chat_id] ?? [];
-              const out = list.filter((x) => x.id !== old_id && x.id !== m.id);
-              return {
-                ...byNpub,
-                [chat_id]: [...out, m].sort((a: DmMessage, b: DmMessage) => a.at - b.at),
-              };
-            });
-          }
-        } else {
-          // Group chat: replace old_id with real message so sender doesn't see duplicate (pending-* → real id)
-          backendGroupMessages.update((byGroup: Record<string, DmMessage[]>) => {
-            const list = byGroup[chat_id] ?? [];
-            const out = list.filter((x) => x.id !== old_id && x.id !== m.id);
-            return {
-              ...byGroup,
-              [chat_id]: [...out, m].sort((a: DmMessage, b: DmMessage) => a.at - b.at),
-            };
-          });
-          const announce = parseAnnouncement(m.content);
-          if (announce?.type === 'squad_safe_updated') {
-            mergeTreasurySafesForParent(announce.payload.squad_id);
-          }
-          if (announce?.type === ANNOUNCE_TYPE_GOVERNANCE_UPDATED) {
-            mergeSquadInfraForParent(announce.payload.parent_id);
-          }
-        }
-      }
-    );
-
-    // Drive historical sync: backend emits sync_slice_finished after each 2-day window; we must call fetch_messages(init: false) to get the next window.
-    const unlistenSyncSlice = listen('sync_slice_finished', () => {
-      dmLog('sync_slice_finished → fetchMessages(false)');
-      dmSyncStatus.set('syncing');
-      fetchMessages(false).catch((e) => {
-        dmError('sync_slice_finished: fetchMessages(false) failed', e);
-      });
-    });
-
-    const unlistenSyncProgress = listen('sync_progress', () => {
-      dmSyncStatus.update((s: SyncStatus) => (s === 'idle' ? 'syncing' : s));
-    });
-
-    const unlistenSyncFinished = listen('sync_finished', () => {
-      dmLog('sync_finished (historical sync complete)');
-      migrateInvitesToPactoAppInbox();
-      dmSyncStatus.set('finished');
-      setTimeout(() => dmSyncStatus.set('idle'), 2500);
-    });
-
-    const unlistenTyping = listen<{ conversation_id: string; typers: string[] }>('typing-update', (e) => {
-      const { conversation_id, typers } = e.payload;
-      if (!conversation_id.startsWith('npub1')) return;
-      const list = typers ?? [];
-      typingByChat.update((by: Record<string, string[]>) => ({ ...by, [conversation_id]: list }));
-
-      // Clear "Typing" after TYPING_EXPIRY_SEC if we don't get another update (backend doesn't re-emit on expiry)
-      const existing = typingClearTimeouts.get(conversation_id);
-      if (existing) clearTimeout(existing);
-      typingClearTimeouts.delete(conversation_id);
-      if (list.length > 0) {
-        const t = setTimeout(() => {
-          typingClearTimeouts.delete(conversation_id);
-          typingByChat.update((by: Record<string, string[]>) => {
-            const next = { ...by };
-            if (next[conversation_id]?.length) next[conversation_id] = [];
-            return next;
-          });
-        }, TYPING_EXPIRY_SEC * 1000);
-        typingClearTimeouts.set(conversation_id, t);
-      }
-    });
-
-    const unlistenMlsNew = listen<{ group_id: string; message: DmMessage; group_name?: string }>('mls_message_new', (event) => {
-      const { group_id, message, group_name } = event.payload;
-      const m: DmMessage = {
-        id: message.id,
-        content: message.content,
-        at: message.at,
-        mine: message.mine,
-        npub: message.npub,
-        pending: message.pending,
-        failed: message.failed,
-        virtual_bucket: (message as { virtual_bucket?: string | null }).virtual_bucket,
-        replied_to: (message as { replied_to?: string }).replied_to,
-        replied_to_content: (message as { replied_to_content?: string | null }).replied_to_content,
-        replied_to_npub: (message as { replied_to_npub?: string | null }).replied_to_npub,
-        replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null }).replied_to_has_attachment,
-      };
-      backendGroupMessages.update((byGroup: Record<string, DmMessage[]>) => {
-        const list = byGroup[group_id] ?? [];
-        if (list.some((x) => x.id === m.id)) return byGroup;
-        // Remove optimistic placeholder (opt-* or pending-*) so we don't show duplicate when real message arrives
-        const withoutOpt = list.filter(
-          (x) => !((x.id.startsWith('opt-') || x.id.startsWith('pending-')) && x.mine && x.content === m.content)
-        );
-        return { ...byGroup, [group_id]: [...withoutOpt, m] };
-      });
-      const announce = parseAnnouncement(m.content);
-      if (announce?.type === 'squad_safe_updated') {
-        mergeTreasurySafesForParent(announce.payload.squad_id);
-      }
-      if (announce?.type === ANNOUNCE_TYPE_GOVERNANCE_UPDATED) {
-        mergeSquadInfraForParent(announce.payload.parent_id);
-      }
-      if (group_name) updateChannelNameIfPlaceholder(group_id, group_name);
-    });
-
-    async function refreshPendingWelcomes() {
-      console.log('[Squad/Invite] refreshPendingWelcomes: calling listPendingMlsWelcomes…');
-      const list = await listPendingMlsWelcomes();
-      pendingMlsWelcomes.set(list);
-      console.log('[Squad/Invite] refreshPendingWelcomes: count=', list.length, 'welcomes=', list.map((w) => ({ groupId: w.nostr_group_id?.slice(0, 16) + '…', name: w.group_name, wrapperId: w.wrapper_event_id?.slice(0, 16) + '…' })));
-    }
-
-    refreshPendingWelcomes().catch((e) => dmError('refreshPendingWelcomes', e));
-
-    const unlistenInviteReceived = listen('mls_invite_received', () => {
-      console.log('[Squad/Invite] mls_invite_received event: refreshing pending welcomes');
-      refreshPendingWelcomes().catch((e) => dmError('mls_invite_received refresh', e));
-    });
-
-    const unlistenWelcomeAccepted = listen<{ group_id: string }>('mls_welcome_accepted', (event) => {
-      const group_id = event.payload.group_id;
-      refreshPendingWelcomes().catch((e) => dmError('mls_welcome_accepted refresh', e));
-      // Channel invite (squad or network): add this channel to the right parent
-      const channelInviteInfo = channelInvitePendingAccept.get(group_id);
-      if (channelInviteInfo) {
-        channelInvitePendingAccept.delete(group_id);
-        acceptedSquadInviteGroupIds.delete(group_id);
-        addChannelToParent(
-          channelInviteInfo.parentType,
-          channelInviteInfo.parentId,
-          group_id,
-          channelInviteInfo.channelName
-        );
-        return;
-      }
-      if (acceptedSquadInviteGroupIds.has(group_id)) {
-        acceptedSquadInviteGroupIds.delete(group_id);
-        return;
-      }
-      const list = get(squads);
-      const singleChannelSquads = list.filter((s: Squad) => s.channels.length === 1);
-      if (singleChannelSquads.length === 1) {
-        const squad = singleChannelSquads[0];
-        const name = group_id.slice(0, 12) + '…';
-        const newChannel: Channel = { name, groupId: group_id, order: squad.channels.length };
-        squads.update((l: Squad[]) =>
-          l.map((s: Squad) => (s.id !== squad.id ? s : { ...s, channels: [...s.channels, newChannel] }))
-        );
-        return;
-      }
-      // Unattributed MLS welcome: do not add to app (potential attack vector).
-    });
-
-    // Backend auto-accepted a channel invite (user already in parent). addChannelToParent works for squad and network.
-    const unlistenChannelAddedToSquad = listen<{
-      announcements_group_id: string;
-      channel_group_id: string;
-      channel_name: string;
-    }>('channel_added_to_squad', (event) => {
-      const { announcements_group_id, channel_group_id, channel_name } = event.payload;
-      refreshPendingWelcomes().catch((e) => dmError('channel_added_to_squad refresh', e));
-      addChannelToParent('squad', announcements_group_id, channel_group_id, channel_name);
-    });
-
-    const unlistenChannelAddedToNetwork = listen<{
-      announcements_group_id?: string;
-      network_id: string;
-      channel_group_id: string;
-      channel_name: string;
-    }>('channel_added_to_network', (event) => {
-      const { announcements_group_id, network_id, channel_group_id, channel_name } = event.payload;
-      const parentId = announcements_group_id ?? network_id;
-      refreshPendingWelcomes().catch((e) => dmError('channel_added_to_network refresh', e));
-      addChannelToParent('network', parentId, channel_group_id, channel_name);
-    });
-
-    const unlistenGroupUpdated = listen<{ group_id?: string }>('mls_group_updated', (event) => {
-      const gid = event.payload?.group_id;
-      if (gid) bumpMembershipVersion(gid);
-    });
-    const unlistenGroupInitialSync = listen<{ group_id?: string }>('mls_group_initial_sync', (event) => {
-      const gid = event.payload?.group_id;
-      if (gid) bumpMembershipVersion(gid);
-    });
-    const unlistenGroupLeft = listen<{ group_id?: string }>('mls_group_left', (event) => {
-      const gid = event.payload?.group_id;
-      if (gid) bumpMembershipVersion(gid);
-    });
-
-    const unlistenDashboardPollReplica = listen('dashboard_poll_replica_updated', (event) => {
-      const raw = event.payload as Record<string, unknown> | undefined;
-      const pidRaw = raw?.parent_id ?? raw?.parentId;
-      const pid = typeof pidRaw === 'string' ? pidRaw.trim() : '';
-      if (!pid) return;
-      dashboardPollReplicaNonceByParentId.update((m) => ({ ...m, [pid]: (m[pid] ?? 0) + 1 }));
-    });
-
-    return () => {
-      unlistenNew.then((fn) => fn());
-      unlistenUpdate.then((fn) => fn());
-      unlistenSyncSlice.then((fn) => fn());
-      unlistenSyncProgress.then((fn) => fn());
-      unlistenSyncFinished.then((fn) => fn());
-      unlistenTyping.then((fn) => fn());
-      unlistenMlsNew.then((fn) => fn());
-      unlistenInviteReceived.then((fn) => fn());
-      unlistenWelcomeAccepted.then((fn) => fn());
-      unlistenChannelAddedToSquad.then((fn) => fn());
-      unlistenChannelAddedToNetwork.then((fn) => fn());
-      unlistenGroupUpdated.then((fn) => fn());
-      unlistenGroupInitialSync.then((fn) => fn());
-      unlistenGroupLeft.then((fn) => fn());
-      unlistenDashboardPollReplica.then((fn) => fn());
-    };
   });
 </script>
 
@@ -1620,27 +921,17 @@
                 onLoadOlder={loadOlder}
                 onSend={handleDmSend}
                 onTyping={handleDmTyping}
-                onAcceptSquadInvite={handleAcceptSquadInvite}
-                onAcceptChannelInSquad={handleAcceptChannelInSquad}
-                onAcceptChannelInNetwork={handleAcceptChannelInNetwork}
-                onAcceptNetworkInvite={handleAcceptNetworkInvite}
+                onAcceptSquadInvite={(msg) => acceptSquadOrPairInvite(msg)}
+                onAcceptChannelInSquad={acceptChannelInSquadInvite}
                 onDeclineSquad={(msg: DmMessage) =>
                   declinedSquadInviteIds.update((ids: string[]) => (ids.includes(msg.id) ? ids : [...ids, msg.id]))}
-                onDeclineNetwork={(msg: DmMessage) =>
-                  declinedNetworkInviteIds.update((ids: string[]) => (ids.includes(msg.id) ? ids : [...ids, msg.id]))}
                 onDeclineChannelInSquad={(msg: DmMessage) =>
                   declinedChannelInviteMessageIds.update((ids: string[]) =>
                     ids.includes(msg.id) ? ids : [...ids, msg.id]
                   )}
-                onDeclineChannelInNetwork={(msg: DmMessage) =>
-                  declinedChannelInviteMessageIds.update((ids: string[]) =>
-                    ids.includes(msg.id) ? ids : [...ids, msg.id]
-                  )}
                 onOpenInviterChat={openInviterDm}
-                acceptingSquadInviteId={acceptingSquadInviteId}
-                acceptingChannelInSquadId={acceptingChannelInSquadId}
-                acceptingChannelInNetworkId={acceptingChannelInNetworkId}
-                acceptingNetworkInviteId={acceptingNetworkInviteId}
+                acceptingSquadInviteId={$acceptingSquadInviteId}
+                acceptingChannelInSquadId={$acceptingChannelInSquadId}
                 onAcceptWalletPeerInfoRequest={handleAcceptWalletPeerInfoRequest}
                 onDeclineWalletPeerInfoRequest={handleDeclineWalletPeerInfoRequest}
                 acceptingWalletPeerInfoRequestId={acceptingWalletPeerInfoRequestId}
@@ -1699,11 +990,10 @@
         </div>
       {:else}
         <div class="parent-area">
-          <ParentNavbar type={$activeTopNavTab === 'networks' ? 'network' : 'squad'} />
+          <ParentNavbar />
           {#if $activeChannelId === DASHBOARD_CHANNEL_ID && openHubParent}
             <ParentDashboard
               parent={openHubParent}
-              parentType={openHubParentLegacyType}
               treasurySafes={$treasurySafesByParentId[openHubParent.id] ?? []}
               governanceConfig={(() => {
                 const id = openHubParent.id;
@@ -1812,8 +1102,7 @@
   }
 
   .parent-area,
-  .squads-area,
-  .networks-area {
+  .squads-area {
     flex: 1;
     min-width: 0;
     min-height: 0;

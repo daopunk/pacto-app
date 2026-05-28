@@ -11,8 +11,6 @@ import {
   getInviteDecisionLoadEntries,
   acceptedSquadInviteIds,
   declinedSquadInviteIds,
-  acceptedNetworkInviteIds,
-  declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
   declinedWalletTxRequestMessageIds,
@@ -35,8 +33,6 @@ export { PACTO_APP_DM_THREAD_ID, PACTO_APP_DISPLAY_NAME, isPactoAppThreadId } fr
 export {
   acceptedSquadInviteIds,
   declinedSquadInviteIds,
-  acceptedNetworkInviteIds,
-  declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
   declinedWalletTxRequestMessageIds,
@@ -56,8 +52,8 @@ function persistenceKey(prefix: string): string | null {
   return npub ? `${prefix}_${npub}` : null;
 }
 
-// Top navbar tab - determines what the side Navbar shows (DMs, Squads, Networks)
-export type TopNavTab = 'dms' | 'networks' | 'squads';
+// Top navbar tab - determines what the side Navbar shows (DMs, Squads)
+export type TopNavTab = 'dms' | 'squads';
 export const activeTopNavTab = writable<TopNavTab>('squads');
 
 // UI state stores - what's currently selected
@@ -97,7 +93,7 @@ parentDashboardChannelMode.subscribe((mode) => {
   }
 });
 
-// Members panel (right-hand bar in squad/network channel view): keep open across tab switches until user closes
+// Members panel (right-hand bar in squad channel view): keep open across tab switches until user closes
 export const showMembersPanel = writable<boolean>(false);
 
 // DMs: which sub-tab (Friends, Requests, Pending, Search, Pinned)
@@ -125,7 +121,7 @@ export const composingNewChat = writable<boolean>(false);
 
 /**
  * When true, WalletBar is shown whenever the user is in a valid DM wallet context (Friends/Pinned hub with a thread).
- * Open/closed is only changed by the user (toggle in thread) or sign-out; navigating to Squads/Networks does not clear it.
+ * Open/closed is only changed by the user (toggle in thread) or sign-out; navigating away from a DM does not clear it.
  */
 export const walletSidebarOpen = writable<boolean>(false);
 
@@ -186,7 +182,7 @@ export const dmList = derived(
       (c) => c.hasFromMe && c.hasFromThem && !$pinned.has(c.npub) && !$blocked.has(c.npub)
     )
 );
-// Requests: they messaged us, we haven't replied. Includes invite-only DMs (squad/network/channel-in-squad) from non-friends.
+// Requests: they messaged us, we haven't replied. Includes invite-only DMs (squad / channel-in-squad) from non-friends.
 export const requestsList = derived([dmChatsByNpub, blockedDmNpubs] as const, ([$m, $blocked]) =>
   toDmEntries($m, (c) => !c.hasFromMe && c.hasFromThem && !$blocked.has(c.npub))
 );
@@ -391,7 +387,7 @@ export function appendPactoAppInboxMessage(message: DmMessage, inviterNpub: stri
 }
 
 /** Move inbound invite DMs from peer threads into the Pacto App inbox (idempotent). */
-export function migrateInvitesToPactoAppInbox(): void {
+export function reconcilePeerThreadInvites(): void {
   let inboxSnapshot: PactoAppInboxEntry[] = [];
   pactoAppInboxMessages.update((list) => {
     inboxSnapshot = [...list];
@@ -475,7 +471,7 @@ export interface Channel {
   order: number;
 }
 
-/** Canonical name for the first channel of every squad and network (announcements group). */
+/** Canonical name for the first channel of every squad (announcements group). */
 export const ANNOUNCEMENTS_CHANNEL_NAME = 'announcements';
 
 /** Application / on-chain bot-style updates (users cannot compose here). */
@@ -484,7 +480,7 @@ export const INBOX_CHANNEL_NAME = 'inbox';
 /** Nostr-backed squad polls (MLS channel). */
 export const POLLS_CHANNEL_NAME = 'polls';
 
-/** Virtual channel id for the squad/network dashboard (not an MLS group; profile-like view). Shown above # announcements. */
+/** Virtual channel id for the squad dashboard (not an MLS group; profile-like view). Shown above # announcements. */
 export const DASHBOARD_CHANNEL_ID = '__dashboard__';
 export const DASHBOARD_CHANNEL_NAME = 'dashboard';
 
@@ -495,7 +491,7 @@ export const DASHBOARD_CHANNEL_NAME = 'dashboard';
 export const squadInfraByParentId = writable<Record<string, SquadInfraDto[]>>({});
 
 /**
- * Treasury Safe rows per parent id (squad or network). Updated from SQLite and when
+ * Treasury Safe rows per parent id. Updated from SQLite and when
  * `squad_safe_updated` announce-cards arrive in #announcements.
  */
 export const treasurySafesByParentId = writable<Record<string, TreasurySafeEntry[]>>({});
@@ -505,17 +501,14 @@ export type { SquadInfraDto };
 
 import { ensureDefaultHubChannelRows } from '../lib/parent-navbar';
 import {
-  mergeNetworkRowsIntoSquads,
-  networkToSquadPair,
   normalizeStoredSquad,
-  squadsToNetworkView,
   type PairedSquads,
   type PairedSquadRef,
   type SquadKind,
 } from '../lib/squad-pair';
 
 export type { SquadKind, PairedSquadRef, PairedSquads };
-export { partnerSquadsForAnchor } from '../lib/squad-pair';
+export { partnerSquadsForAnchor, partnerSquadsForHubParent } from '../lib/squad-pair';
 
 /** Normalize a channel from storage (drops legacy `id` if present). Renames pre–step-17 `monitor` → `inbox`. */
 export function normalizeStoredChannel(ch: { name: string; groupId: string; order: number }): Channel {
@@ -547,18 +540,6 @@ export interface Squad {
   updatedAt: number;
 }
 
-// Network = same shape as Squad but formed from multiple squads; memberSquads used for heading sub-title.
-export interface Network {
-  id: string;
-  name: string;
-  iconUrl?: string;
-  channels: Channel[];
-  /** Squads that form this network (id + name at creation). Used for network heading sub-heading. */
-  memberSquads: { id: string; name: string }[];
-  createdAt: number;
-  updatedAt: number;
-}
-
 const PACTO_SQUADS_PREFIX = 'pacto_squads';
 
 export const squads = writable<Squad[]>([]);
@@ -574,23 +555,6 @@ squads.subscribe((value) => {
   }
 });
 
-const PACTO_NETWORKS_PREFIX = 'pacto_networks';
-
-/** TODO: delete after RNF-5 — legacy Network store; squad-pairs live in `squads`. */
-export const networks = writable<Network[]>([]);
-
-/** TODO: delete after RNF-5 — mirror legacy network rows into squads until Networks tab is removed. */
-let mirroringNetworksIntoSquads = false;
-networks.subscribe((networkList) => {
-  if (mirroringNetworksIntoSquads) return;
-  mirroringNetworksIntoSquads = true;
-  try {
-    squads.update((list) => mergeNetworkRowsIntoSquads(list, networkList) as Squad[]);
-  } finally {
-    mirroringNetworksIntoSquads = false;
-  }
-});
-
 /** Returns true if the channel display name looks like a placeholder (e.g. truncated groupId). */
 export function isPlaceholderChannelName(groupId: string, name: string): boolean {
   if (!name || name.length < 10) return false;
@@ -600,7 +564,7 @@ export function isPlaceholderChannelName(groupId: string, name: string): boolean
 
 /**
  * If a channel with this groupId has a placeholder name (e.g. hash), update it to newName
- * in squads, networks, and ungroupedChannels. Only updates when current name is placeholder-like.
+ * in squads and ungroupedChannels. Only updates when current name is placeholder-like.
  */
 export function updateChannelNameIfPlaceholder(groupId: string, newName: string): void {
   if (!newName || typeof newName !== 'string') return;
@@ -611,16 +575,6 @@ export function updateChannelNameIfPlaceholder(groupId: string, newName: string)
     list.map((s) => ({
       ...s,
       channels: s.channels.map((ch) =>
-        ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)
-          ? { ...ch, name }
-          : ch
-      ),
-    }))
-  );
-  networks.update((list) =>
-    list.map((n) => ({
-      ...n,
-      channels: n.channels.map((ch) =>
         ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)
           ? { ...ch, name }
           : ch
@@ -646,7 +600,7 @@ export const groupSendError = writable<string | null>(null);
 
 export const pendingMlsWelcomes = writable<PendingMlsWelcome[]>([]);
 
-/** Parent ids (squad or network, temp or group id) that are optimistically created and still creating their announcements channel. Cleared on success/failure or logout. */
+/** Parent ids (squad, temp or group id) that are optimistically created and still creating their announcements channel. Cleared on success/failure or logout. */
 export const parentsCreatingAnnouncements = writable<Set<string>>(new Set());
 
 export function addParentCreatingAnnouncements(id: string): void {
@@ -686,7 +640,6 @@ const LAST_CHANNEL_ID_PREFIX = 'pacto_last_channel_id';
 // Per-squad last channel (squadId -> channelId) so returning to a squad restores its channel
 const LAST_CHANNEL_BY_SQUAD_PREFIX = 'pacto_last_channel_by_squad';
 const LAST_HUB_CHANNEL_NAME_BY_SQUAD_PREFIX = 'pacto_last_hub_channel_name_by_squad';
-const LAST_HUB_CHANNEL_NAME_BY_NETWORK_PREFIX = 'pacto_last_hub_channel_name_by_network';
 
 export const lastOpenedSquadId = writable<string | null>(null);
 export const lastOpenedChannelId = writable<string | null>(null);
@@ -728,18 +681,6 @@ lastHubChannelNameBySquadId.subscribe((map) => {
   }
 });
 
-// Last opened network/channel for restore when switching to Networks view (npub-scoped)
-const LAST_NETWORK_ID_PREFIX = 'pacto_last_network_id';
-const LAST_NETWORK_CHANNEL_ID_PREFIX = 'pacto_last_network_channel_id';
-// Per-network last channel (networkId -> channelId) so returning to a network restores its channel
-const LAST_CHANNEL_BY_NETWORK_PREFIX = 'pacto_last_channel_by_network';
-
-export const activeNetworkId = writable<string | null>(null);
-export const lastOpenedNetworkId = writable<string | null>(null);
-export const lastOpenedNetworkChannelId = writable<string | null>(null);
-export const lastChannelByNetworkId = writable<Record<string, string>>({});
-export const lastHubChannelNameByNetworkId = writable<Record<string, string>>({});
-
 /** Monotonic version per MLS group id; increments when backend signals membership changes. */
 export const membershipVersionByGroupId = writable<Record<string, number>>({});
 
@@ -749,41 +690,6 @@ export function bumpMembershipVersion(groupId: string): void {
     [groupId]: (map[groupId] ?? 0) + 1,
   }));
 }
-
-lastOpenedNetworkId.subscribe((id) => {
-  if (typeof localStorage === 'undefined') return;
-  const key = persistenceKey(LAST_NETWORK_ID_PREFIX);
-  if (!key) return;
-  if (id) localStorage.setItem(key, id);
-  else localStorage.removeItem(key);
-});
-lastOpenedNetworkChannelId.subscribe((id) => {
-  if (typeof localStorage === 'undefined') return;
-  const key = persistenceKey(LAST_NETWORK_CHANNEL_ID_PREFIX);
-  if (!key) return;
-  if (id) localStorage.setItem(key, id);
-  else localStorage.removeItem(key);
-});
-lastChannelByNetworkId.subscribe((map) => {
-  if (typeof localStorage === 'undefined') return;
-  const key = persistenceKey(LAST_CHANNEL_BY_NETWORK_PREFIX);
-  if (!key) return;
-  try {
-    localStorage.setItem(key, JSON.stringify(map));
-  } catch {
-    // ignore quota
-  }
-});
-lastHubChannelNameByNetworkId.subscribe((map) => {
-  if (typeof localStorage === 'undefined') return;
-  const key = persistenceKey(LAST_HUB_CHANNEL_NAME_BY_NETWORK_PREFIX);
-  if (!key) return;
-  try {
-    localStorage.setItem(key, JSON.stringify(map));
-  } catch {
-    // ignore quota
-  }
-});
 
 /** Load account-specific state from localStorage for the given npub. Call after login/create/import/unlock. */
 export function loadAccountState(npub: string): void {
@@ -798,30 +704,7 @@ export function loadAccountState(npub: string): void {
       const list = Array.isArray(parsed) ? (parsed as Squad[]) : [];
       loadedSquads = list.map((s) => normalizeSquadFromStorage(s));
     }
-    // TODO: delete after RNF-5 — one-time migrate pacto_networks_* into squads as squad-pair.
-    const rawNetworks = localStorage.getItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
-    if (rawNetworks) {
-      const parsed = JSON.parse(rawNetworks) as unknown;
-      const legacy = Array.isArray(parsed) ? (parsed as Network[]) : [];
-      for (const n of legacy) {
-        const migrated = networkToSquadPair({
-          ...n,
-          channels: normalizeParentChannels(n.channels),
-        }) as Squad;
-        if (!loadedSquads.some((s) => s.id === migrated.id)) {
-          loadedSquads.push(migrated);
-        }
-      }
-      localStorage.removeItem(`${PACTO_NETWORKS_PREFIX}_${npub}`);
-    }
     squads.set(loadedSquads);
-    // TODO: delete after RNF-5 — populate legacy networks store for Networks tab until removed.
-    mirroringNetworksIntoSquads = true;
-    try {
-      networks.set(squadsToNetworkView(loadedSquads) as Network[]);
-    } finally {
-      mirroringNetworksIntoSquads = false;
-    }
     const pinnedKey = `${PINNED_DM_NPUBS_PREFIX}_${npub}`;
     const rawPinned = localStorage.getItem(pinnedKey);
     if (rawPinned) {
@@ -868,30 +751,6 @@ export function loadAccountState(npub: string): void {
       }
     }
 
-    const lastNetwork = localStorage.getItem(`${LAST_NETWORK_ID_PREFIX}_${npub}`);
-    if (lastNetwork) lastOpenedNetworkId.set(lastNetwork);
-    const lastNetworkChannel = localStorage.getItem(`${LAST_NETWORK_CHANNEL_ID_PREFIX}_${npub}`);
-    if (lastNetworkChannel) lastOpenedNetworkChannelId.set(lastNetworkChannel);
-    const rawByNetwork = localStorage.getItem(`${LAST_CHANNEL_BY_NETWORK_PREFIX}_${npub}`);
-    if (rawByNetwork) {
-      try {
-        const parsed = JSON.parse(rawByNetwork) as unknown;
-        lastChannelByNetworkId.set(typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {});
-      } catch {
-        lastChannelByNetworkId.set({});
-      }
-    }
-    const rawHubByNetwork = localStorage.getItem(`${LAST_HUB_CHANNEL_NAME_BY_NETWORK_PREFIX}_${npub}`);
-    if (rawHubByNetwork) {
-      try {
-        const parsed = JSON.parse(rawHubByNetwork) as unknown;
-        lastHubChannelNameByNetworkId.set(
-          typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {}
-        );
-      } catch {
-        lastHubChannelNameByNetworkId.set({});
-      }
-    }
     for (const [key, setStore] of getInviteDecisionLoadEntries(npub)) {
       try {
         const raw = localStorage.getItem(key);

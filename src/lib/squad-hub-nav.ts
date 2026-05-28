@@ -15,7 +15,6 @@ import {
   squads,
   DASHBOARD_CHANNEL_ID,
   type Squad,
-  type TopNavTab,
 } from '../stores/app';
 import { resolveHubChannelNameForGroupSelection } from './mls/virtual-channel-bucket';
 
@@ -24,24 +23,10 @@ export function resolveHubParentSquad(allSquads: Squad[], squadId: string | null
   return allSquads.find((s) => s.id === squadId);
 }
 
-/**
- * Parent open in the hub (dashboard / channels). Squads tab uses `activeSquadId`;
- * legacy Networks tab falls back until RNF-5 removes it.
- */
-export function resolveOpenHubParent(
-  allSquads: Squad[],
-  topNavTab: TopNavTab,
-  squadId: string | null,
-  legacyNetworkId: string | null
-): Squad | null {
-  if (topNavTab === 'squads' && squadId) {
-    return allSquads.find((s) => s.id === squadId) ?? null;
-  }
-  if (topNavTab === 'networks' && legacyNetworkId) {
-    // TODO: delete after RNF-5 — Networks tab removed; squad-pairs use activeSquadId only.
-    return allSquads.find((s) => s.id === legacyNetworkId) ?? null;
-  }
-  return null;
+/** Parent open in the hub (dashboard / channels) from `activeSquadId`. */
+export function resolveOpenHubParent(allSquads: Squad[], squadId: string | null): Squad | null {
+  if (!squadId) return null;
+  return allSquads.find((s) => s.id === squadId) ?? null;
 }
 
 /** Open any squad or squad-pair in the standard Squads hub. */

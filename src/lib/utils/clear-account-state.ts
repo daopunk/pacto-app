@@ -6,7 +6,6 @@
 
 import {
   squads,
-  networks,
   pinnedDmNpubs,
   blockedDmNpubs,
   dmChatsByNpub,
@@ -19,15 +18,8 @@ import {
   activeSquadId,
   activeChannelId,
   activeHubChannelName,
-  activeNetworkId,
-  lastOpenedNetworkId,
-  lastOpenedNetworkChannelId,
-  lastChannelByNetworkId,
-  lastHubChannelNameByNetworkId,
   acceptedSquadInviteIds,
   declinedSquadInviteIds,
-  acceptedNetworkInviteIds,
-  declinedNetworkInviteIds,
   acceptedChannelInviteMessageIds,
   declinedChannelInviteMessageIds,
   declinedWalletTxRequestMessageIds,
@@ -65,20 +57,17 @@ import {
 } from '../../stores/app';
 import { safeStateByTreasuryId } from '../../stores/safe';
 import { clearWalletSummaryCacheStore } from '../wallet/wallet-summary-cache';
+import { resetInviteAcceptState } from '../invites/accept-invite';
 import { INVITE_DECISION_SCOPED_PREFIXES } from '../../stores/invite-decisions';
 import { recentEmojisStore } from '../../stores/emojis';
 
 /** Legacy (non-scoped) keys to remove for backwards compatibility. */
 const LEGACY_LOCAL_STORAGE_KEYS = [
   'pacto_squads',
-  'pacto_networks',
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',
-  'pacto_last_network_id',
-  'pacto_last_network_channel_id',
   'pacto_pinned_dm_npubs',
-  // Legacy: payment request "accepted" was removed; clear leftover keys.
   'pacto_wallet_tx_request_accepted',
   ...INVITE_DECISION_SCOPED_PREFIXES,
   'recentEmojis',
@@ -89,16 +78,11 @@ const LEGACY_LOCAL_STORAGE_KEYS = [
 /** Npub-scoped key prefixes (suffix is _<npub>). Invite decision keys from invite-decisions module. */
 const SCOPED_KEY_PREFIXES = [
   'pacto_squads',
-  'pacto_networks',
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',
   'pacto_last_channel_by_squad',
   'pacto_last_hub_channel_name_by_squad',
-  'pacto_last_network_id',
-  'pacto_last_network_channel_id',
-  'pacto_last_channel_by_network',
-  'pacto_last_hub_channel_name_by_network',
   'pacto_parent_dashboard_mode',
   'pacto_pinned_dm_npubs',
   'pacto_app_inbox',
@@ -137,6 +121,7 @@ function clearAccountLocalStorage(npub?: string): void {
  */
 export function clearAccountState(npub?: string): void {
   setCurrentNpubForPersistence(null);
+  resetInviteAcceptState();
   clearWalletSummaryCacheStore();
   clearAccountLocalStorage(npub);
 
@@ -163,16 +148,8 @@ export function clearAccountState(npub?: string): void {
   activeSquadId.set(null);
   activeChannelId.set(null);
   activeHubChannelName.set(null);
-  networks.set([]);
-  activeNetworkId.set(null);
-  lastOpenedNetworkId.set(null);
-  lastOpenedNetworkChannelId.set(null);
-  lastChannelByNetworkId.set({});
-  lastHubChannelNameByNetworkId.set({});
   acceptedSquadInviteIds.set([]);
   declinedSquadInviteIds.set([]);
-  acceptedNetworkInviteIds.set([]);
-  declinedNetworkInviteIds.set([]);
   acceptedChannelInviteMessageIds.set([]);
   declinedChannelInviteMessageIds.set([]);
   declinedWalletTxRequestMessageIds.set([]);
@@ -207,6 +184,4 @@ export function clearAccountState(npub?: string): void {
 
   /** Appearance theme is device-level (`pacto_theme`); keep it across logout / new account / import. */
   recentEmojisStore.set([]);
-  // favoriteEmojis: emojis.ts keeps them in module-level state; we cleared the
-  // localStorage key so after restart they're empty. No exported reset for in-memory.
 }

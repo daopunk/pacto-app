@@ -25,8 +25,6 @@
   } from '../../lib/pacto-app-inbox';
   import {
     parseChannelInSquadMessage,
-    parseChannelInNetworkMessage,
-    parseNetworkInviteMessage,
     parseSquadInviteMessage,
     toggleDmBlock,
   } from '../../lib/api/nostr';
@@ -42,8 +40,6 @@
     declinedSquadInviteIds,
     acceptedChannelInviteMessageIds,
     declinedChannelInviteMessageIds,
-    acceptedNetworkInviteIds,
-    declinedNetworkInviteIds,
     declinedWalletTxRequestMessageIds,
     acceptedWalletPeerInfoRequestMessageIds,
     declinedWalletPeerInfoRequestMessageIds,
@@ -70,22 +66,10 @@
     msg: DmMessage,
     payload: { channelGroupId: string; announcementsGroupId: string; channelName: string }
   ) => void = () => {};
-  export let onAcceptChannelInNetwork: (
-    msg: DmMessage,
-    payload: { networkId: string; channelGroupId: string; channelName: string }
-  ) => void = () => {};
-  export let onAcceptNetworkInvite: (
-    msg: DmMessage,
-    payload: { networkName: string; groupId: string; memberSquads: { id: string; name: string }[] }
-  ) => void = () => {};
   export let onDeclineSquad: (msg: DmMessage) => void = () => {};
-  export let onDeclineNetwork: (msg: DmMessage) => void = () => {};
   export let onDeclineChannelInSquad: (msg: DmMessage) => void = () => {};
-  export let onDeclineChannelInNetwork: (msg: DmMessage) => void = () => {};
   export let acceptingSquadInviteId: string | null = null;
   export let acceptingChannelInSquadId: string | null = null;
-  export let acceptingChannelInNetworkId: string | null = null;
-  export let acceptingNetworkInviteId: string | null = null;
   export let showOptionsMenu = true;
   export let showPinOption = true;
   export let onSaveNickname: (value: string) => Promise<void> = async () => {};
@@ -472,15 +456,13 @@
           <div class="dm-thread-announcement" role="status">{msg.content}</div>
         {:else}
         {@const channelInSquadPayload = parseChannelInSquadMessage(msg.content ?? '')}
-        {@const channelInNetworkPayload = parseChannelInNetworkMessage(msg.content ?? '')}
-        {@const networkInvitePayload = parseNetworkInviteMessage(msg.content ?? '')}
         {@const invitePayload = parseSquadInviteMessage(msg.content ?? '')}
         {@const walletPeerInfoRequestPayload = parseWalletPeerInfoRequest(msg.content ?? '')}
         {@const walletPeerInfoGrantPayload = parseWalletPeerInfoGrant(msg.content ?? '')}
         {@const walletPeerInfoDeclinePayload = parseWalletPeerInfoDecline(msg.content ?? '')}
         {@const walletTxRequestPayload = parseWalletTxRequest(msg.content ?? '')}
         {@const walletTxAnnouncementPayload = parseWalletTxAnnouncement(msg.content ?? '')}
-        {@const isInvite = !!(channelInSquadPayload || channelInNetworkPayload || networkInvitePayload || invitePayload)}
+        {@const isInvite = !!(channelInSquadPayload || invitePayload)}
         {@const inviterNpubForCard = isInvite ? inviteInviterNpub(msg, npub) : null}
         {@const inviterDisplay = isInvite ? getInviterDisplayFromNpub(inviterNpubForCard, $profiles) : { inviterName: '', inviterAvatarSrc: null }}
         {@const openInviter = isPactoAppThread && !msg.mine && inviterNpubForCard && onOpenInviterChat ? () => onOpenInviterChat(inviterNpubForCard) : undefined}
@@ -497,36 +479,6 @@
             accepting={acceptingChannelInSquadId === msg.id}
             onAccept={() => onAcceptChannelInSquad(msg, { channelGroupId: channelInSquadPayload.channelGroupId, announcementsGroupId: channelInSquadPayload.announcementsGroupId, channelName: channelInSquadPayload.channelName })}
             onDecline={() => onDeclineChannelInSquad(msg)}
-          />
-        {:else if channelInNetworkPayload}
-          {@const channelInviteStatus = $acceptedChannelInviteMessageIds.includes(msg.id) ? 'accepted' : $declinedChannelInviteMessageIds.includes(msg.id) ? 'declined' : 'pending'}
-          <InviteCard
-            variant="channel-in-network"
-            networkName={channelInNetworkPayload.networkName}
-            channelName={channelInNetworkPayload.channelName}
-            memberSquads={channelInNetworkPayload.memberSquads ?? []}
-            isMine={msg.mine}
-            inviterName={inviterDisplay.inviterName}
-            inviterAvatarSrc={inviterDisplay.inviterAvatarSrc}
-            status={channelInviteStatus}
-            accepting={acceptingChannelInNetworkId === msg.id}
-            onAccept={() => onAcceptChannelInNetwork(msg, { networkId: channelInNetworkPayload.networkId, channelGroupId: channelInNetworkPayload.channelGroupId, channelName: channelInNetworkPayload.channelName })}
-            onDecline={() => onDeclineChannelInNetwork(msg)}
-          />
-        {:else if networkInvitePayload}
-          {@const networkInviteStatus = $acceptedNetworkInviteIds.includes(msg.id) ? 'accepted' : $declinedNetworkInviteIds.includes(msg.id) ? 'declined' : 'pending'}
-          <InviteCard
-            variant="network"
-            networkName={networkInvitePayload.networkName}
-            memberSquads={networkInvitePayload.memberSquads}
-            isMine={msg.mine}
-            inviterName={inviterDisplay.inviterName}
-            inviterAvatarSrc={inviterDisplay.inviterAvatarSrc}
-            status={networkInviteStatus}
-            accepting={acceptingNetworkInviteId === msg.id}
-            onAccept={() => onAcceptNetworkInvite(msg, networkInvitePayload)}
-            onDecline={() => onDeclineNetwork(msg)}
-            onMessageInviter={openInviter}
           />
         {:else if invitePayload}
           {@const inviteStatus = $acceptedSquadInviteIds.includes(msg.id) ? 'accepted' : $declinedSquadInviteIds.includes(msg.id) ? 'declined' : 'pending'}

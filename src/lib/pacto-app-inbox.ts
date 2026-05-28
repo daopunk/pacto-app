@@ -4,7 +4,6 @@
  */
 import {
   formatSquadInviteMessage,
-  parseNetworkInviteMessage,
   parseSquadInviteMessage,
   sendDmMessage,
   type SquadInvitePayload,
@@ -23,9 +22,9 @@ export function isPactoAppThreadId(id: string | null | undefined): boolean {
   return id === PACTO_APP_DM_THREAD_ID;
 }
 
-/** Squad / squad-pair / legacy network invites routed to the Pacto App inbox. */
+/** Squad / squad-pair invites routed to the Pacto App inbox. */
 export function isPactoAppRoutableInviteContent(content: string): boolean {
-  return parseSquadInviteMessage(content) !== null || parseNetworkInviteMessage(content) !== null;
+  return parseSquadInviteMessage(content) !== null;
 }
 
 export function resolveInviteInviterNpub(
@@ -51,7 +50,7 @@ export function mergePactoAppInboxEntry(
   return [...list, entry].sort((a, b) => a.at - b.at);
 }
 
-/** Drop squad/network invite rows from a peer DM thread (shown in Pacto App instead). */
+/** Drop squad invite rows from a peer DM thread (shown in Pacto App instead). */
 export function filterPeerThreadMessages(messages: DmMessage[]): DmMessage[] {
   return messages.filter((m) => !isPactoAppRoutableInviteContent(m.content ?? ''));
 }

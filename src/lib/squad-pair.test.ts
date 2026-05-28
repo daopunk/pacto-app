@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  mergeNetworkRowsIntoSquads,
-  networkToSquadPair,
   normalizeStoredSquad,
   partnerSquadsForAnchor,
-  squadPairToNetwork,
-  squadsToNetworkView,
+  partnerSquadsForHubParent,
 } from './squad-pair';
 
 const regularSquad = {
@@ -57,41 +54,6 @@ describe('normalizeStoredSquad', () => {
   });
 });
 
-describe('networkToSquadPair', () => {
-  it('maps memberSquads to pairedSquads with squad-pair kind', () => {
-    const migrated = networkToSquadPair({
-      id: 'net-1',
-      name: 'Net One',
-      channels: [{ name: 'announcements', groupId: 'g1', order: 0 }],
-      memberSquads: [
-        { id: 'squad-a', name: 'A' },
-        { id: 'squad-b', name: 'B' },
-      ],
-      createdAt: 10,
-      updatedAt: 10,
-    });
-    expect(migrated.kind).toBe('squad-pair');
-    expect(migrated.pairedSquads).toEqual([
-      { id: 'squad-a', name: 'A' },
-      { id: 'squad-b', name: 'B' },
-    ]);
-  });
-});
-
-describe('squadPairToNetwork', () => {
-  it('round-trips pairedSquads as memberSquads', () => {
-    const network = squadPairToNetwork({
-      ...squadPair,
-      pairedSquads: [...squadPair.pairedSquads],
-    });
-    expect(network.memberSquads).toEqual([
-      { id: 'squad-a', name: 'Squad A' },
-      { id: 'squad-b', name: 'Squad B' },
-    ]);
-    expect(network.id).toBe('pair-ab');
-  });
-});
-
 describe('partnerSquadsForAnchor', () => {
   it('returns squad-pairs that reference the anchor id', () => {
     const otherPair = {
@@ -115,51 +77,51 @@ describe('partnerSquadsForAnchor', () => {
   });
 });
 
-describe('mergeNetworkRowsIntoSquads', () => {
-  it('appends network rows as squad-pairs without duplicating ids', () => {
-    const merged = mergeNetworkRowsIntoSquads([regularSquad], [
-      {
-        id: 'pair-ab',
-        name: 'From network store',
-        channels: [{ name: 'announcements', groupId: 'g-pair', order: 0 }],
-        memberSquads: [
-          { id: 'squad-a', name: 'Squad A' },
-          { id: 'squad-b', name: 'Squad B' },
-        ],
-        createdAt: 2,
-        updatedAt: 2,
-      },
-    ]);
-    expect(merged).toHaveLength(2);
-    expect(merged[1].kind).toBe('squad-pair');
-  });
-
-  it('network store row wins over existing squad row with same id', () => {
-    const merged = mergeNetworkRowsIntoSquads(
-      [{ ...squadPair, name: 'Stale name', pairedSquads: [...squadPair.pairedSquads] }],
-      [
-        {
-          id: 'pair-ab',
-          name: 'Fresh from network',
-          channels: squadPair.channels,
-          memberSquads: [...squadPair.pairedSquads],
-          createdAt: 2,
-          updatedAt: 3,
-        },
-      ]
+describe('partnerSquadsForHubParent', () => {
+  it('matches partnerSquadsForAnchor on a regular squad', () => {
+    const pair = {
+      ...squadPair,
+      pairedSquads: [...squadPair.pairedSquads],
+    };
+    expect(partnerSquadsForHubParent([regularSquad, pair], 'squad-a')).toEqual(
+      partnerSquadsForAnchor([regularSquad, pair], 'squad-a')
     );
-    expect(merged).toHaveLength(1);
-    expect(merged[0].name).toBe('Fresh from network');
   });
-});
 
-describe('squadsToNetworkView', () => {
-  it('projects squad-pairs to legacy network rows', () => {
-    const view = squadsToNetworkView([
-      regularSquad,
-      { ...squadPair, pairedSquads: [...squadPair.pairedSquads] },
-    ]);
-    expect(view).toHaveLength(1);
-    expect(view[0].id).toBe('pair-ab');
+  it('lists sibling pairs from both anchors when viewing a squad-pair', () => {
+    const pairAb = {
+      ...squadPair,
+      id: 'pair-ab',
+      pairedSquads: [
+        { id: 'squad-a', name: 'Squad A' },
+        { id: 'squad-b', name: 'Squad B' },
+      ] as const,
+    };
+    const pairBc = {
+      ...squadPair,
+      id: 'pair-bc',
+      name: 'B ↔ C',
+      pairedSquads: [
+        { id: 'squad-b', name: 'Squad B' },
+        { id: 'squad-c', name: 'Squad C' },
+      ] as const,
+    };
+    const pairAc = {
+      ...squadPair,
+      id: 'pair-ac',
+      name: 'A ↔ C',
+      pairedSquads: [
+        { id: 'squad-a', name: 'Squad A' },
+        { id: 'squad-c', name: 'Squad C' },
+      ] as const,
+    };
+    const squads = [regularSquad, pairAb, pairBc, pairAc];
+    const listed = partnerSquadsForHubParent(squads, 'pair-ab').map((s) => s.id);
+    expect(listed).toEqual(['pair-ac', 'pair-bc']);
+  });
+
+  it('excludes the active squad-pair from its own partner list', () => {
+    const pair = { ...squadPair, pairedSquads: [...squadPair.pairedSquads] };
+    expect(partnerSquadsForHubParent([regularSquad, pair], pair.id)).toEqual([]);
   });
 });

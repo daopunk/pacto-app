@@ -11,7 +11,6 @@
     order: number;
   }
 
-  export let type: 'squad' | 'network' = 'squad';
   export let parentName = '';
   export let subheading: string | undefined = undefined;
   export let channels: ParentChannel[] = [];
@@ -39,17 +38,14 @@
   export let onInvite: () => void = () => {};
   /** Placeholder: future per-parent EVM signer change from sidebar (use #dashboard → Settings today). */
   export let onChangeEvmSigner: (() => void) | undefined = undefined;
-  /** Only used when type === 'squad'. */
   export let onExitSquad: (() => void) | undefined = undefined;
-  /** Only used when type === 'network'. */
-  export let onExitNetwork: (() => void) | undefined = undefined;
 
-  /** Partner squad-pairs for the anchor squad (regular squads only). */
+  /** Partner squad-pairs linked to the active hub. */
   export let partnerSquads: { id: string; name: string }[] = [];
   export let activePartnerSquadId: string | null = null;
   export let onSelectPartnerSquad: (id: string) => void = () => {};
 
-  /** Show on regular anchor squads (not squad-pairs). */
+  /** Show pair action on any hub with a pairable anchor squad. */
   export let showPairWithSquadAction = false;
   export let onPairWithSquad: (() => void) | undefined = undefined;
 
@@ -68,14 +64,12 @@
     return m;
   })();
 
-  $: showPartnerSquads = type === 'squad' && partnerSquads.length > 0;
-  $: inviteLabel = type === 'squad' ? 'Invite to Squad' : 'Invite to Network';
+  $: showPartnerSquads = partnerSquads.length > 0 || showPairWithSquadAction;
+  $: inviteLabel = 'Invite to Squad';
   $: showChangeEvmSigner = typeof onChangeEvmSigner === 'function';
-  $: showExitSquad = type === 'squad' && typeof onExitSquad === 'function';
-  $: showExitNetwork = type === 'network' && typeof onExitNetwork === 'function';
-  $: showExit = showExitSquad || showExitNetwork;
-  $: exitLabel = type === 'squad' ? 'Exit Squad' : 'Exit Network';
-  $: onExit = type === 'squad' ? onExitSquad : onExitNetwork;
+  $: showExit = typeof onExitSquad === 'function';
+  $: exitLabel = 'Exit Squad';
+  $: onExit = onExitSquad;
 </script>
 
 <svelte:window
@@ -87,15 +81,15 @@
 
 <ResizableSidebar sidebarClass="parent-sidebar">
   {#if hasParent}
-    <div class="parent-heading" role="region" aria-label="{type === 'squad' ? 'Squad' : 'Network'} {parentName}">
+    <div class="parent-heading" role="region" aria-label="Squad {parentName}">
       <div class="parent-header-row">
         <h2 class="parent-name">{parentName}</h2>
         <div class="parent-header-actions">
           <button
             type="button"
             class="parent-menu-btn"
-            title="{type === 'squad' ? 'Squad' : 'Network'} options"
-            aria-label="{type === 'squad' ? 'Squad' : 'Network'} menu"
+            title="Squad options"
+            aria-label="Squad menu"
             on:click={() => (menuOpen = !menuOpen)}
             aria-haspopup="true"
             aria-expanded={menuOpen}
@@ -201,6 +195,7 @@
         {#if showPartnerSquads}
           <div class="partner-squads-section" role="navigation" aria-label="Partner Squads">
             <p class="partner-squads-heading">Partner Squads</p>
+            {#if partnerSquads.length > 0}
             <div class="partner-squad-list">
               {#each partnerSquads as partner (partner.id)}
                 <button
@@ -213,6 +208,7 @@
                 </button>
               {/each}
             </div>
+            {/if}
           </div>
         {/if}
         {#if showPairWithSquadAction && typeof onPairWithSquad === 'function' && !creating}

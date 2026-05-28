@@ -1,11 +1,7 @@
 <script lang="ts">
-  /**
-   * Unified invite card for DM thread: squad, network, channel-in-squad, channel-in-network.
-   * Same layout and behavior; variant controls title, subtitle, body text, and optional badge.
-   */
-  export let variant: 'squad' | 'squad-pair' | 'network' | 'channel-in-squad' | 'channel-in-network';
+  /** Invite card for squad, squad-pair, or channel-in-squad DMs. */
+  export let variant: 'squad' | 'squad-pair' | 'channel-in-squad';
   export let squadName = '';
-  export let networkName = '';
   export let channelName = '';
   export let memberSquads: { id: string; name: string }[] = [];
   export let isMine: boolean;
@@ -20,20 +16,13 @@
 
   $: title = (() => {
     if (variant === 'squad' || variant === 'squad-pair') return squadName;
-    if (variant === 'network') return networkName;
-    if (variant === 'channel-in-squad') return `${squadName} · #${channelName}`;
-    return `${networkName} · #${channelName}`;
+    return `${squadName} · #${channelName}`;
   })();
 
   $: memberSquadsLabel =
     memberSquads?.length > 0 ? memberSquads.map((s) => s.name).join(', ') : '';
   $: subtitle =
-    (variant === 'network' || variant === 'channel-in-network' || variant === 'squad-pair') &&
-    memberSquadsLabel
-      ? variant === 'squad-pair'
-        ? `Partner squads: ${memberSquadsLabel}`
-        : `Includes squads: ${memberSquadsLabel}`
-      : '';
+    variant === 'squad-pair' && memberSquadsLabel ? `Partner squads: ${memberSquadsLabel}` : '';
 
   $: bodyText = (() => {
     if (variant === 'squad') {
@@ -46,17 +35,9 @@
         ? `You invited ${inviterName} to this partner squad.`
         : `${inviterName} invited you to join this partner squad.`;
     }
-    if (variant === 'network') {
-      return isMine ? `You invited ${inviterName} to this network.` : `${inviterName} invited you to this network.`;
-    }
-    if (variant === 'channel-in-squad') {
-      return isMine
-        ? `You added ${inviterName} to #${channelName}.`
-        : `${inviterName} added you to #${channelName} in this squad.`;
-    }
     return isMine
       ? `You added ${inviterName} to #${channelName}.`
-      : `${inviterName} added you to #${channelName} in this network.`;
+      : `${inviterName} added you to #${channelName} in this squad.`;
   })();
 
   $: iconPlaceholder =
@@ -64,22 +45,14 @@
       ? squadName
         ? squadName.charAt(0).toUpperCase()
         : 'S'
-      : variant === 'network'
-        ? 'N'
-        : '#';
+      : '#';
 
-  $: showBadge = variant === 'network' || variant === 'squad-pair';
-  $: isNetworkVariant = variant === 'network';
-  $: badgeLabel = variant === 'squad-pair' ? 'Partner squad' : 'Network';
+  $: showBadge = variant === 'squad-pair';
+  $: badgeLabel = 'Partner squad';
   $: collapsed = status === 'accepted' || status === 'declined';
 </script>
 
-<div
-  class="invite-card"
-  class:collapsed
-  class:network-variant={isNetworkVariant}
-  role="article"
->
+<div class="invite-card" class:collapsed role="article">
   <div class="invite-card-icon">
     {#if inviterAvatarSrc}
       <img src={inviterAvatarSrc} alt="" class="invite-card-icon-img" />
@@ -150,10 +123,6 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     max-width: 380px;
-  }
-
-  .invite-card.network-variant {
-    border-left: 3px solid var(--accent);
   }
 
   .invite-card.collapsed {

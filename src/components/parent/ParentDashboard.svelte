@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import type { Squad, Network } from '../../stores/app';
+  import type { Squad } from '../../stores/app';
   import {
     ANNOUNCEMENTS_CHANNEL_NAME,
     DASHBOARD_CHANNEL_NAME,
@@ -68,8 +68,7 @@
 
   $: dashboardView = $parentDashboardChannelMode;
 
-  export let parent: Squad | Network;
-  export let parentType: 'squad' | 'network' = 'squad';
+  export let parent: Squad;
 
   /** Linked Safes for this parent (from store + backend). */
   export let treasurySafes: TreasurySafeEntry[] = [];
@@ -537,7 +536,7 @@
       return;
     }
     if ((treasurySafes?.length ?? 0) >= TREASURY_SAFE_UI_CAP) {
-      setSafeError = `At most ${TREASURY_SAFE_UI_CAP} Safes are shown per ${parentType}. Remove one from another client or use a fresh parent.`;
+      setSafeError = `At most ${TREASURY_SAFE_UI_CAP} Safes are shown per squad. Remove one from another client or use a fresh parent.`;
       return;
     }
     setSafeSaving = true;
@@ -603,16 +602,10 @@
     </div>
     <div class="parent-dashboard-body">
       <div class="parent-dashboard">
-  {#if parentType === 'network' && (parent as Network).memberSquads?.length}
+  {#if parent.kind === 'squad-pair' && parent.pairedSquads?.length}
     <div class="dashboard-header">
       <p class="dashboard-subtitle">
-        {(parent as Network).memberSquads.map((s) => s.name).join(', ')}
-      </p>
-    </div>
-  {:else if (parent as Squad).kind === 'squad-pair' && (parent as Squad).pairedSquads?.length}
-    <div class="dashboard-header">
-      <p class="dashboard-subtitle">
-        {(parent as Squad).pairedSquads!.map((s) => s.name).join(', ')}
+        {parent.pairedSquads.map((s) => s.name).join(', ')}
       </p>
     </div>
   {/if}
@@ -669,13 +662,13 @@
       <p class="dashboard-placeholder-text muted">Loading roles tree context…</p>
     {:else if structureSummary === null}
       <p class="dashboard-placeholder-text dashboard-placeholder-lead">
-        Hat tree and role structure show here once this {parentType} has a <strong>Pacto Gov</strong> deployment
+        Hat tree and role structure show here once this squad has a <strong>Pacto Gov</strong> deployment
         (Deploy). Safe-only setups do not publish a Hats tree id yet.
       </p>
       <button type="button" class="btn-secondary roles-tree-deploy-cta" on:click={openLaunchpad}>Open Deploy</button>
     {:else}
       <p class="structure-summary-lead dashboard-placeholder-text">
-        Top hat for this {parentType} on <strong>{structureSummary.chainDisplayName}</strong> (chain id{' '}
+        Top hat for this squad on <strong>{structureSummary.chainDisplayName}</strong> (chain id{' '}
         <code class="structure-mono">{structureSummary.chainIdNumeric}</code>).
       </p>
       <dl class="structure-dl">
@@ -888,7 +881,7 @@
         <p class="dashboard-placeholder-text muted">No members loaded yet. Open the members panel or switch to this tab again.</p>
       {/if}
     {:else}
-      <p class="dashboard-placeholder-text muted">No announcements channel for this {parentType}.</p>
+      <p class="dashboard-placeholder-text muted">No announcements channel for this squad.</p>
     {/if}
     <SmartContractSecuritySection
       parentId={parentId ?? ''}
@@ -934,7 +927,6 @@
   <DeploySafeModal
     parentId={parentId}
     announcementsGroupId={announcementsGroupId}
-    {parentType}
     treasurySafeCount={treasurySafes?.length ?? 0}
     onClose={closeDeploySafeModal}
     onSuccess={async (params) => {
@@ -957,7 +949,6 @@
 {#if showNaveWizard && parentId?.trim()}
   <DeployNavePirataWizard
     parentId={parentId.trim()}
-    {parentType}
     onClose={() => {
       showNaveWizard = false;
     }}
@@ -980,7 +971,6 @@
 
 {#if showLaunchpad && parentId}
   <LaunchpadModal
-    {parentType}
     {hasSponsor}
     {hasPactoGov}
     {hasSquadAdmin}
@@ -1000,7 +990,6 @@
 {#if showSquadAdminDeploy && parentId?.trim()}
   <DeploySquadAdminModal
     parentId={parentId.trim()}
-    {parentType}
     onClose={() => {
       showSquadAdminDeploy = false;
     }}
@@ -1022,7 +1011,6 @@
 {#if showSponsorDeploy && parentId?.trim()}
   <DeploySquadSponsorModal
     parentId={parentId.trim()}
-    {parentType}
     onClose={() => {
       showSponsorDeploy = false;
     }}
@@ -1045,7 +1033,7 @@
     <div class="modal-content">
       <h3 id="set-safe-title">Import Safe</h3>
       <p class="modal-desc">
-        Add a Safe to this {parentType} treasury. Members see automated treasury notices in #inbox.
+        Add a Safe to this squad treasury. Members see automated treasury notices in #inbox.
       </p>
       <label class="modal-field-label" for="import-safe-addr">Contract address</label>
       <input

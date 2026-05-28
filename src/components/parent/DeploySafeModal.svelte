@@ -19,7 +19,6 @@
 
   export let parentId: string;
   export let announcementsGroupId: string | null;
-  export let parentType: 'squad' | 'network' = 'squad';
   export let treasurySafeCount: number;
   export let onClose: () => void;
   export let onSuccess: (params: {
@@ -182,7 +181,7 @@
 
   async function confirmDeploy(): Promise<void> {
     if (treasurySafeCount >= TREASURY_SAFE_UI_CAP) {
-      deployError = `At most ${TREASURY_SAFE_UI_CAP} Safes are shown per ${parentType}.`;
+      deployError = `At most ${TREASURY_SAFE_UI_CAP} Safes are shown per squad.`;
       return;
     }
     if (!announcementsGroupId) {

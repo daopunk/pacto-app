@@ -3,7 +3,7 @@ import { writable } from 'svelte/store';
 const TOAST_DURATION_MS = 4000;
 
 export interface ToastGoTo {
-  type: 'squad' | 'network';
+  type: 'squad';
   name: string;
   id: string;
   channelId: string;
@@ -43,6 +43,6 @@ export function showToast(text: string, goTo?: ToastGoTo): void {
 
 /**
  * Pending "ready" toast to show from the root page. When set, +page.svelte subscribes and
- * calls showToast so the notification appears regardless of which view (DMs / Squads / Networks) is active.
+ * calls showToast so the notification appears regardless of which view (DMs / Squads) is active.
  */
 export const pendingReadyToast = writable<ToastState | null>(null);

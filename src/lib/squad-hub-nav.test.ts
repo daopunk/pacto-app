@@ -31,15 +31,11 @@ describe('resolveHubParentSquad', () => {
 });
 
 describe('resolveOpenHubParent', () => {
-  it('resolves from squads tab via activeSquadId', () => {
-    expect(resolveOpenHubParent([regular, pair], 'squads', 'pair-ab', null)).toEqual(pair);
-  });
-
-  it('resolves squad-pair from legacy networks tab via activeNetworkId', () => {
-    expect(resolveOpenHubParent([regular, pair], 'networks', null, 'pair-ab')).toEqual(pair);
+  it('resolves from activeSquadId', () => {
+    expect(resolveOpenHubParent([regular, pair], 'pair-ab')).toEqual(pair);
   });
 
   it('returns null when no matching parent', () => {
-    expect(resolveOpenHubParent([regular], 'squads', 'missing', null)).toBeNull();
+    expect(resolveOpenHubParent([regular], 'missing')).toBeNull();
   });
 });

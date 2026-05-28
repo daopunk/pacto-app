@@ -24,17 +24,6 @@ export interface StoredSquadRow {
   updatedAt: number;
 }
 
-/** Legacy network row shape (pre-RNF); migrated into squads as squad-pair. */
-export interface LegacyNetworkRow {
-  id: string;
-  name: string;
-  iconUrl?: string;
-  channels: SquadChannelRow[];
-  memberSquads: { id: string; name: string }[];
-  createdAt: number;
-  updatedAt: number;
-}
-
 export function isSquadPairKind(kind: SquadKind | undefined): boolean {
   return kind === 'squad-pair';
 }
@@ -65,33 +54,6 @@ export function normalizeStoredSquad(raw: StoredSquadRow): StoredSquadRow {
   };
 }
 
-/** Convert a legacy network row into a squad-pair squad row. TODO: delete after RNF-5. */
-export function networkToSquadPair(network: LegacyNetworkRow): StoredSquadRow {
-  return normalizeStoredSquad({
-    id: network.id,
-    name: network.name,
-    iconUrl: network.iconUrl,
-    channels: network.channels,
-    kind: 'squad-pair',
-    pairedSquads: network.memberSquads,
-    createdAt: network.createdAt,
-    updatedAt: network.updatedAt,
-  });
-}
-
-/** View-model for legacy `Network` store paths. TODO: delete after RNF-5. */
-export function squadPairToNetwork(squad: StoredSquadRow): LegacyNetworkRow {
-  return {
-    id: squad.id,
-    name: squad.name,
-    iconUrl: squad.iconUrl,
-    channels: squad.channels,
-    memberSquads: squad.pairedSquads ? [...squad.pairedSquads] : [],
-    createdAt: squad.createdAt,
-    updatedAt: squad.updatedAt,
-  };
-}
-
 /** Squad-pairs linked to an anchor squad (Partner Squads sidebar index). */
 export function partnerSquadsForAnchor(allSquads: StoredSquadRow[], anchorSquadId: string): StoredSquadRow[] {
   return allSquads.filter(
@@ -102,20 +64,28 @@ export function partnerSquadsForAnchor(allSquads: StoredSquadRow[], anchorSquadI
 }
 
 /**
- * Keep `squads` as source of truth while legacy `networks` store still exists.
- * TODO: delete after RNF-5.
+ * Partner squads to show in the sidebar for the active hub parent.
+ * Regular squads: pairs anchored on that squad. Squad-pairs: union across both anchors (recursive nav).
  */
-export function mergeNetworkRowsIntoSquads(
-  squads: StoredSquadRow[],
-  networks: LegacyNetworkRow[]
+export function partnerSquadsForHubParent(
+  allSquads: StoredSquadRow[],
+  activeSquadId: string
 ): StoredSquadRow[] {
-  const networkSquads = networks.map(networkToSquadPair);
-  const networkIds = new Set(networkSquads.map((s) => s.id));
-  const regular = squads.filter((s) => !networkIds.has(s.id));
-  return [...regular, ...networkSquads];
-}
+  const active = allSquads.find((s) => s.id === activeSquadId);
+  if (!active) return [];
 
-/** Legacy Networks tab projection from squads. TODO: delete after RNF-5. */
-export function squadsToNetworkView(squads: StoredSquadRow[]): LegacyNetworkRow[] {
-  return squads.filter((s) => s.kind === 'squad-pair').map(squadPairToNetwork);
+  if (active.kind === 'squad-pair' && active.pairedSquads?.length) {
+    const seen = new Set<string>();
+    const merged: StoredSquadRow[] = [];
+    for (const anchor of active.pairedSquads) {
+      for (const pair of partnerSquadsForAnchor(allSquads, anchor.id)) {
+        if (pair.id === activeSquadId || seen.has(pair.id)) continue;
+        seen.add(pair.id);
+        merged.push(pair);
+      }
+    }
+    return merged.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  return partnerSquadsForAnchor(allSquads, activeSquadId);
 }
