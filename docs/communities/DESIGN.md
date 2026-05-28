@@ -82,7 +82,13 @@ export interface Squad {
 
 ---
 
-## 7. Contributor checklist
+## 7. Commons discovery
+
+Public squads and users may publish time-bounded broadcasts to **Commons** (top-nav discovery feed). See [`COMMONS.md`](./COMMONS.md).
+
+---
+
+## 8. Contributor checklist
 
 - [ ] New parent ids come from announcements **`groupId`**, never per-device UUIDs.
 - [ ] Squad-pairs use `kind: 'squad-pair'` + `pairedSquads`; no separate network store.

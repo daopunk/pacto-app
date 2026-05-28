@@ -9,9 +9,13 @@
     formatBroadcastCooldownRemaining,
     publishSquadCommonsBroadcast,
   } from '../../lib/commons/squad-broadcast';
+  import { canBroadcastSquad } from '../../lib/commons/permissions';
+  import { currentUser } from '../../stores/auth';
 
   export let squad: PublicSquadBroadcastTarget;
   export let onClose: () => void;
+  export let broadcastAllowed = true;
+  export let broadcastDeniedReason = 'Role required soon.';
 
   type DurationHours = 24 | 48 | 72;
 
@@ -26,7 +30,11 @@
 
   $: tags = squad.commonsTags ?? [];
   $: onCooldown = !!activeBroadcast;
-  $: canSubmit = !onCooldown && message.trim().length > 0 && tags.length > 0 && !publishing;
+  $: roleAllowed =
+    broadcastAllowed &&
+    canBroadcastSquad({ userNpub: $currentUser?.npub, squad });
+  $: canSubmit =
+    roleAllowed && !onCooldown && message.trim().length > 0 && tags.length > 0 && !publishing;
 
   function updateCooldownLabel() {
     if (!activeBroadcast) {
@@ -67,6 +75,10 @@
   async function handleSubmit() {
     submitError = '';
     if (!canSubmit || publishing) return;
+    if (!roleAllowed) {
+      submitError = broadcastDeniedReason;
+      return;
+    }
     publishing = true;
     try {
       const result = await publishSquadCommonsBroadcast(squad, {
@@ -95,6 +107,9 @@
   <p id="broadcast-squad-description" class="broadcast-modal-lead">
     Publish a public message for <strong>{squad.name}</strong> in Commons.
   </p>
+  {#if !roleAllowed}
+    <p class="broadcast-role-denied" role="status">{broadcastDeniedReason}</p>
+  {/if}
   <form on:submit|preventDefault={handleSubmit}>
     <span class="broadcast-label">Tags</span>
     {#if tags.length > 0}
@@ -220,6 +235,12 @@
     color: var(--text-secondary);
     font-size: 0.875rem;
     margin: 0 0 4px;
+  }
+
+  .broadcast-role-denied {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin: 0 0 12px;
   }
 
   .broadcast-cooldown-detail {

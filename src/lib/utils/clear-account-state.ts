@@ -7,6 +7,7 @@
 import { setCurrentNpubForPersistence } from '../../stores/persistence-context';
 import {
   activeTopNavTab,
+  DEFAULT_TOP_NAV_TAB,
   activeView,
   activeSquadId,
   activeChannelId,
@@ -80,6 +81,7 @@ import { INVITE_DECISION_SCOPED_PREFIXES } from '../../stores/invite-decisions';
 import { recentEmojisStore } from '../../stores/emojis';
 import { resetCommonsUserPrefs, PACTO_COMMONS_PROFILE_PREFIX } from '../../stores/commons-prefs';
 import { PACTO_COMMONS_BROADCASTS_PREFIX } from '../commons/local-broadcast-state';
+import { PACTO_COMMONS_JOIN_REQUESTS_PREFIX } from '../commons/commons-join-request';
 
 /** Legacy (non-scoped) keys to remove for backwards compatibility. */
 const LEGACY_LOCAL_STORAGE_KEYS = [
@@ -119,6 +121,7 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_wallet_tx_request_accepted',
   PACTO_COMMONS_PROFILE_PREFIX,
   PACTO_COMMONS_BROADCASTS_PREFIX,
+  PACTO_COMMONS_JOIN_REQUESTS_PREFIX,
   ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;
 
@@ -199,7 +202,7 @@ export function clearAccountState(npub?: string): void {
   ungroupedChannels.set([]);
   channelMessages.set({});
   composingNewChat.set(false);
-  activeTopNavTab.set('squads');
+  activeTopNavTab.set(DEFAULT_TOP_NAV_TAB);
   activeDmTab.set('friends');
   activeView.set('hub');
   parentDashboardChannelMode.set('governance');

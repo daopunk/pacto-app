@@ -4,7 +4,7 @@ import { login as apiLogin, loginWithRecoveryPhrase, createAccount as apiCreateA
 import { hasStoredKey, encryptAndSaveKey, encryptAndSaveEvmKey, loadAndDecryptKey, validatePrivateKeyFormat, validateRecoveryPhraseForImport } from '../lib/api/encryption';
 import { dmLog } from '../lib/utils/dm-debug';
 import { runPostLoginNetworkSync } from '../lib/app/post-login-sync';
-import { activeTopNavTab } from './navigation';
+import { activeTopNavTab, DEFAULT_TOP_NAV_TAB } from './navigation';
 import { loadAccountState } from './persistence';
 import { clearAccountState } from '../lib/utils/clear-account-state';
 
@@ -93,7 +93,7 @@ export async function createAccount(pin: string): Promise<void> {
       npub: npub,
       pubkey: keys.public
     });
-    activeTopNavTab.set('squads');
+    activeTopNavTab.set(DEFAULT_TOP_NAV_TAB);
     loadAccountState(npub);
 
     dmLog('createAccount: done (fetchMessages will run from +page onMount)');
@@ -141,7 +141,7 @@ export async function importAccount(recoveryPhrase: string, pin: string): Promis
       npub: npub,
       pubkey: keys.public
     });
-    activeTopNavTab.set('squads');
+    activeTopNavTab.set(DEFAULT_TOP_NAV_TAB);
     loadAccountState(npub);
     authLoading.set(false);
     runPostLoginNetworkSync(npub);
@@ -173,7 +173,7 @@ export async function unlockWithPin(pin: string): Promise<void> {
       npub: npub,
       pubkey: keys.public
     });
-    activeTopNavTab.set('squads');
+    activeTopNavTab.set(DEFAULT_TOP_NAV_TAB);
     loadAccountState(npub);
     runPostLoginNetworkSync(npub);
 

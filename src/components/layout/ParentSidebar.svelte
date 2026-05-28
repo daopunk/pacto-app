@@ -36,6 +36,9 @@
   export let onCreateChannel: () => void = () => {};
   export let onRetryCreate: () => void = () => {};
   export let onInvite: () => void = () => {};
+  export let showBroadcastSquad = false;
+  export let broadcastSquadDisabled = false;
+  export let broadcastSquadDisabledTitle = '';
   export let onBroadcastSquad: (() => void) | undefined = undefined;
   export let onExitSquad: (() => void) | undefined = undefined;
 
@@ -65,7 +68,7 @@
 
   $: showPartnerSquads = partnerSquads.length > 0 || showPairWithSquadAction;
   $: inviteLabel = 'Invite to Squad';
-  $: showBroadcastSquad = typeof onBroadcastSquad === 'function';
+  $: showBroadcastSquadItem = showBroadcastSquad || broadcastSquadDisabled;
   $: showExit = typeof onExitSquad === 'function';
   $: exitLabel = 'Exit Squad';
   $: onExit = onExitSquad;
@@ -108,12 +111,16 @@
               >
                 {inviteLabel}
               </button>
-              {#if showBroadcastSquad && onBroadcastSquad}
+              {#if showBroadcastSquadItem}
                 <button
                   type="button"
                   class="parent-menu-item"
+                  class:parent-menu-item-disabled={broadcastSquadDisabled}
                   role="menuitem"
+                  disabled={broadcastSquadDisabled}
+                  title={broadcastSquadDisabled ? broadcastSquadDisabledTitle : undefined}
                   on:click={() => {
+                    if (broadcastSquadDisabled || !onBroadcastSquad) return;
                     menuOpen = false;
                     onBroadcastSquad();
                   }}
@@ -333,6 +340,17 @@
   .parent-menu-item-exit:hover {
     background: rgba(237, 66, 69, 0.15);
     color: var(--danger);
+  }
+
+  .parent-menu-item-disabled,
+  .parent-menu-item:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .parent-menu-item-disabled:hover,
+  .parent-menu-item:disabled:hover {
+    background: none;
   }
 
   .parent-error-banner {

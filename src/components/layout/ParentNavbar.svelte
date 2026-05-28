@@ -7,6 +7,11 @@
   import BroadcastSquadModal from '../commons/BroadcastSquadModal.svelte';
   import { isPublicSquadForCommonsBroadcast } from '../../lib/commons/squad-create-broadcast';
   import {
+    canBroadcastSquad,
+    broadcastSquadRoleDeniedReason,
+    COMMONS_BROADCAST_ROLE_DENIED_REASON,
+  } from '../../lib/commons/permissions';
+  import {
     squads,
     parentsCreatingAnnouncements,
     parentCreateErrorById,
@@ -58,8 +63,8 @@
     ? ($squads.find((s) => s.id === $activeSquadId) as Squad | undefined)
     : undefined;
 
-  $: canBroadcastSquad =
-    !!liveActiveParent &&
+  $: squadBroadcastTarget =
+    liveActiveParent &&
     isPublicSquadForCommonsBroadcast({
       id: liveActiveParent.id,
       name: liveActiveParent.name,
@@ -67,7 +72,29 @@
       iconUrl: liveActiveParent.iconUrl,
       visibility: liveActiveParent.visibility,
       commonsTags: liveActiveParent.commonsTags,
-    });
+    })
+      ? {
+          id: liveActiveParent.id,
+          name: liveActiveParent.name,
+          kind: liveActiveParent.kind,
+          iconUrl: liveActiveParent.iconUrl,
+          visibility: liveActiveParent.visibility,
+          commonsTags: liveActiveParent.commonsTags,
+        }
+      : null;
+
+  $: broadcastPermissionInput = squadBroadcastTarget
+    ? { userNpub: $currentUser?.npub, squad: squadBroadcastTarget }
+    : null;
+
+  $: showBroadcastSquadMenu = !!squadBroadcastTarget && !!canShowParentMenuActions;
+  $: squadBroadcastRoleOk =
+    !!broadcastPermissionInput && canBroadcastSquad(broadcastPermissionInput);
+  $: broadcastSquadDisabled = showBroadcastSquadMenu && !squadBroadcastRoleOk;
+  $: broadcastSquadDisabledTitle =
+    broadcastSquadDisabled && broadcastPermissionInput
+      ? broadcastSquadRoleDeniedReason(broadcastPermissionInput) ?? COMMONS_BROADCAST_ROLE_DENIED_REASON
+      : COMMONS_BROADCAST_ROLE_DENIED_REASON;
 
   $: rawChannels = activeParent
     ? [...activeParent.channels].sort((a, b) => a.order - b.order)
@@ -409,7 +436,7 @@
   let showBroadcastSquadModal = false;
 
   function openBroadcastSquadModal() {
-    if (!canBroadcastSquad || !canShowParentMenuActions || !liveActiveParent) return;
+    if (!squadBroadcastRoleOk || !canShowParentMenuActions || !liveActiveParent) return;
     showBroadcastSquadModal = true;
   }
 
@@ -459,7 +486,10 @@
   onCreateChannel={openCreateChannelModal}
   onRetryCreate={handleRetryCreate}
   onInvite={openInviteModal}
-  onBroadcastSquad={canBroadcastSquad && canShowParentMenuActions ? openBroadcastSquadModal : undefined}
+  showBroadcastSquad={showBroadcastSquadMenu}
+  {broadcastSquadDisabled}
+  broadcastSquadDisabledTitle={broadcastSquadDisabledTitle}
+  onBroadcastSquad={squadBroadcastRoleOk ? openBroadcastSquadModal : undefined}
   onExitSquad={openExitModal}
   partnerSquads={partnerSquads}
   activePartnerSquadId={activePartnerSquadId}
@@ -527,16 +557,11 @@
   onCreate={handleCreateSquadPair}
 />
 
-{#if showBroadcastSquadModal && liveActiveParent}
+{#if showBroadcastSquadModal && liveActiveParent && squadBroadcastTarget}
   <BroadcastSquadModal
-    squad={{
-      id: liveActiveParent.id,
-      name: liveActiveParent.name,
-      kind: liveActiveParent.kind,
-      iconUrl: liveActiveParent.iconUrl,
-      visibility: liveActiveParent.visibility,
-      commonsTags: liveActiveParent.commonsTags,
-    }}
+    squad={squadBroadcastTarget}
+    broadcastAllowed={squadBroadcastRoleOk}
+    broadcastDeniedReason={broadcastSquadDisabledTitle}
     onClose={closeBroadcastSquadModal}
   />
 {/if}

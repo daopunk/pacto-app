@@ -4,6 +4,7 @@ import {
   type NostrProfile,
   type SquadInvitePayload,
 } from '../api/nostr';
+import { parseCommonsJoinRequestMessage, type CommonsJoinRequestPayload } from '../commons/commons-join-request';
 import {
   parseWalletPeerInfoDecline,
   parseWalletPeerInfoGrant,
@@ -36,6 +37,7 @@ export type DmMessagePresentation =
   | { kind: 'wallet-peer-info-decline'; payload: WalletPeerInfoDeclinePayload }
   | { kind: 'wallet-tx-request'; payload: WalletTxRequestPayload }
   | { kind: 'wallet-tx-announcement'; payload: WalletTxAnnouncementPayload }
+  | { kind: 'commons-join-request'; payload: CommonsJoinRequestPayload }
   | { kind: 'plain' };
 
 export function resolveDmMessagePresentation(msg: DmMessage): DmMessagePresentation {
@@ -59,6 +61,8 @@ export function resolveDmMessagePresentation(msg: DmMessage): DmMessagePresentat
   if (walletTxRequest) return { kind: 'wallet-tx-request', payload: walletTxRequest };
   const walletTxAnnouncement = parseWalletTxAnnouncement(content);
   if (walletTxAnnouncement) return { kind: 'wallet-tx-announcement', payload: walletTxAnnouncement };
+  const commonsJoinRequest = parseCommonsJoinRequestMessage(content);
+  if (commonsJoinRequest) return { kind: 'commons-join-request', payload: commonsJoinRequest };
   return { kind: 'plain' };
 }
 
