@@ -52,6 +52,7 @@ import {
   squads,
   treasurySafesByParentId,
   squadInfraByParentId,
+  squadMemberEvmByParentId,
   parentsCreatingAnnouncements,
   parentCreateErrorById,
   parentPendingCreateMembers,
@@ -65,6 +66,13 @@ import {
 } from '../../stores/mls-chat';
 import { safeStateByTreasuryId } from '../../stores/safe';
 import { clearWalletSummaryCacheStore } from '../wallet/wallet-summary-cache';
+import { clearDashboardFetchMetaStores } from '../dashboard/dashboard-fetch-meta';
+import { clearGovernanceSnapshotCacheStore } from '../dashboard/governance-snapshot-cache';
+import { TREASURY_SAFES_CACHE_PREFIX } from '../dashboard/treasury-safes-cache';
+import { SQUAD_INFRA_CACHE_PREFIX } from '../dashboard/squad-infra-cache';
+import { SQUAD_MEMBER_EVM_CACHE_PREFIX } from '../dashboard/squad-member-evm-cache';
+import { GOVERNANCE_SNAPSHOT_CACHE_PREFIX } from '../dashboard/governance-snapshot-cache';
+import { SAFE_STATE_DISK_CACHE_PREFIX } from '../dashboard/safe-state-disk-cache';
 import { resetInviteAcceptState } from '../invites/accept-invite';
 import { INVITE_DECISION_SCOPED_PREFIXES } from '../../stores/invite-decisions';
 import { recentEmojisStore } from '../../stores/emojis';
@@ -95,6 +103,11 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_pinned_dm_npubs',
   'pacto_app_inbox',
   'pacto_wallet_summary_cache_v1',
+  TREASURY_SAFES_CACHE_PREFIX,
+  SQUAD_INFRA_CACHE_PREFIX,
+  SQUAD_MEMBER_EVM_CACHE_PREFIX,
+  GOVERNANCE_SNAPSHOT_CACHE_PREFIX,
+  SAFE_STATE_DISK_CACHE_PREFIX,
   'pacto_wallet_ui_enabled_chains_v1',
   'pacto_wallet_preferred_network_v1',
   'pacto_wallet_rpc_prefs_v1',
@@ -131,10 +144,13 @@ export function clearAccountState(npub?: string): void {
   setCurrentNpubForPersistence(null);
   resetInviteAcceptState();
   clearWalletSummaryCacheStore();
+  clearDashboardFetchMetaStores();
+  clearGovernanceSnapshotCacheStore();
   clearAccountLocalStorage(npub);
 
   treasurySafesByParentId.set({});
   squadInfraByParentId.set({});
+  squadMemberEvmByParentId.set({});
   dashboardPollReplicaNonceByParentId.set({});
   safeStateByTreasuryId.set({});
   squads.set([]);

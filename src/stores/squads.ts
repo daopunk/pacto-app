@@ -27,6 +27,7 @@ export const DASHBOARD_CHANNEL_NAME = 'dashboard';
 
 export const squadInfraByParentId = writable<Record<string, SquadInfraDto[]>>({});
 export const treasurySafesByParentId = writable<Record<string, TreasurySafeEntry[]>>({});
+export const squadMemberEvmByParentId = writable<Record<string, Record<string, string>>>({});
 
 export type { TreasurySafeEntry };
 export type { SquadInfraDto };

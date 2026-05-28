@@ -24,7 +24,6 @@
     setNickname,
     syncMlsGroupsNow,
     deleteDmChatBackend,
-    listParentTreasurySafes,
     addParentTreasurySafe,
   } from '../lib/api/nostr';
   import { buildAnnounceContent, ANNOUNCE_TYPE_SAFE_UPDATED, ANNOUNCE_TYPE_GOVERNANCE_UPDATED } from '../lib/announcements';
@@ -127,6 +126,10 @@
   import { portal } from '../lib/utils/portal';
   import { subscribeAppEvents } from '../lib/app/tauri-subscriptions';
   import {
+    syncSquadInfraForParent as mergeSquadInfraForParent,
+    syncTreasurySafesForParent as mergeTreasurySafesForParent,
+  } from '../lib/dashboard/dashboard-data-sync';
+  import {
     acceptSquadOrPairInvite,
     acceptChannelInSquadInvite,
     acceptingSquadInviteId,
@@ -171,31 +174,6 @@
 
   /** Hydrate treasury Safes from backend when dashboard is shown or via background prefetch (once per squad). */
   let treasuryHydratedIds = new Set<string>();
-  async function mergeTreasurySafesForParent(parentId: string) {
-    if (!parentId) return;
-    try {
-      const rows = await listParentTreasurySafes(parentId);
-      treasurySafesByParentId.update((m: Record<string, TreasurySafeEntry[]>) => ({
-        ...m,
-        [parentId]: rows,
-      }));
-    } catch {
-      /* ignore */
-    }
-  }
-
-  async function mergeSquadInfraForParent(parentId: string) {
-    if (!parentId) return;
-    try {
-      const rows = await listSquadInfra(parentId);
-      squadInfraByParentId.update((m: Record<string, SquadInfraDto[]>) => ({
-        ...m,
-        [parentId]: rows,
-      }));
-    } catch {
-      /* ignore */
-    }
-  }
 
   function governanceCanonicalSafeRef(rawAddress: string): string {
     try {

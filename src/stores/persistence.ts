@@ -1,4 +1,10 @@
 import { hydrateWalletSummaryCacheFromDisk } from '../lib/wallet/wallet-summary-cache';
+import { hydrateTreasurySafesCacheFromDisk } from '../lib/dashboard/treasury-safes-cache';
+import { hydrateSquadInfraCacheFromDisk } from '../lib/dashboard/squad-infra-cache';
+import { hydrateSquadMemberEvmCacheFromDisk } from '../lib/dashboard/squad-member-evm-cache';
+import { hydrateGovernanceSnapshotCacheFromDisk } from '../lib/dashboard/governance-snapshot-cache';
+import { hydrateSafeStateCacheFromDisk } from '../lib/dashboard/safe-state-disk-cache';
+import { safeStateByTreasuryId } from './safe';
 import { loadDeferredSquadRosterKeyParentIds } from '../lib/squad/squad-roster-key-choice';
 import { getInviteDecisionLoadEntries } from './invite-decisions';
 import type { PactoAppInboxEntry } from '../lib/pacto-app-inbox';
@@ -113,4 +119,11 @@ export function loadAccountState(npub: string): void {
   }
   loadDeferredSquadRosterKeyParentIds();
   hydrateWalletSummaryCacheFromDisk(npub);
+  hydrateTreasurySafesCacheFromDisk(npub);
+  hydrateSquadInfraCacheFromDisk(npub);
+  hydrateSquadMemberEvmCacheFromDisk(npub);
+  hydrateGovernanceSnapshotCacheFromDisk(npub);
+  hydrateSafeStateCacheFromDisk(npub, (rows) => {
+    safeStateByTreasuryId.update((cur) => ({ ...cur, ...rows }));
+  });
 }

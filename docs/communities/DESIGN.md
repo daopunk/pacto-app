@@ -7,7 +7,7 @@ Squads and **squad-pairs** (partner coordination between two anchor squads) shar
 | **Squad** | MLS channel group; stable id = **announcements MLS group id**. |
 | **Squad-pair** | Partner coordination parent linking two anchor squads (`pairedSquads`); same id rule as squads. |
 
-**Related:** [`docs/mls/`](../mls/), [`docs/messaging/OVERVIEW.md`](../messaging/OVERVIEW.md). Code: `Squad`, `kind`, `pairedSquads` in `src/stores/app.ts` and `src/lib/squad-pair.ts`.
+**Related:** [`docs/mls/`](../mls/), [`docs/messaging/OVERVIEW.md`](../messaging/OVERVIEW.md). Code: `Squad`, `kind`, `pairedSquads` in `src/stores/squads.ts` (re-exported from `stores/app.ts` barrel) and `src/lib/squad-pair.ts`.
 
 ---
 
