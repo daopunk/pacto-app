@@ -52,6 +52,33 @@ describe('normalizeStoredSquad', () => {
     });
     expect(normalized.pairedSquads).toBeUndefined();
   });
+
+  it('defaults visibility to private and strips tags', () => {
+    expect(normalizeStoredSquad(regularSquad).visibility).toBe('private');
+    expect(normalizeStoredSquad(regularSquad).commonsTags).toBeUndefined();
+    expect(
+      normalizeStoredSquad({ ...regularSquad, visibility: 'private', commonsTags: ['neo'] }).commonsTags
+    ).toBeUndefined();
+  });
+
+  it('keeps normalized tags for public squads', () => {
+    const normalized = normalizeStoredSquad({
+      ...regularSquad,
+      visibility: 'public',
+      commonsTags: ['#Neo', 'dao'],
+    });
+    expect(normalized.visibility).toBe('public');
+    expect(normalized.commonsTags).toEqual(['neo', 'dao']);
+  });
+
+  it('drops invalid tags on public squads', () => {
+    const normalized = normalizeStoredSquad({
+      ...regularSquad,
+      visibility: 'public',
+      commonsTags: ['!!!'],
+    });
+    expect(normalized.commonsTags).toBeUndefined();
+  });
 });
 
 describe('partnerSquadsForAnchor', () => {

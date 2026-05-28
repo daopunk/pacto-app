@@ -36,3 +36,15 @@ export interface CommonsBroadcastDto {
   squadIconUrl?: string;
   createdAt: number;
 }
+
+/** Client-side mirror of our own active broadcasts for cooldown UX. */
+export interface CommonsBroadcastLocalState {
+  subject: CommonsBroadcastSubject;
+  subjectId: string;
+  eventId: string;
+  expiresAt: number;
+  durationHours: CommonsBroadcastDurationHours;
+  tags: string[];
+  message: string;
+  audience?: CommonsBroadcastAudience;
+}

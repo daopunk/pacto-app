@@ -1,45 +1,105 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy } from 'svelte';
   import CommonsFilterSidebar from './CommonsFilterSidebar.svelte';
   import CommonsBroadcastCard from './CommonsBroadcastCard.svelte';
   import { fetchCommonsBroadcasts } from '../../lib/api/commons';
   import type { CommonsBroadcastDto } from '../../lib/commons/types';
+  import {
+    COMMONS_FEED_REFRESH_MS,
+    DEFAULT_COMMONS_FEED_FILTERS,
+    prepareCommonsFeed,
+    type CommonsAudienceFilter,
+    type CommonsSubjectFilter,
+    type CommonsTagMatchMode,
+  } from '../../lib/commons/commons-feed';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
+  import { activeTopNavTab } from '../../stores/navigation';
 
   let broadcasts: CommonsBroadcastDto[] = [];
   let loading = true;
   let error: string | null = null;
+  let filterTags: string[] = [...DEFAULT_COMMONS_FEED_FILTERS.tags];
+  let tagMatchMode: CommonsTagMatchMode = DEFAULT_COMMONS_FEED_FILTERS.tagMatchMode;
+  let subjectFilter: CommonsSubjectFilter = DEFAULT_COMMONS_FEED_FILTERS.subjectFilter;
+  let audienceFilter: CommonsAudienceFilter = DEFAULT_COMMONS_FEED_FILTERS.audienceFilter;
 
-  async function loadFeed() {
-    loading = true;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let wasCommonsActive = false;
+
+  $: feedFilters = { tags: filterTags, tagMatchMode, subjectFilter, audienceFilter };
+  $: filteredBroadcasts = prepareCommonsFeed(broadcasts, feedFilters);
+  $: hasFilters =
+    filterTags.length > 0 ||
+    subjectFilter !== 'both' ||
+    audienceFilter !== 'any';
+  $: emptyBecauseFilters = !loading && !error && broadcasts.length > 0 && filteredBroadcasts.length === 0;
+
+  async function loadFeed(options: { silent?: boolean } = {}) {
+    if (!options.silent) {
+      loading = true;
+    }
     error = null;
     try {
       broadcasts = await fetchCommonsBroadcasts(100);
     } catch (e: unknown) {
       error = getInvokeErrorMessage(e, 'Could not load Commons broadcasts.');
-      broadcasts = [];
+      if (!options.silent) {
+        broadcasts = [];
+      }
     } finally {
-      loading = false;
+      if (!options.silent) {
+        loading = false;
+      }
     }
   }
 
-  onMount(() => {
-    void loadFeed();
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(() => {
+      void loadFeed({ silent: true });
+    }, COMMONS_FEED_REFRESH_MS);
+  }
+
+  $: {
+    const commonsActive = $activeTopNavTab === 'commons';
+    if (commonsActive && !wasCommonsActive) {
+      void loadFeed();
+      startPolling();
+    } else if (!commonsActive && wasCommonsActive) {
+      stopPolling();
+    }
+    wasCommonsActive = commonsActive;
+  }
+
+  onDestroy(() => {
+    stopPolling();
   });
 </script>
 
 <div class="commons-area">
-  <CommonsFilterSidebar />
+  <CommonsFilterSidebar
+    bind:tags={filterTags}
+    bind:tagMatchMode
+    bind:subjectFilter
+    bind:audienceFilter
+  />
   <section class="commons-main" aria-labelledby="commons-feed-heading">
     <header class="commons-main-header">
       <div class="commons-main-header-row">
         <div>
           <h1 id="commons-feed-heading" class="commons-main-title">Commons</h1>
           <p class="commons-main-lead muted">
-            Active public broadcasts from the last 72 hours on trusted relays.
+            Active public broadcasts from the last 72 hours. Newest first.
           </p>
         </div>
-        <button type="button" class="commons-refresh-btn" disabled={loading} on:click={loadFeed}>
+        <button type="button" class="commons-refresh-btn" disabled={loading} on:click={() => loadFeed()}>
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
@@ -47,14 +107,23 @@
     <div class="commons-feed" role="feed" aria-busy={loading}>
       {#if error}
         <p class="commons-feed-error" role="alert">{error}</p>
-      {:else if loading && broadcasts.length === 0}
+      {:else if loading && filteredBroadcasts.length === 0}
         <p class="commons-feed-empty muted" role="status">Loading broadcasts…</p>
-      {:else if broadcasts.length === 0}
+      {:else if emptyBecauseFilters}
+        <p class="commons-feed-empty muted" role="status">No broadcasts match your filters.</p>
+        <p class="commons-feed-hint muted">Try fewer tags, match Any, or broaden Show / audience.</p>
+      {:else if filteredBroadcasts.length === 0}
         <p class="commons-feed-empty muted" role="status">No active broadcasts yet.</p>
-        <p class="commons-feed-hint muted">Use + Broadcast to publish, or wait for others on relays.</p>
+        <p class="commons-feed-hint muted">
+          {#if hasFilters}
+            Clear filters or use + Broadcast to publish.
+          {:else}
+            Use + Broadcast to publish, or wait for others on relays.
+          {/if}
+        </p>
       {:else}
         <ul class="commons-feed-list" role="list">
-          {#each broadcasts as broadcast (broadcast.eventId)}
+          {#each filteredBroadcasts as broadcast (broadcast.eventId)}
             <li>
               <CommonsBroadcastCard {broadcast} />
             </li>
@@ -157,7 +226,7 @@
     margin: 0;
     font-size: 0.8125rem;
     text-align: center;
-    max-width: 20rem;
+    max-width: 22rem;
     margin-inline: auto;
   }
 

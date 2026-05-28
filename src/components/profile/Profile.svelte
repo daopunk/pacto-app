@@ -3,6 +3,7 @@
   import { activeView } from '../../stores/app';
   import SettingsPage from '../settings/SettingsPage.svelte';
   import ProfileSection from '../settings/ProfileSection.svelte';
+  import CommonsSettingsSection from '../settings/CommonsSettingsSection.svelte';
   import NostrSettingsSection from '../settings/NostrSettingsSection.svelte';
   import AppSettingsSection from '../settings/AppSettingsSection.svelte';
   import WalletView from '../wallet/WalletView.svelte';
@@ -20,6 +21,8 @@
     <ProfileSection />
 
     {#if userNpub}
+      <CommonsSettingsSection {userNpub} />
+
       <NostrSettingsSection />
 
       <SettingsCollapsibleSection

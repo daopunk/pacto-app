@@ -1,7 +1,9 @@
 <script lang="ts">
   import SmartContractSecuritySection from '../governance/SmartContractSecuritySection.svelte';
+  import SquadRosterKeyInboxCard from '../../inbox/SquadRosterKeyInboxCard.svelte';
   import { getProfileAvatarSrc, getProfileDisplayName } from '../../../lib/utils/profile';
   import { profiles } from '../../../stores/profiles';
+  import { currentUser } from '../../../stores/auth';
   import type { DashboardPermissionsContext } from '../../../lib/dashboard/permissions-panel';
   import type { ResolvedSquadAdminContext } from '../../../lib/governance/squad-admin-payload';
 
@@ -21,11 +23,15 @@
   export let memberRolesByAddress: Record<string, string> = {};
   export let onOpenLaunchpad: () => void = () => {};
   export let onOpenSquadRolesModal: () => void = () => {};
+  export let onRosterBindingChanged: () => void = () => {};
 
   function shortAddress(addr: string): string {
     if (!addr || addr.length < 12) return addr;
     return addr.slice(0, 6) + '…' + addr.slice(-4);
   }
+
+  $: myNpub = $currentUser?.npub ?? '';
+  $: myRosterEvm = myNpub ? squadMemberEvmByNpub[myNpub]?.trim() : '';
 </script>
 
 {#if squadInfraRows !== undefined && !hasSponsor}
@@ -34,8 +40,39 @@
     <button type="button" class="btn-primary" on:click={onOpenLaunchpad}>Open Deploy</button>
   </div>
 {/if}
-<section class="dashboard-section dashboard-placeholder-section" aria-labelledby="settings-heading">
-  <h3 id="settings-heading" class="section-heading">Settings</h3>
+
+<section
+  id="settings-user-squad"
+  class="dashboard-section dashboard-user-squad-section"
+  aria-labelledby="settings-user-squad-heading"
+>
+  <h3 id="settings-user-squad-heading" class="section-heading">User-per-squad settings</h3>
+  <p class="dashboard-placeholder-text dashboard-placeholder-lead">
+    Roster address for this squad. Account-wide DM signer lives in Profile → Settings.
+  </p>
+  {#if announcementsGroupId && parentId}
+    <p class="user-roster-current">
+      Your roster EVM:
+      <code class="user-roster-addr">{myRosterEvm ? shortAddress(myRosterEvm) : 'Not shared'}</code>
+    </p>
+    <div class="user-roster-actions">
+      <SquadRosterKeyInboxCard
+        {parentId}
+        announcementsGroupId={announcementsGroupId}
+        onComplete={onRosterBindingChanged}
+      />
+    </div>
+  {:else}
+    <p class="dashboard-placeholder-text muted">No announcements channel for this squad.</p>
+  {/if}
+</section>
+
+<section
+  id="settings-squad"
+  class="dashboard-section dashboard-placeholder-section"
+  aria-labelledby="settings-heading"
+>
+  <h3 id="settings-heading" class="section-heading">Squad settings</h3>
   {#if permissionsCtx.phase === 'loading'}
     <p class="dashboard-placeholder-text muted">Loading permissions context…</p>
   {:else}
@@ -161,6 +198,27 @@
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     padding: 16px;
+  }
+
+  .dashboard-user-squad-section {
+    margin-bottom: 16px;
+  }
+
+  .user-roster-current {
+    margin: 0 0 12px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .user-roster-addr {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+  }
+
+  .user-roster-actions :global(.roster-key-card) {
+    margin: 0;
+    max-width: none;
   }
 
   .dashboard-placeholder-section .section-heading {

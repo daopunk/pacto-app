@@ -2,6 +2,9 @@
   import Tab from '../ui/Tab.svelte';
   import Modal from '../ui/Modal.svelte';
   import PersonalBroadcastModal from '../commons/PersonalBroadcastModal.svelte';
+  import SquadCommonsVisibilityFields from '../squad/SquadCommonsVisibilityFields.svelte';
+  import { resolveSquadCommonsOnCreate, validatePublicSquadTags } from '../../lib/squad/squad-commons-fields';
+  import type { SquadVisibility } from '../../stores/squads';
   import settingsIcon from '../../icons/settings.svg';
   import plusCircleIcon from '../../icons/plus-circle.svg';
   import friendsIcon from '../../icons/friends.svg';
@@ -40,7 +43,9 @@
   import { sendSquadInviteDm } from '../../lib/pacto-app-inbox';
   import { createDefaultParentChannels } from '../../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
-  import { pendingReadyToast } from '../../stores/toast';
+  import { pendingReadyToast, showToast } from '../../stores/toast';
+  import { schedulePublicSquadCreateBroadcast } from '../../lib/commons/squad-create-broadcast';
+  import { commonsUserPrefs } from '../../stores/commons-prefs';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
   import { getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
@@ -109,6 +114,10 @@
   let organizeSquadIconUrl = '';
   let organizeSquadMembers: string[] = [];
   let organizeSquadError = '';
+  let organizeSquadVisibility: SquadVisibility = 'private';
+  let organizeSquadTags: string[] = [];
+  let organizeSquadTagError = '';
+  let commonsFields: SquadCommonsVisibilityFields;
 
   function openOrganizeSquadModal() {
     showOrganizeSquadModal = true;
@@ -116,6 +125,10 @@
     organizeSquadIconUrl = '';
     organizeSquadMembers = [];
     organizeSquadError = '';
+    organizeSquadVisibility = 'private';
+    organizeSquadTags = [];
+    organizeSquadTagError = '';
+    commonsFields?.resetCommonsFields();
   }
 
   function closeOrganizeSquadModal() {
@@ -123,6 +136,10 @@
   }
 
   function openPersonalBroadcastModal() {
+    if ($commonsUserPrefs.visibility !== 'public') {
+      showToast('Set Commons visibility to Public in Settings → Commons first.');
+      return;
+    }
     showPersonalBroadcastModal = true;
   }
 
@@ -150,16 +167,19 @@
   function createSquadWithAnnouncements(
     name: string,
     memberNpubs: string[],
-    options: { iconUrl?: string } = {}
+    options: { iconUrl?: string; visibility?: SquadVisibility; commonsTags?: string[] } = {}
   ) {
     const now = Date.now();
     const tempId = 'creating-squad-' + now;
+    const visibility = options.visibility === 'public' ? 'public' : 'private';
     const squad: Squad = {
       id: tempId,
       name,
       iconUrl: options.iconUrl,
       channels: [],
       kind: 'squad',
+      visibility,
+      commonsTags: visibility === 'public' ? options.commonsTags : undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -222,6 +242,18 @@
             console.warn('[Navbar] send squad invite DM failed for', npub.slice(0, 20) + '…', e);
           }
         }
+        schedulePublicSquadCreateBroadcast(groupId, () => {
+          const s = get(squads).find((x) => x.id === groupId);
+          if (!s) return undefined;
+          return {
+            id: s.id,
+            name: s.name,
+            kind: s.kind,
+            iconUrl: s.iconUrl,
+            visibility: s.visibility,
+            commonsTags: s.commonsTags,
+          };
+        });
       } catch (e) {
         console.error('[Navbar] createSquadWithAnnouncements failed', { tempId, name }, e);
         removeParentCreatingAnnouncements(tempId);
@@ -249,9 +281,25 @@
       organizeSquadError = 'Select at least one other member to create a squad.';
       return;
     }
+    if (organizeSquadVisibility === 'public') {
+      const tagErr = validatePublicSquadTags(organizeSquadTags);
+      if (tagErr) {
+        organizeSquadTagError = tagErr;
+        return;
+      }
+    }
+    let commons: { visibility: SquadVisibility; commonsTags?: string[] };
+    try {
+      commons = resolveSquadCommonsOnCreate(organizeSquadVisibility, organizeSquadTags);
+    } catch (e) {
+      organizeSquadTagError = e instanceof Error ? e.message : 'Invalid tags.';
+      return;
+    }
     showOrganizeSquadModal = false;
     createSquadWithAnnouncements(name, memberIds, {
       iconUrl: organizeSquadIconUrl.trim() || undefined,
+      visibility: commons.visibility,
+      commonsTags: commons.commonsTags,
     });
   }
 
@@ -260,7 +308,10 @@
     else if ($activeTopNavTab === 'commons') openPersonalBroadcastModal();
   }
 
-  $: canCreateSquad = organizeSquadName.trim().length > 0 && organizeSquadMembers.length > 0;
+  $: canCreateSquad =
+    organizeSquadName.trim().length > 0 &&
+    organizeSquadMembers.length > 0 &&
+    (organizeSquadVisibility !== 'public' || organizeSquadTags.length > 0);
   $: organizeMemberList = [...$pinnedList, ...$dmList];
 
   $: if (showOrganizeSquadModal) {
@@ -397,6 +448,13 @@
       {#if organizeMemberList.length === 0}
         <p class="organize-members-empty">Add friends in DMs first to create a squad with them.</p>
       {/if}
+      <SquadCommonsVisibilityFields
+        bind:this={commonsFields}
+        bind:visibility={organizeSquadVisibility}
+        bind:tags={organizeSquadTags}
+        bind:tagError={organizeSquadTagError}
+        fieldsetName="organize-squad-visibility"
+      />
       {#if organizeSquadError}
         <p class="organize-error" role="alert">{organizeSquadError}</p>
       {/if}

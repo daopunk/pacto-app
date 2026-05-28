@@ -78,6 +78,8 @@ import { resetInviteAcceptState } from '../invites/accept-invite';
 import { resetDashboardPrefetchSession } from '../app/hub-prefetch';
 import { INVITE_DECISION_SCOPED_PREFIXES } from '../../stores/invite-decisions';
 import { recentEmojisStore } from '../../stores/emojis';
+import { resetCommonsUserPrefs, PACTO_COMMONS_PROFILE_PREFIX } from '../../stores/commons-prefs';
+import { PACTO_COMMONS_BROADCASTS_PREFIX } from '../commons/local-broadcast-state';
 
 /** Legacy (non-scoped) keys to remove for backwards compatibility. */
 const LEGACY_LOCAL_STORAGE_KEYS = [
@@ -115,6 +117,8 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_wallet_preferred_network_v1',
   'pacto_wallet_rpc_prefs_v1',
   'pacto_wallet_tx_request_accepted',
+  PACTO_COMMONS_PROFILE_PREFIX,
+  PACTO_COMMONS_BROADCASTS_PREFIX,
   ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;
 
@@ -151,6 +155,7 @@ export function clearAccountState(npub?: string): void {
   clearDashboardFetchMetaStores();
   clearGovernanceSnapshotCacheStore();
   clearSettingsChainCacheStore();
+  resetCommonsUserPrefs();
   clearAccountLocalStorage(npub);
 
   treasurySafesByParentId.set({});

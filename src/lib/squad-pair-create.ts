@@ -25,7 +25,21 @@ import {
   lastHubChannelNameBySquadId,
 } from '../stores/navigation';
 import { pendingReadyToast } from '../stores/toast';
+import { schedulePublicSquadCreateBroadcast } from './commons/squad-create-broadcast';
 import type { PairedSquads } from './squad-pair';
+
+function resolvePublicSquadBroadcastTarget(squadId: string) {
+  const squad = get(squads).find((s) => s.id === squadId);
+  if (!squad) return undefined;
+  return {
+    id: squad.id,
+    name: squad.name,
+    kind: squad.kind,
+    iconUrl: squad.iconUrl,
+    visibility: squad.visibility,
+    commonsTags: squad.commonsTags,
+  };
+}
 
 export interface SquadPairAnchorRef {
   id: string;
@@ -96,15 +110,22 @@ export async function collectInviteNpubsForSquads(
   return [...allNpubs];
 }
 
+export interface SquadPairCreateCommons {
+  visibility: 'private' | 'public';
+  commonsTags?: string[];
+}
+
 /** Optimistic squad-pair row + background announcements MLS create and invite DMs. */
 export function runSquadPairCreateFlow(
   name: string,
   memberNpubs: string[],
   anchor: Squad,
   partner: Squad,
-  iconUrl?: string
+  iconUrl?: string,
+  commons: SquadPairCreateCommons = { visibility: 'private' }
 ): void {
   const pairedSquads = buildPairedSquads(anchor, partner);
+  const visibility = commons.visibility === 'public' ? 'public' : 'private';
   const now = Date.now();
   const tempId = 'creating-squad-pair-' + now;
   const squadPair: Squad = {
@@ -114,6 +135,8 @@ export function runSquadPairCreateFlow(
     channels: [],
     kind: 'squad-pair',
     pairedSquads,
+    visibility,
+    commonsTags: visibility === 'public' ? commons.commonsTags : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -141,6 +164,8 @@ export function runSquadPairCreateFlow(
                 channels,
                 kind: 'squad-pair' as const,
                 pairedSquads: paired,
+                visibility,
+                commonsTags: visibility === 'public' ? commons.commonsTags : undefined,
                 updatedAt: Date.now(),
               }
         )
@@ -180,6 +205,7 @@ export function runSquadPairCreateFlow(
           console.warn('[squad-pair-create] invite DM failed for', npub.slice(0, 20) + '…', e);
         }
       }
+      schedulePublicSquadCreateBroadcast(groupId, () => resolvePublicSquadBroadcastTarget(groupId));
     } catch (e) {
       removeParentCreatingAnnouncements(tempId);
       parentCreateErrorById.update((m) => ({
@@ -256,4 +282,5 @@ export async function retryParentAnnouncementsCreate(parent: Squad): Promise<voi
       console.warn('[squad-pair-create] retry invite DM failed for', npub.slice(0, 20) + '…', e);
     }
   }
+  schedulePublicSquadCreateBroadcast(gid, () => resolvePublicSquadBroadcastTarget(gid));
 }

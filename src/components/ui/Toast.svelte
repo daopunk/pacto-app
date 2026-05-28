@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { toastMessage, clearToast, type ToastGoTo } from '../../stores/toast';
+  import { toastMessage, clearToast, runToastRetryAction, type ToastGoTo } from '../../stores/toast';
   import {
     squads,
     activeTopNavTab,
@@ -47,6 +47,16 @@
           aria-label="Go to {$toastMessage.goTo.name}"
         >
           Go to {$toastMessage.goTo.name}
+        </button>
+      {/if}
+      {#if $toastMessage.retryLabel}
+        <button
+          type="button"
+          class="toast-go-btn"
+          on:click={runToastRetryAction}
+          aria-label={$toastMessage.retryLabel}
+        >
+          {$toastMessage.retryLabel}
         </button>
       {/if}
     </div>

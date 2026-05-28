@@ -1,6 +1,8 @@
 <script lang="ts">
   import Modal from '../ui/Modal.svelte';
+  import SquadCommonsVisibilityFields from './SquadCommonsVisibilityFields.svelte';
   import type { Squad } from '../../stores/app';
+  import type { SquadVisibility } from '../../stores/squads';
 
   export let open = false;
   export let anchorSquadName = '';
@@ -9,14 +11,28 @@
   export let creating = false;
 
   export let onClose: () => void = () => {};
-  export let onCreate: (params: { name: string; partnerSquadId: string; iconUrl?: string }) => void = () => {};
+  export let onCreate: (params: {
+    name: string;
+    partnerSquadId: string;
+    iconUrl?: string;
+    visibility: SquadVisibility;
+    commonsTags?: string[];
+  }) => void = () => {};
 
   let pairName = '';
   let iconUrl = '';
   let selectedPartnerSquadId = '';
+  let visibility: SquadVisibility = 'private';
+  let tags: string[] = [];
+  let tagError = '';
+  let commonsFields: SquadCommonsVisibilityFields;
 
   $: canCreate =
-    pairName.trim().length > 0 && !!selectedPartnerSquadId && candidates.length > 0 && !creating;
+    pairName.trim().length > 0 &&
+    !!selectedPartnerSquadId &&
+    candidates.length > 0 &&
+    !creating &&
+    (visibility !== 'public' || tags.length > 0);
 
   $: if (open) {
     setTimeout(() => document.getElementById('squad-pair-name')?.focus(), 0);
@@ -32,6 +48,8 @@
       name: pairName.trim(),
       partnerSquadId: selectedPartnerSquadId,
       iconUrl: iconUrl.trim() || undefined,
+      visibility,
+      commonsTags: visibility === 'public' ? tags : undefined,
     });
   }
 
@@ -39,6 +57,7 @@
     pairName = '';
     iconUrl = '';
     selectedPartnerSquadId = '';
+    commonsFields?.resetCommonsFields();
   }
 </script>
 
@@ -86,6 +105,13 @@
       {#if candidates.length === 0}
         <p class="pair-empty">Join or create another squad first to pair with {anchorSquadName}.</p>
       {/if}
+      <SquadCommonsVisibilityFields
+        bind:this={commonsFields}
+        bind:visibility
+        bind:tags
+        bind:tagError={tagError}
+        fieldsetName="pair-squad-visibility"
+      />
       {#if error}
         <p class="pair-error" role="alert">{error}</p>
       {/if}

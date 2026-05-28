@@ -7,10 +7,11 @@ import {
   type PairedSquads,
   type PairedSquadRef,
   type SquadKind,
+  type SquadVisibility,
 } from '../lib/squad-pair';
 import { persistenceKey } from './persistence-context';
 
-export type { SquadKind, PairedSquadRef, PairedSquads };
+export type { SquadKind, PairedSquadRef, PairedSquads, SquadVisibility };
 export { partnerSquadsForAnchor, partnerSquadsForHubParent } from '../lib/squad-pair';
 
 export interface Channel {
@@ -55,6 +56,8 @@ export interface Squad {
   channels: Channel[];
   kind: SquadKind;
   pairedSquads?: PairedSquads;
+  visibility?: SquadVisibility;
+  commonsTags?: string[];
   createdAt: number;
   updatedAt: number;
 }

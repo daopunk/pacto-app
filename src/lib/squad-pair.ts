@@ -1,6 +1,8 @@
-/** Squad vs squad-pair (partner coordination) — see ai-docs/networks/RNF_PLAN.md */
+import { normalizeCommonsTags } from './commons/tags';
 
 export type SquadKind = 'squad' | 'squad-pair';
+
+export type SquadVisibility = 'private' | 'public';
 
 export type PairedSquadRef = { id: string; name: string };
 
@@ -20,8 +22,15 @@ export interface StoredSquadRow {
   channels: SquadChannelRow[];
   kind?: SquadKind;
   pairedSquads?: PairedSquadRef[] | PairedSquads;
+  visibility?: SquadVisibility;
+  commonsTags?: string[];
   createdAt: number;
   updatedAt: number;
+}
+
+function normalizeStoredCommonsTags(raw: string[] | undefined): string[] | undefined {
+  if (!raw?.length) return undefined;
+  return normalizeCommonsTags(raw) ?? undefined;
 }
 
 export function isSquadPairKind(kind: SquadKind | undefined): boolean {
@@ -37,11 +46,14 @@ function normalizePairedSquads(raw: PairedSquadRef[] | undefined): PairedSquads 
   return [{ id: a.id, name: a.name }, { id: b.id, name: b.name }];
 }
 
-/** Normalize a squad row from localStorage; default kind is `squad`. */
+/** Normalize a squad row from localStorage; default kind is `squad`, visibility is `private`. */
 export function normalizeStoredSquad(raw: StoredSquadRow): StoredSquadRow {
   const kind: SquadKind = raw.kind === 'squad-pair' ? 'squad-pair' : 'squad';
   const pairedSquads =
     kind === 'squad-pair' ? normalizePairedSquads(raw.pairedSquads) : undefined;
+  const visibility: SquadVisibility = raw.visibility === 'public' ? 'public' : 'private';
+  const commonsTags =
+    visibility === 'public' ? normalizeStoredCommonsTags(raw.commonsTags) : undefined;
   return {
     id: raw.id,
     name: raw.name,
@@ -49,6 +61,8 @@ export function normalizeStoredSquad(raw: StoredSquadRow): StoredSquadRow {
     channels: raw.channels,
     kind,
     pairedSquads,
+    visibility,
+    commonsTags,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };

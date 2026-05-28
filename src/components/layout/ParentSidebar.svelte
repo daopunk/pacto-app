@@ -36,8 +36,7 @@
   export let onCreateChannel: () => void = () => {};
   export let onRetryCreate: () => void = () => {};
   export let onInvite: () => void = () => {};
-  /** Placeholder: future per-parent EVM signer change from sidebar (use #dashboard → Settings today). */
-  export let onChangeEvmSigner: (() => void) | undefined = undefined;
+  export let onBroadcastSquad: (() => void) | undefined = undefined;
   export let onExitSquad: (() => void) | undefined = undefined;
 
   /** Partner squad-pairs linked to the active hub. */
@@ -66,7 +65,7 @@
 
   $: showPartnerSquads = partnerSquads.length > 0 || showPairWithSquadAction;
   $: inviteLabel = 'Invite to Squad';
-  $: showChangeEvmSigner = typeof onChangeEvmSigner === 'function';
+  $: showBroadcastSquad = typeof onBroadcastSquad === 'function';
   $: showExit = typeof onExitSquad === 'function';
   $: exitLabel = 'Exit Squad';
   $: onExit = onExitSquad;
@@ -109,17 +108,17 @@
               >
                 {inviteLabel}
               </button>
-              {#if showChangeEvmSigner && onChangeEvmSigner}
+              {#if showBroadcastSquad && onBroadcastSquad}
                 <button
                   type="button"
                   class="parent-menu-item"
                   role="menuitem"
                   on:click={() => {
                     menuOpen = false;
-                    onChangeEvmSigner();
+                    onBroadcastSquad();
                   }}
                 >
-                  Change EVM Signer
+                  Broadcast Squad
                 </button>
               {/if}
               {#if showExit && onExit}

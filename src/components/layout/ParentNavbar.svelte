@@ -4,6 +4,8 @@
   import InviteToParentModal from '../channel/InviteToParentModal.svelte';
   import ExitParentModal from '../channel/ExitParentModal.svelte';
   import PairWithSquadModal from '../squad/PairWithSquadModal.svelte';
+  import BroadcastSquadModal from '../commons/BroadcastSquadModal.svelte';
+  import { isPublicSquadForCommonsBroadcast } from '../../lib/commons/squad-create-broadcast';
   import {
     squads,
     parentsCreatingAnnouncements,
@@ -37,6 +39,8 @@
     runSquadPairCreateFlow,
     retryParentAnnouncementsCreate,
   } from '../../lib/squad-pair-create';
+  import { resolveSquadCommonsOnCreate, validatePublicSquadTags } from '../../lib/squad/squad-commons-fields';
+  import type { SquadVisibility } from '../../stores/squads';
   import { getMlsGroupMembers } from '../../lib/api/nostr';
   import {
     loadCreateChannelMemberList,
@@ -49,6 +53,21 @@
   import { runExitParent } from '../../lib/parent/exit-parent-flow';
 
   $: activeParent = $squads.find((s) => s.id === $activeSquadId) as Squad | undefined;
+
+  $: liveActiveParent = $activeSquadId
+    ? ($squads.find((s) => s.id === $activeSquadId) as Squad | undefined)
+    : undefined;
+
+  $: canBroadcastSquad =
+    !!liveActiveParent &&
+    isPublicSquadForCommonsBroadcast({
+      id: liveActiveParent.id,
+      name: liveActiveParent.name,
+      kind: liveActiveParent.kind,
+      iconUrl: liveActiveParent.iconUrl,
+      visibility: liveActiveParent.visibility,
+      commonsTags: liveActiveParent.commonsTags,
+    });
 
   $: rawChannels = activeParent
     ? [...activeParent.channels].sort((a, b) => a.order - b.order)
@@ -126,12 +145,28 @@
     name: string;
     partnerSquadId: string;
     iconUrl?: string;
+    visibility: SquadVisibility;
+    commonsTags?: string[];
   }) {
     const anchor = pairAnchorSquad;
     if (!anchor || pairCreating) return;
     const partner = $squads.find((s) => s.id === params.partnerSquadId);
     if (!partner) {
       pairCreateError = 'Could not find the selected squads.';
+      return;
+    }
+    if (params.visibility === 'public') {
+      const tagErr = validatePublicSquadTags(params.commonsTags ?? []);
+      if (tagErr) {
+        pairCreateError = tagErr;
+        return;
+      }
+    }
+    let commons: { visibility: SquadVisibility; commonsTags?: string[] };
+    try {
+      commons = resolveSquadCommonsOnCreate(params.visibility, params.commonsTags ?? []);
+    } catch (e) {
+      pairCreateError = e instanceof Error ? e.message : 'Invalid tags.';
       return;
     }
     pairCreating = true;
@@ -147,7 +182,7 @@
         return;
       }
       showPairWithSquadModal = false;
-      runSquadPairCreateFlow(params.name, memberNpubs, anchor, partner, params.iconUrl);
+      runSquadPairCreateFlow(params.name, memberNpubs, anchor, partner, params.iconUrl, commons);
     } catch (e) {
       pairCreateError = friendlyMessage(getInvokeErrorMessage(e));
     } finally {
@@ -371,10 +406,15 @@
 
   let showExitModal = false;
   let exitError = '';
+  let showBroadcastSquadModal = false;
 
-  function showChangeEvmSignerPlaceholder() {
-    if (!canShowParentMenuActions || !activeParent) return;
-    showToast('Set your squad signer under Settings → Default wallet config (Edit).');
+  function openBroadcastSquadModal() {
+    if (!canBroadcastSquad || !canShowParentMenuActions || !liveActiveParent) return;
+    showBroadcastSquadModal = true;
+  }
+
+  function closeBroadcastSquadModal() {
+    showBroadcastSquadModal = false;
   }
 
   function openExitModal() {
@@ -419,7 +459,7 @@
   onCreateChannel={openCreateChannelModal}
   onRetryCreate={handleRetryCreate}
   onInvite={openInviteModal}
-  onChangeEvmSigner={canShowParentMenuActions ? showChangeEvmSignerPlaceholder : undefined}
+  onBroadcastSquad={canBroadcastSquad && canShowParentMenuActions ? openBroadcastSquadModal : undefined}
   onExitSquad={openExitModal}
   partnerSquads={partnerSquads}
   activePartnerSquadId={activePartnerSquadId}
@@ -486,3 +526,17 @@
   onClose={closePairWithSquadModal}
   onCreate={handleCreateSquadPair}
 />
+
+{#if showBroadcastSquadModal && liveActiveParent}
+  <BroadcastSquadModal
+    squad={{
+      id: liveActiveParent.id,
+      name: liveActiveParent.name,
+      kind: liveActiveParent.kind,
+      iconUrl: liveActiveParent.iconUrl,
+      visibility: liveActiveParent.visibility,
+      commonsTags: liveActiveParent.commonsTags,
+    }}
+    onClose={closeBroadcastSquadModal}
+  />
+{/if}
