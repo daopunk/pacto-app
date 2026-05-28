@@ -4,6 +4,7 @@
   import { get } from 'svelte/store';
   import Navbar from '../components/layout/Navbar.svelte';
   import TopNavbar from '../components/layout/TopNavbar.svelte';
+  import CommonsView from '../components/commons/CommonsView.svelte';
   import ParentNavbar from '../components/layout/ParentNavbar.svelte';
   import Profile from '../components/profile/Profile.svelte';
   import MessengerNavbar from '../components/dm/MessengerNavbar.svelte';
@@ -871,6 +872,8 @@
     <div class="content-wrap">
       {#if $activeView === 'profile'}
         <Profile />
+      {:else if $activeTopNavTab === 'commons'}
+        <CommonsView />
       {:else if $activeTopNavTab === 'dms'}
         <div class="dm-area">
           <MessengerNavbar />
@@ -1077,7 +1080,8 @@
   }
 
   .parent-area,
-  .squads-area {
+  .squads-area,
+  :global(.commons-area) {
     flex: 1;
     min-width: 0;
     min-height: 0;

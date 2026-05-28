@@ -1,6 +1,7 @@
 <script lang="ts">
   import Tab from '../ui/Tab.svelte';
   import Modal from '../ui/Modal.svelte';
+  import PersonalBroadcastModal from '../commons/PersonalBroadcastModal.svelte';
   import settingsIcon from '../../icons/settings.svg';
   import plusCircleIcon from '../../icons/plus-circle.svg';
   import friendsIcon from '../../icons/friends.svg';
@@ -93,13 +94,17 @@
     activeHubChannelName.set(null);
   }
 
-  const addButtonLabels: Record<TopNavTab, string> = {
+  const addButtonLabels: Partial<Record<TopNavTab, string>> = {
+    commons: 'Broadcast',
     dms: 'Start DM',
     squads: 'Organize Squad',
   };
   $: addButtonLabel = addButtonLabels[$activeTopNavTab];
+  $: showAddButton =
+    $activeTopNavTab === 'commons' || $activeTopNavTab === 'dms' || $activeTopNavTab === 'squads';
 
   let showOrganizeSquadModal = false;
+  let showPersonalBroadcastModal = false;
   let organizeSquadName = '';
   let organizeSquadIconUrl = '';
   let organizeSquadMembers: string[] = [];
@@ -115,6 +120,19 @@
 
   function closeOrganizeSquadModal() {
     showOrganizeSquadModal = false;
+  }
+
+  function openPersonalBroadcastModal() {
+    showPersonalBroadcastModal = true;
+  }
+
+  function closePersonalBroadcastModal() {
+    showPersonalBroadcastModal = false;
+  }
+
+  function handleBottomAddClick() {
+    if ($activeTopNavTab === 'dms') startNewChat();
+    else handleAddAction();
   }
 
   function toggleOrganizeMember(npub: string) {
@@ -239,6 +257,7 @@
 
   function handleAddAction() {
     if ($activeTopNavTab === 'squads') openOrganizeSquadModal();
+    else if ($activeTopNavTab === 'commons') openPersonalBroadcastModal();
   }
 
   $: canCreateSquad = organizeSquadName.trim().length > 0 && organizeSquadMembers.length > 0;
@@ -293,6 +312,8 @@
       >
         <Tab label="Search" icon={searchIcon} active={$activeView === 'hub' && $activeDmTab === 'search'} />
       </div>
+    {:else if $activeTopNavTab === 'commons'}
+      <p class="commons-nav-stub" aria-hidden="true">—</p>
     {:else if $activeTopNavTab === 'squads'}
       {#each $squads as squad (squad.id)}
         <div
@@ -315,14 +336,16 @@
   <div class="navbar-spacer" aria-hidden="true"></div>
   {/if}
   <div class="tab-list bottom">
-    <div
-      on:click={$activeTopNavTab === 'dms' ? startNewChat : handleAddAction}
-      on:keydown={(e) => e.key === 'Enter' && ($activeTopNavTab === 'dms' ? startNewChat() : handleAddAction())}
-      role="button"
-      tabindex="0"
-    >
-      <Tab label={addButtonLabel} icon={plusCircleIcon} active={false} />
-    </div>
+    {#if showAddButton && addButtonLabel}
+      <div
+        on:click={handleBottomAddClick}
+        on:keydown={(e) => e.key === 'Enter' && handleBottomAddClick()}
+        role="button"
+        tabindex="0"
+      >
+        <Tab label={addButtonLabel} icon={plusCircleIcon} active={false} />
+      </div>
+    {/if}
     <div
       on:click={openProfile}
       on:keydown={(e) => e.key === 'Enter' && openProfile()}
@@ -389,6 +412,10 @@
   </Modal>
 {/if}
 
+{#if showPersonalBroadcastModal}
+  <PersonalBroadcastModal onClose={closePersonalBroadcastModal} />
+{/if}
+
 <style>
   .navbar {
     width: 64px;
@@ -421,6 +448,14 @@
   .navbar-spacer {
     flex: 1;
     min-height: 0;
+  }
+
+  .commons-nav-stub {
+    margin: 0;
+    font-size: 0.75rem;
+    text-align: center;
+    color: var(--text-muted);
+    user-select: none;
   }
 
   .organize-modal-subtitle {

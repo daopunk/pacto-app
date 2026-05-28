@@ -17,6 +17,7 @@
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
 
   const tabs: { id: TopNavTab; label: string }[] = [
+    { id: 'commons', label: 'Commons' },
     { id: 'dms', label: 'DMs' },
     { id: 'squads', label: 'Squads' },
   ];

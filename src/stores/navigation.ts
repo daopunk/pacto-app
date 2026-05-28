@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { persistenceKey } from './persistence-context';
 
-export type TopNavTab = 'dms' | 'squads';
+export type TopNavTab = 'commons' | 'dms' | 'squads';
 export const activeTopNavTab = writable<TopNavTab>('squads');
 
 export const activeSquadId = writable<string | null>(null);

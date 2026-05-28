@@ -54,6 +54,8 @@ pub use chat::{Chat, ChatType, ChatMetadata};
 
 mod dashboard_poll;
 
+mod commons;
+
 mod virtual_channel_bucket;
 
 mod rumor;
@@ -6201,6 +6203,9 @@ pub fn run() {
             dashboard_poll::list_dashboard_polls,
             dashboard_poll::send_dashboard_poll_create,
             dashboard_poll::send_dashboard_poll_vote,
+            commons::commons_publish_broadcast,
+            commons::commons_fetch_broadcasts,
+            commons::commons_get_local_active,
             db::upsert_squad_member_evm,
             db::list_squad_member_evm,
             db::upsert_squad_member_evm_account,
