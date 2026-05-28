@@ -29,7 +29,7 @@ Watched ERC-20 rows: `src/lib/wallet/watched-tokens.ts`. Chain and asset registr
 | Persist | Treasury Safe list, squad infra rows, member EVM map, governance snapshots, Safe on-chain state (short TTL) per `npub` | `src/lib/dashboard/treasury-safes-cache.ts`, `squad-infra-cache.ts`, `squad-member-evm-cache.ts`, `governance-snapshot-cache.ts`, `safe-state-disk-cache.ts` |
 | Hydrate | Read snapshots into stores on account load | `loadAccountState` in `src/stores/persistence.ts` |
 | Memory | Parent id → linked treasury Safe entries / infra rows / member EVM | `treasurySafesByParentId`, `squadInfraByParentId`, `squadMemberEvmByParentId` in `src/stores/squads.ts` |
-| Background | Refresh when `#dashboard` is active or after login prefetch | `syncTreasurySafesForParent` / `syncSquadInfraForParent` in `src/lib/dashboard/dashboard-data-sync.ts`; reactive block on `dashboardParentId` in `src/routes/+page.svelte` |
+| Background | Refresh on hub / `#dashboard` intent and after login squad warmup | `scheduleHubParentPrefetch` / `scheduleDashboardPrefetch` in `src/lib/app/`; `syncTreasurySafesForParent` in `src/lib/dashboard/dashboard-data-sync.ts` |
 | Surface | Show hydrated rows immediately; “Refreshing…” while revalidate; keep snapshot on fetch error | Dashboard tabs under `src/components/parent/dashboard/` |
 | On-chain Safe state | Balance, owners, nonce per linked entry (30s in-memory SWR + 15 min disk TTL) | `refreshSafeStateForTreasuryEntry` in `src/stores/safe.ts` |
 | Updates | Realtime events and deploy/import flows refresh stores + disk | `subscribeAppEvents` in `src/lib/app/tauri-subscriptions.ts`; Safe import/deploy via `ParentDashboard` → `onConfirmImportSafe` in `+page.svelte` |

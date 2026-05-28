@@ -2,12 +2,11 @@ import { writable, derived, get } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { login as apiLogin, loginWithRecoveryPhrase, createAccount as apiCreateAccount, connect as apiConnect, checkAnyAccountExists, getCurrentAccount } from '../lib/api/auth';
 import { hasStoredKey, encryptAndSaveKey, encryptAndSaveEvmKey, loadAndDecryptKey, validatePrivateKeyFormat, validateRecoveryPhraseForImport } from '../lib/api/encryption';
-import { refreshProfileNow, fetchMessages } from '../lib/api/nostr';
 import { dmLog } from '../lib/utils/dm-debug';
-import { clearAccountState } from '../lib/utils/clear-account-state';
-import { dmSyncStatus } from './dm';
+import { runPostLoginNetworkSync } from '../lib/app/post-login-sync';
 import { activeTopNavTab } from './navigation';
 import { loadAccountState } from './persistence';
+import { clearAccountState } from '../lib/utils/clear-account-state';
 
 // Auth state
 export const isAuthenticated = writable<boolean>(false);
@@ -27,28 +26,6 @@ export const isLoggedIn = derived(
   [isAuthenticated, currentUser],
   ([$isAuthenticated, $currentUser]) => $isAuthenticated && $currentUser !== null
 );
-
-/** Relay connect + DM sync + profile refresh — must not block PIN unlock UI. */
-function runPostLoginNetworkSync(npub: string): void {
-  void (async () => {
-    try {
-      dmLog('post-login: connect()');
-      await apiConnect();
-      dmLog('post-login: connect() done');
-    } catch (e) {
-      console.error('connect after login failed:', e);
-    }
-    dmLog('post-login: fetchMessages(true)');
-    dmSyncStatus.set('syncing');
-    fetchMessages(true).catch((e) => console.error('fetch_messages failed:', e));
-    try {
-      await refreshProfileNow(npub);
-    } catch (e) {
-      console.error('Auto profile refresh failed:', e);
-    }
-    dmLog('post-login: network sync done');
-  })();
-}
 
 /**
  * Check auth status on app startup

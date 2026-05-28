@@ -345,6 +345,15 @@
     if (id === 'settings' && announcementsGroupId) loadDashboardMembers();
   }
 
+  function prefetchDashboardTabIntent(id: ParentDashboardView) {
+    if (id === 'governance') {
+      if (pactoPayload?.treasuryAuthority) void loadTreasuryProposals();
+      void loadSquadMemberEvm();
+    } else if (id === 'roles_tree' && pactoGovRow?.canonicalRef) {
+      void loadHatsTree();
+    }
+  }
+
   $: if (dashboardView === 'settings' && parentId) {
     loadSquadMemberEvm();
   }
@@ -512,6 +521,8 @@
             class:active={dashboardView === v.id}
             aria-selected={dashboardView === v.id}
             on:click={() => selectDashboardView(v.id)}
+            on:mouseenter={() => prefetchDashboardTabIntent(v.id)}
+            on:focus={() => prefetchDashboardTabIntent(v.id)}
           >
             {v.label}
           </button>

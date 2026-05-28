@@ -126,6 +126,11 @@
   import { portal } from '../lib/utils/portal';
   import { subscribeAppEvents } from '../lib/app/tauri-subscriptions';
   import {
+    scheduleAllSquadsHubWarmup,
+    scheduleHubParentPrefetch,
+  } from '../lib/app/hub-prefetch';
+  import { scheduleDashboardPrefetch } from '../lib/app/dashboard-prefetch';
+  import {
     syncSquadInfraForParent as mergeSquadInfraForParent,
     syncTreasurySafesForParent as mergeTreasurySafesForParent,
   } from '../lib/dashboard/dashboard-data-sync';
@@ -171,9 +176,6 @@
   })();
 
   const LOAD_OLDER_PAGE_SIZE = 50;
-
-  /** Hydrate treasury Safes from backend when dashboard is shown or via background prefetch (once per squad). */
-  let treasuryHydratedIds = new Set<string>();
 
   function governanceCanonicalSafeRef(rawAddress: string): string {
     try {
@@ -391,10 +393,14 @@
 
   $: dashboardParentId =
     $activeChannelId === DASHBOARD_CHANNEL_ID ? openHubParent?.id ?? null : null;
-  $: if (dashboardParentId && !treasuryHydratedIds.has(dashboardParentId)) {
-    treasuryHydratedIds.add(dashboardParentId);
-    mergeTreasurySafesForParent(dashboardParentId);
-    mergeSquadInfraForParent(dashboardParentId).catch(() => {});
+  $: if ($activeTopNavTab === 'squads' && openHubParent) {
+    scheduleHubParentPrefetch(openHubParent);
+  }
+  $: if (dashboardParentId && openHubParent) {
+    scheduleDashboardPrefetch(openHubParent);
+  }
+  $: if ($isAuthenticated && $currentUser && $squads.length > 0) {
+    scheduleAllSquadsHubWarmup($squads);
   }
 
   /** After login, refresh embedded wallet balances in the background (cache only; no DM open). */
@@ -406,19 +412,6 @@
     } else if (walletSummaryPrefetchKey !== npub) {
       walletSummaryPrefetchKey = npub;
       scheduleWalletSummaryBackgroundPrefetch(npub);
-    }
-  }
-
-  /** Background prefetch: on app start/load, best-effort fetch of Safe addresses for all known squads. */
-  let initialTreasuryPrefetchDone = false;
-  $: if (!initialTreasuryPrefetchDone && $squads.length > 0) {
-    initialTreasuryPrefetchDone = true;
-    const parentIds = $squads.map((s: Squad) => s.id);
-    for (const pid of parentIds) {
-      if (!pid || treasuryHydratedIds.has(pid)) continue;
-      treasuryHydratedIds.add(pid);
-      mergeTreasurySafesForParent(pid).catch(() => {});
-      mergeSquadInfraForParent(pid).catch(() => {});
     }
   }
 

@@ -74,6 +74,7 @@ import { SQUAD_MEMBER_EVM_CACHE_PREFIX } from '../dashboard/squad-member-evm-cac
 import { GOVERNANCE_SNAPSHOT_CACHE_PREFIX } from '../dashboard/governance-snapshot-cache';
 import { SAFE_STATE_DISK_CACHE_PREFIX } from '../dashboard/safe-state-disk-cache';
 import { resetInviteAcceptState } from '../invites/accept-invite';
+import { resetDashboardPrefetchSession } from '../app/hub-prefetch';
 import { INVITE_DECISION_SCOPED_PREFIXES } from '../../stores/invite-decisions';
 import { recentEmojisStore } from '../../stores/emojis';
 
@@ -143,6 +144,7 @@ function clearAccountLocalStorage(npub?: string): void {
 export function clearAccountState(npub?: string): void {
   setCurrentNpubForPersistence(null);
   resetInviteAcceptState();
+  resetDashboardPrefetchSession();
   clearWalletSummaryCacheStore();
   clearDashboardFetchMetaStores();
   clearGovernanceSnapshotCacheStore();
