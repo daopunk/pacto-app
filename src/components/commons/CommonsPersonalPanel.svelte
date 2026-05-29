@@ -10,14 +10,18 @@
   } from '../../lib/commons/user-broadcast';
   import { showToast } from '../../stores/toast';
   import type { CommonsBroadcastLocalState } from '../../lib/commons/types';
+  import {
+    COMMONS_MESSAGE_PREVIEW_MAX,
+    isCommonsMessageTruncated,
+    truncateCommonsMessage,
+  } from '../../lib/commons/message-preview';
+  import { commonsUserHasActiveBroadcast } from '../../stores/commons-ui';
 
   /** Bump to force a reload after publishing. */
   export let refreshKey = 0;
   export let onBroadcast: () => void = () => {};
   /** Notify parent (feed) after the active broadcast changes. */
   export let onChanged: () => void = () => {};
-
-  const MESSAGE_PREVIEW_MAX = 140;
 
   let lastBroadcast: CommonsBroadcastLocalState | null = null;
   let loading = true;
@@ -33,11 +37,13 @@
   async function load() {
     if (!npub) {
       lastBroadcast = null;
+      commonsUserHasActiveBroadcast.set(false);
       loading = false;
       return;
     }
     loading = true;
     lastBroadcast = await fetchActiveUserCommonsBroadcast(npub);
+    commonsUserHasActiveBroadcast.set(!!lastBroadcast);
     messageExpanded = false;
     loading = false;
   }
@@ -73,23 +79,17 @@
       return;
     }
     lastBroadcast = null;
+    commonsUserHasActiveBroadcast.set(false);
     showToast('Broadcast cancelled. You can broadcast again now.');
     onChanged();
   }
 
   $: hasActive = !!lastBroadcast;
-
-  function truncateMessage(text: string, max: number): string {
-    if (text.length <= max) return text;
-    const slice = text.slice(0, max);
-    const lastSpace = slice.lastIndexOf(' ');
-    const cut = lastSpace > max * 0.55 ? slice.slice(0, lastSpace) : slice;
-    return cut.trimEnd();
-  }
-
   $: fullMessage = lastBroadcast?.message ?? '';
-  $: messageTruncated = fullMessage.length > MESSAGE_PREVIEW_MAX;
-  $: previewMessage = messageTruncated ? truncateMessage(fullMessage, MESSAGE_PREVIEW_MAX) : fullMessage;
+  $: messageTruncated = isCommonsMessageTruncated(fullMessage, COMMONS_MESSAGE_PREVIEW_MAX);
+  $: previewMessage = messageTruncated
+    ? truncateCommonsMessage(fullMessage, COMMONS_MESSAGE_PREVIEW_MAX)
+    : fullMessage;
 </script>
 
 <section class="commons-personal" aria-label="Your broadcast">

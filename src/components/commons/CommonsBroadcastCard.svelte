@@ -8,9 +8,16 @@
   import { openCommonsUserDmRequest, sendCommonsJoinRequest } from '../../lib/commons/commons-card-actions';
   import { commonsJoinRequestBlockReason } from '../../lib/commons/commons-join-request';
   import { commonsTagGradient } from '../../lib/commons/tag-catalog';
+  import {
+    COMMONS_MESSAGE_PREVIEW_MAX,
+    isCommonsMessageTruncated,
+    truncateCommonsMessage,
+  } from '../../lib/commons/message-preview';
+  import CommonsBroadcastDetailModal from './CommonsBroadcastDetailModal.svelte';
 
   export let broadcast: CommonsBroadcastDto;
 
+  let detailOpen = false;
   let messageBusy = false;
   let joinBusy = false;
   let actionError = '';
@@ -55,6 +62,27 @@
   $: canJoin = isSquad && !joinBlockReason && !!myNpub;
   $: profileName = userProfile ? getProfileDisplayName(userProfile) : '';
   $: greetingName = profileName && !profileName.startsWith('npub1') ? profileName : '';
+  $: messageTruncated = isCommonsMessageTruncated(broadcast.message, COMMONS_MESSAGE_PREVIEW_MAX);
+  $: previewMessage = messageTruncated
+    ? truncateCommonsMessage(broadcast.message, COMMONS_MESSAGE_PREVIEW_MAX)
+    : broadcast.message;
+
+  function openDetail() {
+    detailOpen = true;
+  }
+
+  function handleCardClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a')) return;
+    openDetail();
+  }
+
+  function handleCardKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if ((e.target as HTMLElement).closest('button, a')) return;
+    e.preventDefault();
+    openDetail();
+  }
 
   function handleRequestDm() {
     if (!canMessage || messageBusy) return;
@@ -84,7 +112,15 @@
   }
 </script>
 
-<article class="commons-tile" class:commons-tile-squad={isSquad} class:commons-tile-user={isUser}>
+<article
+  class="commons-tile"
+  class:commons-tile-squad={isSquad}
+  class:commons-tile-user={isUser}
+  tabindex="0"
+  aria-label="View broadcast from {title}"
+  on:click={handleCardClick}
+  on:keydown={handleCardKeydown}
+>
   <div class="commons-tile-cover" style={coverImage ? '' : `background-image: ${commonsTagGradient(coverSeed)}`}>
     {#if coverImage}
       <img class="commons-tile-img" src={coverImage} alt="" loading="lazy" decoding="async" />
@@ -99,7 +135,11 @@
       <span class="commons-tile-subtitle">{subtitle}</span>
     </div>
     <h3 class="commons-tile-title">{title}</h3>
-    <p class="commons-tile-message">{broadcast.message}</p>
+    <p class="commons-tile-message">
+      <span class="commons-tile-message-text">
+        {previewMessage}{messageTruncated ? '…' : ''}
+      </span>
+    </p>
 
     {#if broadcast.tags.length > 0}
       <ul class="commons-tile-tags" role="list">
@@ -112,12 +152,22 @@
     {#if canMessage || canJoin || (isSquad && joinBlockReason && myNpub && broadcast.authorNpub !== myNpub)}
       <div class="commons-tile-actions">
         {#if canMessage}
-          <button type="button" class="commons-tile-btn" disabled={messageBusy} on:click={handleRequestDm}>
+          <button
+            type="button"
+            class="commons-tile-btn"
+            disabled={messageBusy}
+            on:click|stopPropagation={handleRequestDm}
+          >
             {messageBusy ? 'Opening…' : 'Request DM'}
           </button>
         {/if}
         {#if canJoin}
-          <button type="button" class="commons-tile-btn commons-tile-btn-primary" disabled={joinBusy} on:click={handleJoinRequest}>
+          <button
+            type="button"
+            class="commons-tile-btn commons-tile-btn-primary"
+            disabled={joinBusy}
+            on:click|stopPropagation={handleJoinRequest}
+          >
             {joinBusy ? 'Sending…' : 'Request to join'}
           </button>
         {:else if isSquad && joinBlockReason && myNpub && broadcast.authorNpub !== myNpub}
@@ -131,6 +181,10 @@
   </div>
 </article>
 
+{#if detailOpen}
+  <CommonsBroadcastDetailModal {broadcast} onClose={() => (detailOpen = false)} />
+{/if}
+
 <style>
   .commons-tile {
     display: flex;
@@ -138,6 +192,19 @@
     border: 1px solid var(--border-subtle);
     background: var(--bg-elevated);
     overflow: hidden;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .commons-tile:hover {
+    border-color: var(--border);
+    background: var(--bg-panel);
+  }
+
+  .commons-tile:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .commons-tile-cover {
@@ -215,6 +282,17 @@
     line-height: 1.45;
     color: var(--text-secondary);
     flex: 1;
+    min-height: calc(0.8125rem * 1.45 * 4);
+    overflow: hidden;
+  }
+
+  .commons-tile-message-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .commons-tile-tags {

@@ -5,6 +5,7 @@
   import Navbar from '../components/layout/Navbar.svelte';
   import TopNavbar from '../components/layout/TopNavbar.svelte';
   import CommonsView from '../components/commons/CommonsView.svelte';
+  import PersonalBroadcastModal from '../components/commons/PersonalBroadcastModal.svelte';
   import ParentNavbar from '../components/layout/ParentNavbar.svelte';
   import Profile from '../components/profile/Profile.svelte';
   import MessengerNavbar from '../components/dm/MessengerNavbar.svelte';
@@ -104,6 +105,11 @@
   } from '../stores/app';
   import { pendingReadyToast, showToast } from '../stores/toast';
   import {
+    closeCommonsBroadcastModal,
+    commonsBroadcastModalOpen,
+    commonsUserHasActiveBroadcast,
+  } from '../stores/commons-ui';
+  import {
     listSquadInfra,
     upsertSquadInfra,
     pactoGovInfraId,
@@ -178,6 +184,15 @@
   $: if ($pendingReadyToast) {
     showToast($pendingReadyToast.text, $pendingReadyToast.goTo);
     pendingReadyToast.set(null);
+  }
+
+  $: if (
+    $commonsBroadcastModalOpen &&
+    ($activeTopNavTab !== 'commons' ||
+      $activeView === 'profile' ||
+      $commonsUserHasActiveBroadcast)
+  ) {
+    closeCommonsBroadcastModal();
   }
 
   $: openHubParent = resolveOpenHubParent($squads, $activeSquadId);
@@ -1051,6 +1066,11 @@
   <div class="toast-portal-wrapper" use:portal>
     <Toast />
   </div>
+  {#if $commonsBroadcastModalOpen}
+    <div use:portal>
+      <PersonalBroadcastModal />
+    </div>
+  {/if}
 </div>
 
 <style>

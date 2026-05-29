@@ -70,11 +70,15 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      e.stopPropagation();
       if (categoryBrowse) {
         closeCategoryBrowse();
         return;
       }
-      listOpen = false;
+      if (listOpen) {
+        listOpen = false;
+        return;
+      }
       return;
     }
     if (e.key === 'Enter') {

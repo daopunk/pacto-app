@@ -44,7 +44,11 @@
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
   import { pendingReadyToast } from '../../stores/toast';
   import { schedulePublicSquadCreateBroadcast } from '../../lib/commons/squad-create-broadcast';
-  import { openCommonsBroadcastModal } from '../../stores/commons-ui';
+  import {
+    commonsUserHasActiveBroadcast,
+    openCommonsBroadcastModal,
+    syncCommonsUserActiveBroadcast,
+  } from '../../stores/commons-ui';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
   import { getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
@@ -107,6 +111,22 @@
   $: showAddButton =
     $activeTopNavTab === 'commons' || $activeTopNavTab === 'dms' || $activeTopNavTab === 'squads';
 
+  $: commonsStartBroadcastDisabled =
+    $activeTopNavTab === 'commons' && $commonsUserHasActiveBroadcast;
+  $: commonsAddButtonLabel = commonsStartBroadcastDisabled
+    ? 'Broadcast active'
+    : (addButtonLabel ?? '');
+
+  let commonsActiveBroadcastSyncKey = '';
+  $: {
+    const npub = $activeTopNavTab === 'commons' ? ($currentUser?.npub ?? '') : '';
+    if (npub && npub !== commonsActiveBroadcastSyncKey) {
+      commonsActiveBroadcastSyncKey = npub;
+      void syncCommonsUserActiveBroadcast(npub);
+    }
+    if (!npub) commonsActiveBroadcastSyncKey = '';
+  }
+
   let showOrganizeSquadModal = false;
   let organizeSquadName = '';
   let organizeSquadIconUrl = '';
@@ -136,6 +156,7 @@
   function handleBottomAddClick() {
     if ($activeTopNavTab === 'dms') startNewChat();
     else if ($activeTopNavTab === 'commons') {
+      if ($commonsUserHasActiveBroadcast) return;
       $activeView = 'hub';
       openCommonsBroadcastModal();
     } else handleAddAction();
@@ -375,12 +396,16 @@
   <div class="tab-list bottom">
     {#if showAddButton && addButtonLabel}
       <div
+        class="navbar-add-wrap"
+        class:is-disabled={commonsStartBroadcastDisabled}
         on:click={handleBottomAddClick}
-        on:keydown={(e) => e.key === 'Enter' && handleBottomAddClick()}
+        on:keydown={(e) =>
+          !commonsStartBroadcastDisabled && e.key === 'Enter' && handleBottomAddClick()}
         role="button"
-        tabindex="0"
+        tabindex={commonsStartBroadcastDisabled ? -1 : 0}
+        aria-disabled={commonsStartBroadcastDisabled}
       >
-        <Tab label={addButtonLabel} icon={plusCircleIcon} active={false} />
+        <Tab label={commonsAddButtonLabel} icon={plusCircleIcon} active={false} />
       </div>
     {/if}
     <div
@@ -483,6 +508,12 @@
   .tab-list.bottom {
     flex: 0 0 auto;
     padding-bottom: 8px;
+  }
+
+  .navbar-add-wrap.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 
   .navbar-spacer {

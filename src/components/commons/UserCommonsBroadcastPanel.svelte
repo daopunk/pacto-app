@@ -8,6 +8,7 @@
   } from '../../lib/commons/user-broadcast';
   import { formatBroadcastCooldownRemaining } from '../../lib/commons/squad-broadcast';
   import type { CommonsBroadcastLocalState } from '../../lib/commons/types';
+  import { commonsUserHasActiveBroadcast } from '../../stores/commons-ui';
 
   export let userNpub: string;
   /** Called after a successful publish (e.g. close modal). */
@@ -19,7 +20,7 @@
   let message = '';
   let durationHours: DurationHours = 24;
   let submitError = '';
-  let publishing = false;
+  export let publishing = false;
   let loadingActive = true;
   let activeBroadcast: CommonsBroadcastLocalState | null = null;
   let cooldownLabel = '';
@@ -81,6 +82,7 @@
       showToast('Broadcast published to Commons.');
       message = '';
       tags = [];
+      commonsUserHasActiveBroadcast.set(true);
       await loadActiveBroadcast();
       onPublished();
     } finally {

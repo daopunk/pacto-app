@@ -5,7 +5,6 @@
   import CommonsTagMenu from './CommonsTagMenu.svelte';
   import CommonsPersonalPanel from './CommonsPersonalPanel.svelte';
   import CommonsBroadcastCard from './CommonsBroadcastCard.svelte';
-  import PersonalBroadcastModal from './PersonalBroadcastModal.svelte';
   import { fetchCommonsBroadcasts } from '../../lib/api/commons';
   import type { CommonsBroadcastDto } from '../../lib/commons/types';
   import {
@@ -20,7 +19,10 @@
   import { COMMONS_TAG_GROUPS } from '../../lib/commons/tag-catalog';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { activeTopNavTab } from '../../stores/navigation';
-  import { commonsBroadcastModalOpen } from '../../stores/commons-ui';
+  import {
+    commonsBroadcastModalClosedNonce,
+    openCommonsBroadcastModal,
+  } from '../../stores/commons-ui';
   import { profiles, loadProfile } from '../../stores/profiles';
   import { get } from 'svelte/store';
 
@@ -32,8 +34,8 @@
   let subjectFilter: CommonsSubjectFilter = DEFAULT_COMMONS_FEED_FILTERS.subjectFilter;
   let audienceFilter: CommonsAudienceFilter = DEFAULT_COMMONS_FEED_FILTERS.audienceFilter;
 
-  let showBroadcastModal = false;
   let personalNonce = 0;
+  let lastModalClosedNonce = 0;
   let tagMenuOpen = false;
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -49,9 +51,10 @@
   // Passive tile browse: only when no filters are set and the focused menu is closed.
   $: showTiles = !tagMenuOpen && !hasFilters;
 
-  $: if ($commonsBroadcastModalOpen) {
-    showBroadcastModal = true;
-    commonsBroadcastModalOpen.set(false);
+  $: if ($commonsBroadcastModalClosedNonce !== lastModalClosedNonce) {
+    lastModalClosedNonce = $commonsBroadcastModalClosedNonce;
+    personalNonce += 1;
+    void loadFeed({ silent: true });
   }
 
   // Active broadcast counts per catalog tag for the grid "live" badges.
@@ -121,16 +124,6 @@
     }
     if (filterTags.length >= 3) return;
     filterTags = [...filterTags, tag];
-  }
-
-  function openBroadcastModal() {
-    showBroadcastModal = true;
-  }
-
-  function closeBroadcastModal() {
-    showBroadcastModal = false;
-    personalNonce += 1;
-    void loadFeed({ silent: true });
   }
 
   function stopPolling() {
@@ -219,7 +212,7 @@
 
     <CommonsPersonalPanel
       refreshKey={personalNonce}
-      onBroadcast={openBroadcastModal}
+      onBroadcast={openCommonsBroadcastModal}
       onChanged={() => {
         personalNonce += 1;
         void loadFeed({ silent: true });
@@ -272,10 +265,6 @@
     {/if}
   </div>
 </section>
-
-{#if showBroadcastModal}
-  <PersonalBroadcastModal onClose={closeBroadcastModal} />
-{/if}
 
 <style>
   .commons-area {

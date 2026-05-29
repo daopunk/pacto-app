@@ -3,7 +3,11 @@
   import UserCommonsBroadcastPanel from './UserCommonsBroadcastPanel.svelte';
   import { currentUser } from '../../stores/auth';
 
-  export let onClose: () => void;
+  import { closeCommonsBroadcastModal } from '../../stores/commons-ui';
+
+  export let onClose: () => void = closeCommonsBroadcastModal;
+
+  let publishing = false;
 
   $: userNpub = $currentUser?.npub ?? '';
 </script>
@@ -12,13 +16,14 @@
   titleId="personal-broadcast-title"
   descriptionId="personal-broadcast-description"
   onClose={onClose}
+  dismissible={!publishing}
 >
   <h2 id="personal-broadcast-title">Personal broadcast</h2>
   <p id="personal-broadcast-description" class="broadcast-modal-lead">
     Share a public message in Commons so others can find you by tag.
   </p>
   {#if userNpub}
-    <UserCommonsBroadcastPanel {userNpub} onPublished={onClose} />
+    <UserCommonsBroadcastPanel {userNpub} bind:publishing onPublished={onClose} />
   {:else}
     <p class="broadcast-private-note">Log in to publish a broadcast.</p>
   {/if}
