@@ -1,19 +1,21 @@
 import type { CommonsBroadcastDto } from './types';
+import { findCommonsTagCategory, commonsCategoryTagSlugs } from './tag-catalog';
 
-export type CommonsTagMatchMode = 'any' | 'all';
 export type CommonsSubjectFilter = 'both' | 'squads' | 'users';
 export type CommonsAudienceFilter = 'any' | 'new_user' | 'active_user';
 
 export interface CommonsFeedFilters {
+  /** Focused search: broadcast must include every tag (max 3 in UI). */
   tags: string[];
-  tagMatchMode: CommonsTagMatchMode;
+  /** Category browse: broadcast must include any tag in the category. Mutually exclusive with `tags`. */
+  categoryId: string | null;
   subjectFilter: CommonsSubjectFilter;
   audienceFilter: CommonsAudienceFilter;
 }
 
 export const DEFAULT_COMMONS_FEED_FILTERS: CommonsFeedFilters = {
   tags: [],
-  tagMatchMode: 'any',
+  categoryId: null,
   subjectFilter: 'both',
   audienceFilter: 'any',
 };
@@ -57,22 +59,30 @@ function matchesAudienceFilter(
   audienceFilter: CommonsAudienceFilter
 ): boolean {
   if (audienceFilter === 'any') return true;
-  if (broadcast.subject !== 'user') return true;
-  return broadcast.audience === audienceFilter;
+  return broadcast.subject === 'user' && broadcast.audience === audienceFilter;
 }
 
 function matchesTagFilter(
   broadcast: CommonsBroadcastDto,
   tags: string[],
-  tagMatchMode: CommonsTagMatchMode
+  categoryId: string | null
 ): boolean {
-  if (tags.length === 0) return true;
   const eventTags = new Set(broadcast.tags.map((t) => t.toLowerCase()));
-  const selected = tags.map((t) => t.toLowerCase());
-  if (tagMatchMode === 'any') {
-    return selected.some((t) => eventTags.has(t));
+
+  // Focused tag chips: every selected tag must be present.
+  if (tags.length > 0) {
+    return tags.map((t) => t.toLowerCase()).every((t) => eventTags.has(t));
   }
-  return selected.every((t) => eventTags.has(t));
+
+  // Category tile search: any leaf tag in the category qualifies.
+  if (categoryId) {
+    const category = findCommonsTagCategory(categoryId);
+    if (!category) return true;
+    const slugs = commonsCategoryTagSlugs(category).map((t) => t.toLowerCase());
+    return slugs.some((t) => eventTags.has(t));
+  }
+
+  return true;
 }
 
 export function filterCommonsBroadcasts(
@@ -84,7 +94,7 @@ export function filterCommonsBroadcasts(
     .filter((b) => isCommonsBroadcastActive(b, nowSecs))
     .filter((b) => matchesSubjectFilter(b, filters.subjectFilter))
     .filter((b) => matchesAudienceFilter(b, filters.audienceFilter))
-    .filter((b) => matchesTagFilter(b, filters.tags, filters.tagMatchMode));
+    .filter((b) => matchesTagFilter(b, filters.tags, filters.categoryId));
 }
 
 export function prepareCommonsFeed(broadcasts: CommonsBroadcastDto[], filters: CommonsFeedFilters): CommonsBroadcastDto[] {

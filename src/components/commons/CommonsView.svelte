@@ -1,38 +1,71 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import CommonsFilterSidebar from './CommonsFilterSidebar.svelte';
+  import CommonsTopFilters from './CommonsTopFilters.svelte';
+  import CommonsTagBrowser from './CommonsTagBrowser.svelte';
+  import CommonsTagMenu from './CommonsTagMenu.svelte';
+  import CommonsPersonalPanel from './CommonsPersonalPanel.svelte';
   import CommonsBroadcastCard from './CommonsBroadcastCard.svelte';
+  import PersonalBroadcastModal from './PersonalBroadcastModal.svelte';
   import { fetchCommonsBroadcasts } from '../../lib/api/commons';
   import type { CommonsBroadcastDto } from '../../lib/commons/types';
   import {
     COMMONS_FEED_REFRESH_MS,
     DEFAULT_COMMONS_FEED_FILTERS,
+    dedupeCommonsBroadcasts,
+    isCommonsBroadcastActive,
     prepareCommonsFeed,
     type CommonsAudienceFilter,
     type CommonsSubjectFilter,
-    type CommonsTagMatchMode,
   } from '../../lib/commons/commons-feed';
+  import { COMMONS_TAG_GROUPS } from '../../lib/commons/tag-catalog';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { activeTopNavTab } from '../../stores/navigation';
+  import { commonsBroadcastModalOpen } from '../../stores/commons-ui';
+  import { profiles, loadProfile } from '../../stores/profiles';
+  import { get } from 'svelte/store';
 
   let broadcasts: CommonsBroadcastDto[] = [];
   let loading = true;
   let error: string | null = null;
   let filterTags: string[] = [...DEFAULT_COMMONS_FEED_FILTERS.tags];
-  let tagMatchMode: CommonsTagMatchMode = DEFAULT_COMMONS_FEED_FILTERS.tagMatchMode;
+  let filterCategoryId: string | null = DEFAULT_COMMONS_FEED_FILTERS.categoryId;
   let subjectFilter: CommonsSubjectFilter = DEFAULT_COMMONS_FEED_FILTERS.subjectFilter;
   let audienceFilter: CommonsAudienceFilter = DEFAULT_COMMONS_FEED_FILTERS.audienceFilter;
+
+  let showBroadcastModal = false;
+  let personalNonce = 0;
+  let tagMenuOpen = false;
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let wasCommonsActive = false;
 
-  $: feedFilters = { tags: filterTags, tagMatchMode, subjectFilter, audienceFilter };
+  $: feedFilters = { tags: filterTags, categoryId: filterCategoryId, subjectFilter, audienceFilter };
   $: filteredBroadcasts = prepareCommonsFeed(broadcasts, feedFilters);
   $: hasFilters =
     filterTags.length > 0 ||
+    filterCategoryId != null ||
     subjectFilter !== 'both' ||
     audienceFilter !== 'any';
-  $: emptyBecauseFilters = !loading && !error && broadcasts.length > 0 && filteredBroadcasts.length === 0;
+  // Passive tile browse: only when no filters are set and the focused menu is closed.
+  $: showTiles = !tagMenuOpen && !hasFilters;
+
+  $: if ($commonsBroadcastModalOpen) {
+    showBroadcastModal = true;
+    commonsBroadcastModalOpen.set(false);
+  }
+
+  // Active broadcast counts per catalog tag for the grid "live" badges.
+  $: countsByTag = (() => {
+    const counts: Record<string, number> = {};
+    const active = dedupeCommonsBroadcasts(broadcasts).filter((b) => isCommonsBroadcastActive(b));
+    const known = new Set(COMMONS_TAG_GROUPS.map((g) => g.tag));
+    for (const b of active) {
+      for (const tag of b.tags) {
+        if (known.has(tag)) counts[tag] = (counts[tag] ?? 0) + 1;
+      }
+    }
+    return counts;
+  })();
 
   async function loadFeed(options: { silent?: boolean } = {}) {
     if (!options.silent) {
@@ -41,6 +74,7 @@
     error = null;
     try {
       broadcasts = await fetchCommonsBroadcasts(100);
+      prefetchAuthorProfiles(broadcasts);
     } catch (e: unknown) {
       error = getInvokeErrorMessage(e, 'Could not load Commons broadcasts.');
       if (!options.silent) {
@@ -51,6 +85,52 @@
         loading = false;
       }
     }
+  }
+
+  /** Resolve PFPs for user broadcast authors that aren't cached yet. */
+  function prefetchAuthorProfiles(list: CommonsBroadcastDto[]) {
+    const cached = get(profiles);
+    const pending = new Set<string>();
+    for (const b of list) {
+      if (b.subject === 'user' && b.authorNpub && !cached[b.authorNpub]) {
+        pending.add(b.authorNpub);
+      }
+    }
+    for (const npub of pending) {
+      void loadProfile(npub).catch(() => {});
+    }
+  }
+
+  /** Category tile: ANY of all tags in the category (shown as one category chip). */
+  function selectCategory(categoryId: string) {
+    tagMenuOpen = false;
+    if (filterCategoryId === categoryId) {
+      filterCategoryId = null;
+      return;
+    }
+    filterCategoryId = categoryId;
+    filterTags = [];
+  }
+
+  /** Focused tag pick (menu or category child): AND up to 3 tags. */
+  function selectFocusedTag(tag: string) {
+    filterCategoryId = null;
+    if (filterTags.includes(tag)) {
+      filterTags = filterTags.filter((t) => t !== tag);
+      return;
+    }
+    if (filterTags.length >= 3) return;
+    filterTags = [...filterTags, tag];
+  }
+
+  function openBroadcastModal() {
+    showBroadcastModal = true;
+  }
+
+  function closeBroadcastModal() {
+    showBroadcastModal = false;
+    personalNonce += 1;
+    void loadFeed({ silent: true });
   }
 
   function stopPolling() {
@@ -83,67 +163,122 @@
   });
 </script>
 
-<div class="commons-area">
-  <CommonsFilterSidebar
-    bind:tags={filterTags}
-    bind:tagMatchMode
-    bind:subjectFilter
-    bind:audienceFilter
-  />
-  <section class="commons-main" aria-labelledby="commons-feed-heading">
-    <header class="commons-main-header">
-      <div class="commons-main-header-row">
-        <div>
-          <h1 id="commons-feed-heading" class="commons-main-title">Commons</h1>
-          <p class="commons-main-lead muted">
-            Active public broadcasts from the last 72 hours. Newest first.
-          </p>
-        </div>
-        <button type="button" class="commons-refresh-btn" disabled={loading} on:click={() => loadFeed()}>
-          {loading ? 'Refreshing…' : 'Refresh'}
+<section class="commons-area" aria-labelledby="commons-feed-heading">
+  <div class="commons-scroll">
+    <header class="commons-header">
+      <div class="commons-header-row">
+        <h1 id="commons-feed-heading" class="commons-title">Commons</h1>
+        <button
+          type="button"
+          class="commons-refresh"
+          disabled={loading}
+          aria-label={loading ? 'Refreshing feed' : 'Refresh feed'}
+          on:click={() => loadFeed()}
+        >
+          <svg
+            class="commons-refresh-icon"
+            class:is-spinning={loading}
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M21 12a9 9 0 1 1-2.64-6.36"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M21 3v6h-6"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M3 12a9 9 0 1 1 2.64 6.36"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M3 21v-6h6"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
         </button>
       </div>
     </header>
-    <div class="commons-feed" role="feed" aria-busy={loading}>
-      {#if error}
-        <p class="commons-feed-error" role="alert">{error}</p>
-      {:else if loading && filteredBroadcasts.length === 0}
-        <p class="commons-feed-empty muted" role="status">Loading broadcasts…</p>
-      {:else if emptyBecauseFilters}
-        <p class="commons-feed-empty muted" role="status">No broadcasts match your filters.</p>
-        <p class="commons-feed-hint muted">Try fewer tags, match Any, or broaden Show / audience.</p>
-      {:else if filteredBroadcasts.length === 0}
-        <p class="commons-feed-empty muted" role="status">No active broadcasts yet.</p>
-        <p class="commons-feed-hint muted">
-          {#if hasFilters}
-            Clear filters or use + Broadcast to publish.
-          {:else}
-            Use + Broadcast to publish, or wait for others on relays.
-          {/if}
-        </p>
-      {:else}
-        <ul class="commons-feed-list" role="list">
-          {#each filteredBroadcasts as broadcast (broadcast.eventId)}
-            <li>
-              <CommonsBroadcastCard {broadcast} />
-            </li>
-          {/each}
-        </ul>
+
+    <CommonsPersonalPanel
+      refreshKey={personalNonce}
+      onBroadcast={openBroadcastModal}
+      onChanged={() => {
+        personalNonce += 1;
+        void loadFeed({ silent: true });
+      }}
+    />
+
+    <CommonsTopFilters
+      bind:tags={filterTags}
+      bind:categoryId={filterCategoryId}
+      bind:subjectFilter
+      bind:audienceFilter
+      bind:tagMenuOpen
+    />
+
+    {#if error}
+      <p class="commons-state commons-state-error" role="alert">{error}</p>
+    {:else if loading && broadcasts.length === 0}
+      <p class="commons-state muted" role="status">Loading broadcasts…</p>
+    {:else}
+      {#if tagMenuOpen}
+        <CommonsTagMenu
+          activeTags={filterTags}
+          {countsByTag}
+          onToggleTag={selectFocusedTag}
+        />
       {/if}
-    </div>
-  </section>
-</div>
+
+      {#if hasFilters}
+        {#if filteredBroadcasts.length === 0}
+          <p class="commons-state muted" role="status">No broadcasts match your filters.</p>
+          <p class="commons-state-hint muted">
+            Try a narrower category, fewer tags, or broaden Squads / Users / Audience.
+          </p>
+        {:else}
+          <ul class="commons-results" role="feed" aria-busy={loading}>
+            {#each filteredBroadcasts as broadcast (broadcast.eventId)}
+              <li>
+                <CommonsBroadcastCard {broadcast} />
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      {:else if showTiles}
+        <CommonsTagBrowser
+          activeCategoryId={filterCategoryId}
+          {countsByTag}
+          onSelectCategory={selectCategory}
+        />
+      {/if}
+    {/if}
+  </div>
+</section>
+
+{#if showBroadcastModal}
+  <PersonalBroadcastModal onClose={closeBroadcastModal} />
+{/if}
 
 <style>
   .commons-area {
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: row;
-  }
-
-  .commons-main {
     flex: 1;
     min-width: 0;
     min-height: 0;
@@ -152,82 +287,94 @@
     background: var(--bg-base, var(--bg-primary));
   }
 
-  .commons-main-header {
-    flex-shrink: 0;
-    padding: 20px 24px 12px;
-    border-bottom: 1px solid var(--border-subtle);
+  .commons-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 24px 32px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
-  .commons-main-header-row {
+  .commons-header-row {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 16px;
   }
 
-  .commons-main-title {
-    margin: 0 0 6px;
-    font-size: 1.125rem;
-    font-weight: 600;
+  .commons-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
     color: var(--text-primary);
   }
 
-  .commons-main-lead {
-    margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.45;
-    max-width: 42rem;
-  }
-
-  .commons-refresh-btn {
+  .commons-refresh {
     flex-shrink: 0;
-    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     border-radius: 8px;
     border: 1px solid var(--border-subtle);
     background: var(--bg-panel);
     color: var(--text-secondary);
-    font-size: 0.8125rem;
     cursor: pointer;
   }
 
-  .commons-refresh-btn:disabled {
+  .commons-refresh:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+  }
+
+  .commons-refresh:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
 
-  .commons-feed {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 16px 24px 24px;
+  .commons-refresh-icon {
+    display: block;
   }
 
-  .commons-feed-list {
+  .commons-refresh-icon.is-spinning {
+    animation: commons-refresh-spin 0.8s linear infinite;
+  }
+
+  @keyframes commons-refresh-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .commons-results {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 4px;
   }
 
-  .commons-feed-empty,
-  .commons-feed-error {
-    margin: 0 0 8px;
+  .commons-state {
+    margin: 24px 0 0;
     font-size: 0.9375rem;
     text-align: center;
   }
 
-  .commons-feed-error {
+  .commons-state-error {
     color: var(--danger, #e55);
   }
 
-  .commons-feed-hint {
-    margin: 0;
+  .commons-state-hint {
+    margin: 4px 0 0;
     font-size: 0.8125rem;
     text-align: center;
-    max-width: 22rem;
-    margin-inline: auto;
   }
 
   .muted {

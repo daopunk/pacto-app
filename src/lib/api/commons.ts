@@ -20,3 +20,10 @@ export async function getLocalActiveCommonsBroadcast(
 ): Promise<CommonsBroadcastDto | null> {
   return invoke<CommonsBroadcastDto | null>('commons_get_local_active', { subject, subjectId });
 }
+
+export async function cancelCommonsBroadcast(
+  subject: 'user' | 'squad',
+  subjectId: string
+): Promise<void> {
+  await invoke('commons_cancel_broadcast', { subject, subjectId });
+}

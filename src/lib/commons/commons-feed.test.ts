@@ -45,25 +45,14 @@ describe('filterCommonsBroadcasts', () => {
     expect(squads.map((b) => b.eventId)).toEqual(['s']);
   });
 
-  it('matches any tag', () => {
-    const list = filterCommonsBroadcasts(
-      [
-        row({ eventId: 'a', tags: ['neo'] }),
-        row({ eventId: 'b', tags: ['dao'] }),
-      ],
-      { ...DEFAULT_COMMONS_FEED_FILTERS, tags: ['neo', 'dao'], tagMatchMode: 'any' },
-      now
-    );
-    expect(list.map((b) => b.eventId).sort()).toEqual(['a', 'b']);
-  });
-
-  it('matches all tags', () => {
+  it('requires every selected tag (AND)', () => {
     const list = filterCommonsBroadcasts(
       [
         row({ eventId: 'a', tags: ['neo', 'dao'] }),
         row({ eventId: 'b', tags: ['neo'] }),
+        row({ eventId: 'c', tags: ['dao'] }),
       ],
-      { ...DEFAULT_COMMONS_FEED_FILTERS, tags: ['neo', 'dao'], tagMatchMode: 'all' },
+      { ...DEFAULT_COMMONS_FEED_FILTERS, tags: ['neo', 'dao'] },
       now
     );
     expect(list.map((b) => b.eventId)).toEqual(['a']);
@@ -79,6 +68,62 @@ describe('filterCommonsBroadcasts', () => {
       now
     );
     expect(list.map((b) => b.eventId)).toEqual(['n']);
+  });
+
+  it('treats a specific audience as AND, dropping squads', () => {
+    const list = filterCommonsBroadcasts(
+      [
+        row({ eventId: 'u', subject: 'user', subjectId: 'npub1', audience: 'active_user' }),
+        row({ eventId: 's', subject: 'squad', subjectId: 'g1', squadName: 'Alpha' }),
+      ],
+      { ...DEFAULT_COMMONS_FEED_FILTERS, audienceFilter: 'active_user' },
+      now
+    );
+    expect(list.map((b) => b.eventId)).toEqual(['u']);
+  });
+
+  it('matches any tag in a category (OR)', () => {
+    const list = filterCommonsBroadcasts(
+      [
+        row({ eventId: 'left', tags: ['left'] }),
+        row({ eventId: 'right', tags: ['right'] }),
+        row({ eventId: 'other', tags: ['dao'] }),
+      ],
+      { ...DEFAULT_COMMONS_FEED_FILTERS, categoryId: 'politics' },
+      now
+    );
+    expect(list.map((b) => b.eventId).sort()).toEqual(['left', 'right']);
+  });
+
+  it('prefers focused tags over category when both are set', () => {
+    const list = filterCommonsBroadcasts(
+      [
+        row({ eventId: 'both', tags: ['left', 'right'] }),
+        row({ eventId: 'left-only', tags: ['left'] }),
+      ],
+      { ...DEFAULT_COMMONS_FEED_FILTERS, categoryId: 'politics', tags: ['left', 'right'] },
+      now
+    );
+    expect(list.map((b) => b.eventId)).toEqual(['both']);
+  });
+
+  it('combines tags AND subject AND audience', () => {
+    const list = filterCommonsBroadcasts(
+      [
+        row({ eventId: 'hit', subject: 'user', tags: ['left', 'right'], audience: 'new_user' }),
+        row({ eventId: 'one-tag', subject: 'user', tags: ['left'], audience: 'new_user' }),
+        row({ eventId: 'wrong-audience', subject: 'user', tags: ['left', 'right'], audience: 'active_user' }),
+        row({ eventId: 'squad', subject: 'squad', subjectId: 'g1', tags: ['left', 'right'] }),
+      ],
+      {
+        ...DEFAULT_COMMONS_FEED_FILTERS,
+        tags: ['left', 'right'],
+        subjectFilter: 'users',
+        audienceFilter: 'new_user',
+      },
+      now
+    );
+    expect(list.map((b) => b.eventId)).toEqual(['hit']);
   });
 });
 

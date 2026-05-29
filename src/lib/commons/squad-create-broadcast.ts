@@ -1,6 +1,7 @@
 import type { SquadVisibility } from '../../stores/squads';
 import { showToast } from '../../stores/toast';
 import { publishSquadCommonsBroadcast } from './squad-broadcast';
+import { COMMONS_NEW_TAG } from './tags';
 
 export type { SquadVisibility };
 
@@ -29,8 +30,9 @@ export async function publishPublicSquadCreateBroadcast(
   }
   const result = await publishSquadCommonsBroadcast(squad, {
     message: defaultPublicSquadBroadcastMessage(squad.name),
-    durationHours: 24,
+    durationHours: 72,
     skipIfActive: true,
+    extraTags: [COMMONS_NEW_TAG],
   });
   if (!result.ok) return result;
   return { ok: true };
@@ -47,7 +49,7 @@ function toastFailedBroadcast(squad: PublicSquadBroadcastTarget, error: string):
   });
 }
 
-/** Fire-and-forget 24 h squad broadcast after MLS group id is final. */
+/** Fire-and-forget 72 h `#new` squad broadcast after MLS group id is final. */
 export function schedulePublicSquadCreateBroadcast(
   squadId: string,
   resolveSquad: () => PublicSquadBroadcastTarget | undefined

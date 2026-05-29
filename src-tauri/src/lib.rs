@@ -6206,6 +6206,7 @@ pub fn run() {
             commons::commons_publish_broadcast,
             commons::commons_fetch_broadcasts,
             commons::commons_get_local_active,
+            commons::commons_cancel_broadcast,
             db::upsert_squad_member_evm,
             db::list_squad_member_evm,
             db::upsert_squad_member_evm_account,

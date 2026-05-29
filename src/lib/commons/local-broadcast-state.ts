@@ -56,6 +56,14 @@ export function recordCommonsBroadcastLocalState(dto: CommonsBroadcastDto): void
   writeMap(map);
 }
 
+export function clearCommonsBroadcastLocalState(subject: string, subjectId: string): void {
+  const map = readMap();
+  const key = mapKey(subject, subjectId);
+  if (!(key in map)) return;
+  delete map[key];
+  writeMap(map);
+}
+
 export function getActiveCommonsBroadcastLocalState(
   subject: 'user' | 'squad',
   subjectId: string,

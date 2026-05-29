@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCommonsTag, normalizeCommonsTags } from './tags';
+import { normalizeCommonsTag, normalizeCommonsTags, isReservedCommonsTag } from './tags';
 
 describe('normalizeCommonsTag', () => {
   it('strips hash and lowercases', () => {
@@ -21,5 +21,18 @@ describe('normalizeCommonsTags', () => {
 
   it('requires at least one tag', () => {
     expect(normalizeCommonsTags([])).toBeNull();
+  });
+
+  it('rejects the reserved #new tag from author input', () => {
+    expect(normalizeCommonsTags(['new'])).toBeNull();
+    expect(normalizeCommonsTags(['neo', '#NEW'])).toBeNull();
+  });
+});
+
+describe('isReservedCommonsTag', () => {
+  it('flags #new only', () => {
+    expect(isReservedCommonsTag('new')).toBe(true);
+    expect(isReservedCommonsTag('#New')).toBe(true);
+    expect(isReservedCommonsTag('neo')).toBe(false);
   });
 });

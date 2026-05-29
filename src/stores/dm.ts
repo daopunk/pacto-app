@@ -37,6 +37,10 @@ export const blockedDmNpubs = writable<Set<string>>(new Set());
 
 export const composingNewChat = writable<boolean>(false);
 
+/** Prefill for the New Chat compose view (e.g. opened from a Commons user card). */
+export const newChatDraftNpub = writable<string>('');
+export const newChatDraftMessage = writable<string>('');
+
 export const walletSidebarOpen = writable<boolean>(false);
 
 export type WalletSendPrefillPayload = {

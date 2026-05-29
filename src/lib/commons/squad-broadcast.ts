@@ -49,6 +49,8 @@ export async function publishSquadCommonsBroadcast(
     message: string;
     durationHours: CommonsBroadcastDurationHours;
     skipIfActive?: boolean;
+    /** Reserved tags applied by the app (e.g. `#new` at creation). */
+    extraTags?: string[];
   }
 ): Promise<{ ok: true; skipped?: boolean } | { ok: false; error: string }> {
   if (!isPublicSquadForCommonsBroadcast(squad)) {
@@ -66,12 +68,14 @@ export async function publishSquadCommonsBroadcast(
     return { ok: false, error: 'A broadcast is still active for this squad.' };
   }
 
+  const tags = [...(squad.commonsTags ?? []), ...(options.extraTags ?? [])];
+
   try {
     const dto = await publishCommonsBroadcast({
       subject: 'squad',
       message,
       durationHours: options.durationHours,
-      tags: squad.commonsTags ?? [],
+      tags,
       squad: {
         id: squad.id,
         name: squad.name,

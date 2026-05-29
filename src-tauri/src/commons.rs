@@ -16,6 +16,13 @@ pub const COMMONS_CLIENT_TAG: &str = "pacto";
 pub const COMMONS_MAX_LOOKBACK_SECS: u64 = 72 * 3600;
 const EXPIRY_SKEW_SECS: i64 = 60;
 const MAX_TAGS: usize = 3;
+/// Reserved tags applied by the app (e.g. `#new` for fresh users/squads), allowed
+/// in addition to the author-selectable tags. Users cannot self-select these.
+const RESERVED_TAGS: [&str; 1] = ["new"];
+
+fn is_reserved_tag(t: &str) -> bool {
+    RESERVED_TAGS.contains(&t)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +47,10 @@ pub struct CommonsBroadcastWire {
     pub squad: Option<CommonsSquadWire>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audience: Option<String>,
+    /// Tombstone marker: when true the broadcast is retracted before expiry.
+    /// Other Pacto clients drop it from the feed; the author's cooldown lifts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancelled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,15 +118,20 @@ pub fn normalize_commons_tags(raw: &[String]) -> Result<Vec<String>, String> {
     if raw.is_empty() {
         return Err("At least one tag is required".into());
     }
-    if raw.len() > MAX_TAGS {
-        return Err(format!("At most {MAX_TAGS} tags allowed"));
-    }
     let mut out = Vec::new();
+    let mut author_tags = 0usize;
     for item in raw {
         let t = normalize_commons_tag(item).ok_or_else(|| format!("Invalid tag: {item}"))?;
-        if !out.contains(&t) {
-            out.push(t);
+        if out.contains(&t) {
+            continue;
         }
+        if !is_reserved_tag(&t) {
+            author_tags += 1;
+            if author_tags > MAX_TAGS {
+                return Err(format!("At most {MAX_TAGS} tags allowed"));
+            }
+        }
+        out.push(t);
     }
     if out.is_empty() {
         return Err("At least one tag is required".into());
@@ -253,12 +269,19 @@ pub fn ensure_commons_broadcasts_table(conn: &rusqlite::Connection) -> Result<()
             squad_kind TEXT,
             squad_icon_url TEXT,
             created_at INTEGER NOT NULL,
-            content_json TEXT NOT NULL
+            content_json TEXT NOT NULL,
+            cancelled INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_commons_broadcasts_expires ON commons_broadcasts(expires_at);
         CREATE INDEX IF NOT EXISTS idx_commons_broadcasts_subject ON commons_broadcasts(subject_id, created_at);"#,
     )
-    .map_err(|e| format!("Failed to create commons_broadcasts table: {e}"))
+    .map_err(|e| format!("Failed to create commons_broadcasts table: {e}"))?;
+    // Best-effort migration for tables created before the cancelled column existed.
+    let _ = conn.execute(
+        "ALTER TABLE commons_broadcasts ADD COLUMN cancelled INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    Ok(())
 }
 
 fn prune_expired_broadcasts(conn: &rusqlite::Connection) -> Result<(), String> {
@@ -294,13 +317,14 @@ fn upsert_broadcast_row(
         r#"INSERT INTO commons_broadcasts (
             event_id, author_pubkey, author_npub, subject, subject_id, message,
             duration_hours, expires_at, tags_json, audience, squad_id, squad_name,
-            squad_kind, squad_icon_url, created_at, content_json
-        ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+            squad_kind, squad_icon_url, created_at, content_json, cancelled
+        ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)
         ON CONFLICT(event_id) DO UPDATE SET
             expires_at=excluded.expires_at,
             message=excluded.message,
             tags_json=excluded.tags_json,
-            content_json=excluded.content_json"#,
+            content_json=excluded.content_json,
+            cancelled=excluded.cancelled"#,
         params![
             event.id.to_hex(),
             event.pubkey.to_hex(),
@@ -318,16 +342,20 @@ fn upsert_broadcast_row(
             squad_icon_url,
             event.created_at.as_u64() as i64,
             content_json,
+            wire.cancelled.unwrap_or(false) as i64,
         ],
     )
     .map_err(|e| format!("Failed to upsert commons broadcast: {e}"))?;
     Ok(())
 }
 
-fn row_to_dto(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommonsBroadcastDto> {
+/// Maps a row whose final selected column (index 15) is the `cancelled` flag.
+fn row_to_dto_with_cancelled(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<(CommonsBroadcastDto, bool)> {
     let tags_json: String = row.get(8)?;
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
-    Ok(CommonsBroadcastDto {
+    let dto = CommonsBroadcastDto {
         event_id: row.get(0)?,
         author_npub: row.get(2)?,
         subject: row.get(3)?,
@@ -342,7 +370,9 @@ fn row_to_dto(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommonsBroadcastDto> 
         squad_kind: row.get(12)?,
         squad_icon_url: row.get(13)?,
         created_at: row.get(14)?,
-    })
+    };
+    let cancelled = row.get::<_, i64>(15)? != 0;
+    Ok((dto, cancelled))
 }
 
 fn list_active_broadcasts(
@@ -354,31 +384,37 @@ fn list_active_broadcasts(
         .prepare(
             r#"SELECT event_id, author_pubkey, author_npub, subject, subject_id, message,
                       duration_hours, expires_at, tags_json, audience, squad_id, squad_name,
-                      squad_kind, squad_icon_url, created_at
+                      squad_kind, squad_icon_url, created_at, cancelled
                FROM commons_broadcasts
                WHERE expires_at > ?1
-               ORDER BY created_at DESC
-               LIMIT ?2"#,
+               ORDER BY created_at DESC"#,
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(params![now, limit as i64], row_to_dto)
+        .query_map(params![now], row_to_dto_with_cancelled)
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect::<Vec<_>>();
 
-    let mut best: HashMap<(String, String), CommonsBroadcastDto> = HashMap::new();
-    for dto in rows {
+    // Newest event per (author, subject) wins; if that newest is a cancellation
+    // tombstone the subject is dropped — so a retracted broadcast stays hidden
+    // even while older non-cancelled rows remain cached.
+    let mut best: HashMap<(String, String), (CommonsBroadcastDto, bool)> = HashMap::new();
+    for (dto, cancelled) in rows {
         let key = (dto.author_npub.clone(), dto.subject_id.clone());
         best.entry(key)
             .and_modify(|cur| {
-                if dto.created_at > cur.created_at {
-                    *cur = dto.clone();
+                if dto.created_at > cur.0.created_at {
+                    *cur = (dto.clone(), cancelled);
                 }
             })
-            .or_insert(dto);
+            .or_insert((dto, cancelled));
     }
-    let mut out: Vec<_> = best.into_values().collect();
+    let mut out: Vec<_> = best
+        .into_values()
+        .filter(|(_, cancelled)| !*cancelled)
+        .map(|(dto, _)| dto)
+        .collect();
     out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
     out.truncate(limit as usize);
     Ok(out)
@@ -481,6 +517,7 @@ pub async fn commons_publish_broadcast<R: Runtime>(
         tags: tags.clone(),
         squad: squad_wire.clone(),
         audience: input.audience.clone(),
+        cancelled: None,
     };
     let content = serde_json::to_string(&wire).map_err(|e| e.to_string())?;
 
@@ -489,32 +526,7 @@ pub async fn commons_publish_broadcast<R: Runtime>(
     let pk = signer.get_public_key().await.map_err(|e| e.to_string())?;
     let author_npub = pk.to_bech32().map_err(|e| e.to_string())?;
 
-    let mut builder = EventBuilder::new(Kind::ApplicationSpecificData, &content)
-        .tag(Tag::custom(TagKind::d(), [COMMONS_BROADCAST_D_TAG]))
-        .tag(Tag::custom(
-            TagKind::Custom(Cow::Borrowed("client")),
-            [COMMONS_CLIENT_TAG],
-        ))
-        .tag(Tag::custom(
-            TagKind::Custom(Cow::Borrowed("subject")),
-            [subject],
-        ))
-        .tag(Tag::custom(
-            TagKind::Custom(Cow::Borrowed("exp")),
-            [expires_at.to_string()],
-        ));
-    for t in &tags {
-        builder = builder.tag(Tag::custom(
-            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::T)),
-            [t.as_str()],
-        ));
-    }
-    if let Some(ref squad) = squad_wire {
-        builder = builder.tag(Tag::custom(
-            TagKind::Custom(Cow::Borrowed("squad")),
-            [squad.id.as_str()],
-        ));
-    }
+    let builder = broadcast_event_builder(&wire, &content);
 
     let event = client
         .sign_event_builder(builder)
@@ -598,20 +610,139 @@ pub async fn commons_get_local_active(
         .prepare(
             r#"SELECT event_id, author_pubkey, author_npub, subject, subject_id, message,
                       duration_hours, expires_at, tags_json, audience, squad_id, squad_name,
-                      squad_kind, squad_icon_url, created_at
+                      squad_kind, squad_icon_url, created_at, cancelled
                FROM commons_broadcasts
                WHERE author_npub = ?1 AND subject = ?2 AND subject_id = ?3 AND expires_at > ?4
                ORDER BY created_at DESC
                LIMIT 1"#,
         )
         .map_err(|e| e.to_string())?;
-    let dto = stmt
-        .query_row(params![my_npub, subject, subject_id, now], row_to_dto)
+    let row = stmt
+        .query_row(
+            params![my_npub, subject, subject_id, now],
+            row_to_dto_with_cancelled,
+        )
         .optional()
         .map_err(|e| e.to_string())?;
     drop(stmt);
     crate::account_manager::return_db_connection(conn);
-    Ok(dto)
+    // A cancelled newest event means no active broadcast — cooldown is lifted.
+    Ok(row.and_then(|(dto, cancelled)| if cancelled { None } else { Some(dto) }))
+}
+
+/// Build the signed event tags for a broadcast wire (shared by publish + cancel).
+fn broadcast_event_builder(wire: &CommonsBroadcastWire, content: &str) -> EventBuilder {
+    let mut builder = EventBuilder::new(Kind::ApplicationSpecificData, content)
+        .tag(Tag::custom(TagKind::d(), [COMMONS_BROADCAST_D_TAG]))
+        .tag(Tag::custom(
+            TagKind::Custom(Cow::Borrowed("client")),
+            [COMMONS_CLIENT_TAG],
+        ))
+        .tag(Tag::custom(
+            TagKind::Custom(Cow::Borrowed("subject")),
+            [wire.subject.as_str()],
+        ))
+        .tag(Tag::custom(
+            TagKind::Custom(Cow::Borrowed("exp")),
+            [wire.expires_at.to_string()],
+        ));
+    for t in &wire.tags {
+        builder = builder.tag(Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::T)),
+            [t.as_str()],
+        ));
+    }
+    if let Some(ref squad) = wire.squad {
+        builder = builder.tag(Tag::custom(
+            TagKind::Custom(Cow::Borrowed("squad")),
+            [squad.id.as_str()],
+        ));
+    }
+    builder
+}
+
+/// Retract the author's active broadcast for `(subject, subject_id)`.
+///
+/// Publishes a replacement (NIP-33, same `d` tag) carrying `cancelled: true`.
+/// Other Pacto clients drop it from the feed; the author's local cooldown lifts
+/// so they can immediately rebroadcast. Idempotent when nothing is active.
+#[tauri::command]
+pub async fn commons_cancel_broadcast<R: Runtime>(
+    handle: AppHandle<R>,
+    subject: String,
+    subject_id: String,
+) -> Result<(), String> {
+    let subject = subject.trim().to_string();
+    if subject != "user" && subject != "squad" {
+        return Err("subject must be user or squad".into());
+    }
+    let subject_id = subject_id.trim().to_string();
+    if subject_id.is_empty() {
+        return Err("subjectId is required".into());
+    }
+
+    let client = get_nostr_client().map_err(|_| "Nostr client not initialized".to_string())?;
+    let signer = client.signer().await.map_err(|e| e.to_string())?;
+    let pk = signer.get_public_key().await.map_err(|e| e.to_string())?;
+    let author_npub = pk.to_bech32().map_err(|e| e.to_string())?;
+
+    if subject == "user" && subject_id != author_npub {
+        return Err("subjectId must match current user for user broadcasts".into());
+    }
+
+    // Read the active (non-cancelled) broadcast content to rebuild as a tombstone.
+    let now = unix_now_secs();
+    let content_json: Option<String> = {
+        let conn = crate::account_manager::get_db_connection(&handle)?;
+        ensure_commons_broadcasts_table(&conn)?;
+        let found = {
+            let mut stmt = conn
+                .prepare(
+                    r#"SELECT content_json FROM commons_broadcasts
+                       WHERE author_npub = ?1 AND subject = ?2 AND subject_id = ?3
+                         AND expires_at > ?4 AND cancelled = 0
+                       ORDER BY created_at DESC LIMIT 1"#,
+                )
+                .map_err(|e| e.to_string())?;
+            stmt.query_row(
+                params![author_npub, subject, subject_id, now],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+        };
+        crate::account_manager::return_db_connection(conn);
+        found
+    };
+
+    let Some(content_json) = content_json else {
+        return Ok(());
+    };
+
+    let mut wire: CommonsBroadcastWire =
+        serde_json::from_str(&content_json).map_err(|e| e.to_string())?;
+    let cancel_now = unix_now_secs();
+    wire.expires_at = cancel_now + (wire.duration_hours as i64 * 3600);
+    wire.cancelled = Some(true);
+    let content = serde_json::to_string(&wire).map_err(|e| e.to_string())?;
+
+    let builder = broadcast_event_builder(&wire, &content);
+    let event = client
+        .sign_event_builder(builder)
+        .await
+        .map_err(|e| e.to_string())?;
+    client
+        .send_event_to(TRUSTED_RELAYS.iter().copied(), &event)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let conn = crate::account_manager::get_db_connection(&handle)?;
+    ensure_commons_broadcasts_table(&conn)?;
+    upsert_broadcast_row(&conn, &event, &wire, &author_npub)?;
+    prune_expired_broadcasts(&conn)?;
+    crate::account_manager::return_db_connection(conn);
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -629,6 +760,21 @@ mod tests {
     #[test]
     fn rejects_empty_tag_list() {
         assert!(normalize_commons_tags(&[]).is_err());
+    }
+
+    #[test]
+    fn allows_reserved_new_beyond_author_cap() {
+        let raw: Vec<String> = ["a", "b", "c", "new"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(
+            normalize_commons_tags(&raw).unwrap(),
+            vec!["a", "b", "c", "new"]
+        );
+    }
+
+    #[test]
+    fn rejects_four_author_tags() {
+        let raw: Vec<String> = ["a", "b", "c", "d"].iter().map(|s| s.to_string()).collect();
+        assert!(normalize_commons_tags(&raw).is_err());
     }
 
     #[test]
@@ -685,5 +831,34 @@ mod tests {
         assert_eq!(wire.subject, "user");
         assert_eq!(wire.message, "hello");
         assert!(npub.starts_with("npub1"));
+    }
+
+    #[test]
+    fn parse_carries_cancelled_flag() {
+        let keys = Keys::generate();
+        let created = unix_now_secs();
+        let expires = created + 86400;
+        let content = format!(
+            r#"{{"schema":"{COMMONS_BROADCAST_SCHEMA}","subject":"user","message":"hello","durationHours":24,"expiresAt":{expires},"tags":["neo"],"cancelled":true}}"#
+        );
+        let event = EventBuilder::new(Kind::ApplicationSpecificData, &content)
+            .tag(Tag::custom(TagKind::d(), [COMMONS_BROADCAST_D_TAG]))
+            .tag(Tag::custom(
+                TagKind::Custom(Cow::Borrowed("client")),
+                [COMMONS_CLIENT_TAG],
+            ))
+            .tag(Tag::custom(TagKind::Custom(Cow::Borrowed("subject")), ["user"]))
+            .tag(Tag::custom(
+                TagKind::Custom(Cow::Borrowed("exp")),
+                [expires.to_string()],
+            ))
+            .tag(Tag::custom(
+                TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::T)),
+                ["neo"],
+            ))
+            .sign_with_keys(&keys)
+            .unwrap();
+        let (wire, _) = try_parse_broadcast_event(&event).expect("parse");
+        assert_eq!(wire.cancelled, Some(true));
     }
 }

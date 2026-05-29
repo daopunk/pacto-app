@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { resolveUserBroadcastAudience } from './user-broadcast';
+import { commonsAudienceForFirstBroadcast } from './user-broadcast';
 
-describe('resolveUserBroadcastAudience', () => {
-  it('maps single audience selections', () => {
-    expect(resolveUserBroadcastAudience(true, false)).toBe('new_user');
-    expect(resolveUserBroadcastAudience(false, true)).toBe('active_user');
+describe('commonsAudienceForFirstBroadcast', () => {
+  it('treats the first broadcast ever as a new user', () => {
+    expect(commonsAudienceForFirstBroadcast(true)).toBe('new_user');
   });
 
-  it('returns null when both or neither selected', () => {
-    expect(resolveUserBroadcastAudience(true, true)).toBeNull();
-    expect(resolveUserBroadcastAudience(false, false)).toBeNull();
+  it('treats any later broadcast as an active user', () => {
+    expect(commonsAudienceForFirstBroadcast(false)).toBe('active_user');
   });
 });

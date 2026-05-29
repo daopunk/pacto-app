@@ -1,7 +1,6 @@
 <script lang="ts">
   import Tab from '../ui/Tab.svelte';
   import Modal from '../ui/Modal.svelte';
-  import PersonalBroadcastModal from '../commons/PersonalBroadcastModal.svelte';
   import SquadCommonsVisibilityFields from '../squad/SquadCommonsVisibilityFields.svelte';
   import { resolveSquadCommonsOnCreate, validatePublicSquadTags } from '../../lib/squad/squad-commons-fields';
   import type { SquadVisibility } from '../../stores/squads';
@@ -43,9 +42,9 @@
   import { sendSquadInviteDm } from '../../lib/pacto-app-inbox';
   import { createDefaultParentChannels } from '../../lib/parent-navbar';
   import { resolveHubChannelNameForGroupSelection } from '../../lib/mls/virtual-channel-bucket';
-  import { pendingReadyToast, showToast } from '../../stores/toast';
+  import { pendingReadyToast } from '../../stores/toast';
   import { schedulePublicSquadCreateBroadcast } from '../../lib/commons/squad-create-broadcast';
-  import { commonsUserPrefs } from '../../stores/commons-prefs';
+  import { openCommonsBroadcastModal } from '../../stores/commons-ui';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
   import { getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
@@ -100,7 +99,7 @@
   }
 
   const addButtonLabels: Partial<Record<TopNavTab, string>> = {
-    commons: 'Broadcast',
+    commons: 'Start Broadcast',
     dms: 'Start DM',
     squads: 'Organize Squad',
   };
@@ -109,7 +108,6 @@
     $activeTopNavTab === 'commons' || $activeTopNavTab === 'dms' || $activeTopNavTab === 'squads';
 
   let showOrganizeSquadModal = false;
-  let showPersonalBroadcastModal = false;
   let organizeSquadName = '';
   let organizeSquadIconUrl = '';
   let organizeSquadMembers: string[] = [];
@@ -135,21 +133,12 @@
     showOrganizeSquadModal = false;
   }
 
-  function openPersonalBroadcastModal() {
-    if ($commonsUserPrefs.visibility !== 'public') {
-      showToast('Set Commons visibility to Public in Settings → Commons first.');
-      return;
-    }
-    showPersonalBroadcastModal = true;
-  }
-
-  function closePersonalBroadcastModal() {
-    showPersonalBroadcastModal = false;
-  }
-
   function handleBottomAddClick() {
     if ($activeTopNavTab === 'dms') startNewChat();
-    else handleAddAction();
+    else if ($activeTopNavTab === 'commons') {
+      $activeView = 'hub';
+      openCommonsBroadcastModal();
+    } else handleAddAction();
   }
 
   function toggleOrganizeMember(npub: string) {
@@ -305,7 +294,6 @@
 
   function handleAddAction() {
     if ($activeTopNavTab === 'squads') openOrganizeSquadModal();
-    else if ($activeTopNavTab === 'commons') openPersonalBroadcastModal();
   }
 
   $: canCreateSquad =
@@ -320,7 +308,7 @@
 </script>
 
 <div class="navbar">
-  {#if $activeView !== 'profile'}
+  {#if $activeView !== 'profile' && $activeTopNavTab !== 'commons'}
   <div class="tab-list">
     {#if $activeTopNavTab === 'dms'}
       <div
@@ -363,8 +351,6 @@
       >
         <Tab label="Search" icon={searchIcon} active={$activeView === 'hub' && $activeDmTab === 'search'} />
       </div>
-    {:else if $activeTopNavTab === 'commons'}
-      <p class="commons-nav-stub" aria-hidden="true">—</p>
     {:else if $activeTopNavTab === 'squads'}
       {#each $squads as squad (squad.id)}
         <div
@@ -383,7 +369,7 @@
     {/if}
   </div>
   {/if}
-  {#if $activeView === 'profile'}
+  {#if $activeView === 'profile' || $activeTopNavTab === 'commons'}
   <div class="navbar-spacer" aria-hidden="true"></div>
   {/if}
   <div class="tab-list bottom">
@@ -470,10 +456,6 @@
   </Modal>
 {/if}
 
-{#if showPersonalBroadcastModal}
-  <PersonalBroadcastModal onClose={closePersonalBroadcastModal} />
-{/if}
-
 <style>
   .navbar {
     width: 64px;
@@ -506,14 +488,6 @@
   .navbar-spacer {
     flex: 1;
     min-height: 0;
-  }
-
-  .commons-nav-stub {
-    margin: 0;
-    font-size: 0.75rem;
-    text-align: center;
-    color: var(--text-muted);
-    user-select: none;
   }
 
   .organize-modal-subtitle {

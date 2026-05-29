@@ -32,7 +32,6 @@ import {
   LAST_DM_NPUB_PREFIX,
 } from './dm';
 import { hydrateSquadsFromDisk } from './squads';
-import { hydrateCommonsUserPrefsFromDisk } from './commons-prefs';
 import { restoreSquadsHubSelection } from '../lib/squad-hub-nav';
 
 export {
@@ -46,7 +45,6 @@ export function loadAccountState(npub: string): void {
   setCurrentNpubForPersistence(npub);
   if (typeof localStorage === 'undefined') return;
   hydrateSquadsFromDisk(npub);
-  hydrateCommonsUserPrefsFromDisk(npub);
   try {
     const pinnedKey = `${PINNED_DM_NPUBS_PREFIX}_${npub}`;
     const rawPinned = localStorage.getItem(pinnedKey);
