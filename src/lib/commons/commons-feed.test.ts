@@ -85,23 +85,23 @@ describe('filterCommonsBroadcasts', () => {
   it('matches any tag in a category (OR)', () => {
     const list = filterCommonsBroadcasts(
       [
-        row({ eventId: 'left', tags: ['left'] }),
+        row({ eventId: 'lib', tags: ['libertarian'] }),
         row({ eventId: 'right', tags: ['right'] }),
         row({ eventId: 'other', tags: ['dao'] }),
       ],
-      { ...DEFAULT_COMMONS_FEED_FILTERS, categoryId: 'politics' },
+      { ...DEFAULT_COMMONS_FEED_FILTERS, categoryId: 'libertarianism' },
       now
     );
-    expect(list.map((b) => b.eventId).sort()).toEqual(['left', 'right']);
+    expect(list.map((b) => b.eventId).sort()).toEqual(['lib', 'right']);
   });
 
   it('prefers focused tags over category when both are set', () => {
     const list = filterCommonsBroadcasts(
       [
-        row({ eventId: 'both', tags: ['left', 'right'] }),
-        row({ eventId: 'left-only', tags: ['left'] }),
+        row({ eventId: 'both', tags: ['libertarian', 'right'] }),
+        row({ eventId: 'lib-only', tags: ['libertarian'] }),
       ],
-      { ...DEFAULT_COMMONS_FEED_FILTERS, categoryId: 'politics', tags: ['left', 'right'] },
+      { ...DEFAULT_COMMONS_FEED_FILTERS, categoryId: 'libertarianism', tags: ['libertarian', 'right'] },
       now
     );
     expect(list.map((b) => b.eventId)).toEqual(['both']);

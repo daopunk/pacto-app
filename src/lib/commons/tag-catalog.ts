@@ -2,12 +2,13 @@ import { normalizeCommonsTag } from './tags';
 
 /**
  * Curated Commons tag tree. Categories are browse-only groupings shown as image
- * tiles; their `children` are the actual filterable #tags (e.g. Politics →
- * left, right, moderate, socialist). To add to the taxonomy (mirrors the theme
- * registry in `src/stores/theme.ts`):
+ * tiles; their `children` are the actual filterable #tags (e.g. Communism →
+ * marxist, leninist). To add to the taxonomy (mirrors the theme registry in
+ * `src/stores/theme.ts`):
  * 1. Optional art: drop a category image at `static/commons-tags/<id>.webp`.
  * 2. Append a `{ id, title, description, image, children }` category, or add a
- *    `{ tag, title }` child to an existing one.
+ *    `{ tag, title }` child to an existing one. Each category: **4–6 leaf tags**,
+ *    sorted A–Z by title.
  * Categories without an `image` fall back to a deterministic gradient tile.
  *
  * Image spec (see ai-docs/commons/COMMONS_PLAN.md → Tag art):
@@ -37,29 +38,33 @@ export interface CommonsTagCategory {
 
 export const COMMONS_TAG_ART_BASE = '/commons-tags/';
 
+/** Inclusive bounds for leaf tags per category tile. */
+export const COMMONS_CATEGORY_TAG_MIN = 4;
+export const COMMONS_CATEGORY_TAG_MAX = 6;
+
 export const COMMONS_TAG_TREE: CommonsTagCategory[] = [
   {
-    id: 'politics',
-    title: 'POLITICS',
-    description: 'Ideology, organizing, and civic life.',
+    id: 'ai',
+    title: 'AI',
+    description: 'Models, agents, and machine learning work.',
     children: [
-      { tag: 'left', title: 'Left' },
-      { tag: 'right', title: 'Right' },
-      { tag: 'moderate', title: 'Moderate' },
-      { tag: 'socialist', title: 'Socialist' },
-      { tag: 'libertarian', title: 'Libertarian' },
-      { tag: 'anarchist', title: 'Anarchist' },
+      { tag: 'agents', title: 'Agents' },
+      { tag: 'ai', title: 'AI' },
+      { tag: 'llm', title: 'LLM' },
+      { tag: 'ml', title: 'ML' },
+      { tag: 'robotics', title: 'Robotics' },
     ],
   },
   {
-    id: 'governance',
-    title: 'GOVERNANCE',
-    description: 'Coordination, DAOs, and shared decision-making.',
+    id: 'anarchism',
+    title: 'ANARCHISM',
+    description: 'Autonomy, mutual aid, and horizontal organizing.',
+    image: 'anarchism.png',
     children: [
-      { tag: 'dao', title: 'DAO' },
-      { tag: 'governance', title: 'Governance' },
-      { tag: 'coordination', title: 'Coordination' },
+      { tag: 'anarchist', title: 'Anarchist' },
+      { tag: 'autonomous', title: 'Autonomous' },
       { tag: 'mutual_aid', title: 'Mutual Aid' },
+      { tag: 'syndicalist', title: 'Syndicalist' },
     ],
   },
   {
@@ -68,9 +73,34 @@ export const COMMONS_TAG_TREE: CommonsTagCategory[] = [
     description: 'Makers shipping tools, contracts, and apps.',
     children: [
       { tag: 'builders', title: 'Builders' },
-      { tag: 'dev', title: 'Dev' },
       { tag: 'design', title: 'Design' },
+      { tag: 'dev', title: 'Dev' },
       { tag: 'open_source', title: 'Open Source' },
+    ],
+  },
+  {
+    id: 'communism',
+    title: 'COMMUNISM',
+    description: 'Marxist, Leninist, and communist organizing.',
+    image: 'communism.jpeg',
+    children: [
+      { tag: 'communist', title: 'Communist' },
+      { tag: 'leninist', title: 'Leninist' },
+      { tag: 'maoist', title: 'Maoist' },
+      { tag: 'marxist', title: 'Marxist' },
+    ],
+  },
+  {
+    id: 'crypto',
+    title: 'CRYPTO',
+    description: 'Chains, wallets, DeFi, and on-chain finance.',
+    children: [
+      { tag: 'crypto', title: 'Crypto' },
+      { tag: 'defi', title: 'DeFi' },
+      { tag: 'dex', title: 'DEX' },
+      { tag: 'lending', title: 'Lending' },
+      { tag: 'stablecoin', title: 'Stablecoin' },
+      { tag: 'web3', title: 'Web3' },
     ],
   },
   {
@@ -79,9 +109,47 @@ export const COMMONS_TAG_TREE: CommonsTagCategory[] = [
     description: 'Art, sound, and creative work.',
     children: [
       { tag: 'art', title: 'Art' },
-      { tag: 'music', title: 'Music' },
       { tag: 'film', title: 'Film' },
+      { tag: 'literature', title: 'Literature' },
+      { tag: 'music', title: 'Music' },
+      { tag: 'theater', title: 'Theater' },
       { tag: 'writing', title: 'Writing' },
+    ],
+  },
+  {
+    id: 'dao',
+    title: 'DAO',
+    description: 'On-chain groups, multisigs, and collective treasuries.',
+    children: [
+      { tag: 'dao', title: 'DAO' },
+      { tag: 'multisig', title: 'Multisig' },
+      { tag: 'onchain', title: 'On-chain' },
+      { tag: 'token_gov', title: 'Token Gov' },
+    ],
+  },
+  {
+    id: 'economics',
+    title: 'ECONOMICS',
+    description: 'Markets, planning, labor, and economic models.',
+    children: [
+      { tag: 'co_op', title: 'Co-op' },
+      { tag: 'economics', title: 'Economics' },
+      { tag: 'free_market', title: 'Free Market' },
+      { tag: 'labor', title: 'Labor' },
+      { tag: 'planned_economy', title: 'Planned Economy' },
+      { tag: 'trade', title: 'Trade' },
+    ],
+  },
+  {
+    id: 'governance',
+    title: 'GOVERNANCE',
+    description: 'How groups decide — across ideologies and scales.',
+    children: [
+      { tag: 'coordination', title: 'Coordination' },
+      { tag: 'decentralization', title: 'Decentralization' },
+      { tag: 'democracy', title: 'Democracy' },
+      { tag: 'federalism', title: 'Federalism' },
+      { tag: 'governance', title: 'Governance' },
     ],
   },
   {
@@ -89,9 +157,22 @@ export const COMMONS_TAG_TREE: CommonsTagCategory[] = [
     title: 'KNOWLEDGE',
     description: 'Research, science, and learning.',
     children: [
+      { tag: 'academia', title: 'Academia' },
+      { tag: 'education', title: 'Education' },
+      { tag: 'learning', title: 'Learning' },
       { tag: 'research', title: 'Research' },
       { tag: 'science', title: 'Science' },
-      { tag: 'education', title: 'Education' },
+    ],
+  },
+  {
+    id: 'libertarianism',
+    title: 'LIBERTARIANISM',
+    description: 'Markets, capitalist organizing, and libertarian politics.',
+    children: [
+      { tag: 'capitalist', title: 'Capitalist' },
+      { tag: 'libertarian', title: 'Libertarian' },
+      { tag: 'moderate', title: 'Moderate' },
+      { tag: 'right', title: 'Right' },
     ],
   },
   {
@@ -99,9 +180,63 @@ export const COMMONS_TAG_TREE: CommonsTagCategory[] = [
     title: 'LOCAL',
     description: 'People organizing by place and IRL.',
     children: [
-      { tag: 'local', title: 'Local' },
-      { tag: 'irl', title: 'IRL' },
+      { tag: 'community', title: 'Community' },
       { tag: 'events', title: 'Events' },
+      { tag: 'irl', title: 'IRL' },
+      { tag: 'local', title: 'Local' },
+    ],
+  },
+  {
+    id: 'privacy',
+    title: 'PRIVACY',
+    description: 'Encryption, anonymity, and resisting surveillance.',
+    children: [
+      { tag: 'anonymity', title: 'Anonymity' },
+      { tag: 'cypherpunk', title: 'Cypherpunk' },
+      { tag: 'encryption', title: 'Encryption' },
+      { tag: 'opsec', title: 'Opsec' },
+      { tag: 'privacy', title: 'Privacy' },
+      { tag: 'surveillance', title: 'Surveillance' },
+    ],
+  },
+  {
+    id: 'socialist',
+    title: 'SOCIALIST',
+    description: 'Social democracy, cooperatives, and reform organizing.',
+    children: [
+      { tag: 'cooperative', title: 'Cooperative' },
+      { tag: 'left', title: 'Left' },
+      { tag: 'public_ownership', title: 'Public Ownership' },
+      { tag: 'reformist', title: 'Reformist' },
+      { tag: 'socdem', title: 'Social Democrat' },
+      { tag: 'socialist', title: 'Socialist' },
+    ],
+  },
+  {
+    id: 'technology',
+    title: 'TECHNOLOGY',
+    description: 'Hardware, software, networks, and systems.',
+    children: [
+      { tag: 'hardware', title: 'Hardware' },
+      { tag: 'infra', title: 'Infra' },
+      { tag: 'networking', title: 'Networking' },
+      { tag: 'software', title: 'Software' },
+      { tag: 'systems', title: 'Systems' },
+      { tag: 'tech', title: 'Tech' },
+    ],
+  },
+  {
+    id: 'university',
+    title: 'UNIVERSITY',
+    description: 'Campus life, students, and academic organizing.',
+    image: 'uni.jpeg',
+    children: [
+      { tag: 'campus', title: 'Campus' },
+      { tag: 'faculty', title: 'Faculty' },
+      { tag: 'graduate', title: 'Graduate' },
+      { tag: 'students', title: 'Students' },
+      { tag: 'undergrad', title: 'Undergrad' },
+      { tag: 'university', title: 'University' },
     ],
   },
 ];

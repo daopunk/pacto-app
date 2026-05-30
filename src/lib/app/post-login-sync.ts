@@ -7,8 +7,10 @@ import { connect as apiConnect } from '../api/auth';
 import { fetchMessages, refreshProfileNow, syncMlsGroupsNow } from '../api/nostr';
 import { dmLog } from '../utils/dm-debug';
 import { dmSyncStatus } from '../../stores/dm';
+import { scheduleCommonsStartupPrefetch } from '../commons/commons-prefetch';
 
 export function runPostLoginNetworkSync(npub: string): void {
+  scheduleCommonsStartupPrefetch();
   void (async () => {
     try {
       dmLog('post-login: connect()');

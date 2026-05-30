@@ -5,7 +5,6 @@
   import CommonsTagMenu from './CommonsTagMenu.svelte';
   import CommonsPersonalPanel from './CommonsPersonalPanel.svelte';
   import CommonsBroadcastCard from './CommonsBroadcastCard.svelte';
-  import { fetchCommonsBroadcasts } from '../../lib/api/commons';
   import type { CommonsBroadcastDto } from '../../lib/commons/types';
   import {
     COMMONS_FEED_REFRESH_MS,
@@ -16,8 +15,13 @@
     type CommonsAudienceFilter,
     type CommonsSubjectFilter,
   } from '../../lib/commons/commons-feed';
+  import {
+    commonsBroadcasts,
+    commonsFeedError,
+    commonsFeedSyncing,
+    refreshCommonsBroadcasts,
+  } from '../../lib/commons/commons-prefetch';
   import { COMMONS_TAG_GROUPS } from '../../lib/commons/tag-catalog';
-  import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { activeTopNavTab } from '../../stores/navigation';
   import {
     commonsBroadcastModalClosedNonce,
@@ -26,9 +30,6 @@
   import { profiles, loadProfile } from '../../stores/profiles';
   import { get } from 'svelte/store';
 
-  let broadcasts: CommonsBroadcastDto[] = [];
-  let loading = true;
-  let error: string | null = null;
   let filterTags: string[] = [...DEFAULT_COMMONS_FEED_FILTERS.tags];
   let filterCategoryId: string | null = DEFAULT_COMMONS_FEED_FILTERS.categoryId;
   let subjectFilter: CommonsSubjectFilter = DEFAULT_COMMONS_FEED_FILTERS.subjectFilter;
@@ -42,7 +43,7 @@
   let wasCommonsActive = false;
 
   $: feedFilters = { tags: filterTags, categoryId: filterCategoryId, subjectFilter, audienceFilter };
-  $: filteredBroadcasts = prepareCommonsFeed(broadcasts, feedFilters);
+  $: filteredBroadcasts = prepareCommonsFeed($commonsBroadcasts, feedFilters);
   $: hasFilters =
     filterTags.length > 0 ||
     filterCategoryId != null ||
@@ -60,7 +61,7 @@
   // Active broadcast counts per catalog tag for the grid "live" badges.
   $: countsByTag = (() => {
     const counts: Record<string, number> = {};
-    const active = dedupeCommonsBroadcasts(broadcasts).filter((b) => isCommonsBroadcastActive(b));
+    const active = dedupeCommonsBroadcasts($commonsBroadcasts).filter((b) => isCommonsBroadcastActive(b));
     const known = new Set(COMMONS_TAG_GROUPS.map((g) => g.tag));
     for (const b of active) {
       for (const tag of b.tags) {
@@ -71,23 +72,8 @@
   })();
 
   async function loadFeed(options: { silent?: boolean } = {}) {
-    if (!options.silent) {
-      loading = true;
-    }
-    error = null;
-    try {
-      broadcasts = await fetchCommonsBroadcasts(100);
-      prefetchAuthorProfiles(broadcasts);
-    } catch (e: unknown) {
-      error = getInvokeErrorMessage(e, 'Could not load Commons broadcasts.');
-      if (!options.silent) {
-        broadcasts = [];
-      }
-    } finally {
-      if (!options.silent) {
-        loading = false;
-      }
-    }
+    const rows = await refreshCommonsBroadcasts(options);
+    prefetchAuthorProfiles(rows);
   }
 
   /** Resolve PFPs for user broadcast authors that aren't cached yet. */
@@ -143,7 +129,7 @@
   $: {
     const commonsActive = $activeTopNavTab === 'commons';
     if (commonsActive && !wasCommonsActive) {
-      void loadFeed();
+      void loadFeed({ silent: get(commonsBroadcasts).length > 0 });
       startPolling();
     } else if (!commonsActive && wasCommonsActive) {
       stopPolling();
@@ -164,13 +150,13 @@
         <button
           type="button"
           class="commons-refresh"
-          disabled={loading}
-          aria-label={loading ? 'Refreshing feed' : 'Refresh feed'}
+          disabled={$commonsFeedSyncing}
+          aria-label={$commonsFeedSyncing ? 'Refreshing feed' : 'Refresh feed'}
           on:click={() => loadFeed()}
         >
           <svg
             class="commons-refresh-icon"
-            class:is-spinning={loading}
+            class:is-spinning={$commonsFeedSyncing}
             width="18"
             height="18"
             viewBox="0 0 24 24"
@@ -227,41 +213,41 @@
       bind:tagMenuOpen
     />
 
-    {#if error}
-      <p class="commons-state commons-state-error" role="alert">{error}</p>
-    {:else if loading && broadcasts.length === 0}
-      <p class="commons-state muted" role="status">Loading broadcasts…</p>
-    {:else}
-      {#if tagMenuOpen}
-        <CommonsTagMenu
-          activeTags={filterTags}
-          {countsByTag}
-          onToggleTag={selectFocusedTag}
-        />
-      {/if}
+    {#if $commonsFeedError}
+      <p class="commons-state commons-state-error" role="alert">{$commonsFeedError}</p>
+    {/if}
 
-      {#if hasFilters}
-        {#if filteredBroadcasts.length === 0}
-          <p class="commons-state muted" role="status">No broadcasts match your filters.</p>
-          <p class="commons-state-hint muted">
-            Try a narrower category, fewer tags, or broaden Squads / Users / Audience.
-          </p>
-        {:else}
-          <ul class="commons-results" role="feed" aria-busy={loading}>
-            {#each filteredBroadcasts as broadcast (broadcast.eventId)}
-              <li>
-                <CommonsBroadcastCard {broadcast} />
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      {:else if showTiles}
-        <CommonsTagBrowser
-          activeCategoryId={filterCategoryId}
-          {countsByTag}
-          onSelectCategory={selectCategory}
-        />
+    {#if tagMenuOpen}
+      <CommonsTagMenu
+        activeTags={filterTags}
+        {countsByTag}
+        onToggleTag={selectFocusedTag}
+      />
+    {/if}
+
+    {#if hasFilters}
+      {#if $commonsFeedSyncing && $commonsBroadcasts.length === 0}
+        <p class="commons-state muted" role="status">Loading broadcasts…</p>
+      {:else if filteredBroadcasts.length === 0}
+        <p class="commons-state muted" role="status">No broadcasts match your filters.</p>
+        <p class="commons-state-hint muted">
+          Try a narrower category, fewer tags, or broaden Squads / Users / Audience.
+        </p>
+      {:else}
+        <ul class="commons-results" role="feed" aria-busy={$commonsFeedSyncing}>
+          {#each filteredBroadcasts as broadcast (broadcast.eventId)}
+            <li>
+              <CommonsBroadcastCard {broadcast} />
+            </li>
+          {/each}
+        </ul>
       {/if}
+    {:else if showTiles}
+      <CommonsTagBrowser
+        activeCategoryId={filterCategoryId}
+        {countsByTag}
+        onSelectCategory={selectCategory}
+      />
     {/if}
   </div>
 </section>

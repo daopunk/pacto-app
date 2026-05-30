@@ -562,6 +562,20 @@ pub async fn commons_publish_broadcast<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn commons_list_cached_broadcasts(limit: Option<u32>) -> Result<Vec<CommonsBroadcastDto>, String> {
+    let limit = limit.unwrap_or(100).clamp(1, 500);
+    let handle = crate::TAURI_APP
+        .get()
+        .ok_or_else(|| "App handle not initialized".to_string())?;
+    let conn = crate::account_manager::get_db_connection(handle)?;
+    ensure_commons_broadcasts_table(&conn)?;
+    prune_expired_broadcasts(&conn)?;
+    let rows = list_active_broadcasts(&conn, limit)?;
+    crate::account_manager::return_db_connection(conn);
+    Ok(rows)
+}
+
+#[tauri::command]
 pub async fn commons_fetch_broadcasts(limit: Option<u32>) -> Result<Vec<CommonsBroadcastDto>, String> {
     let limit = limit.unwrap_or(100).clamp(1, 500);
     let _ = sync_broadcasts_from_relays(limit).await?;

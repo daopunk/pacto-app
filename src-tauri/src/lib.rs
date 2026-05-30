@@ -6204,6 +6204,7 @@ pub fn run() {
             dashboard_poll::send_dashboard_poll_create,
             dashboard_poll::send_dashboard_poll_vote,
             commons::commons_publish_broadcast,
+            commons::commons_list_cached_broadcasts,
             commons::commons_fetch_broadcasts,
             commons::commons_get_local_active,
             commons::commons_cancel_broadcast,

@@ -14,6 +14,11 @@ export async function fetchCommonsBroadcasts(limit?: number): Promise<CommonsBro
   return invoke<CommonsBroadcastDto[]>('commons_fetch_broadcasts', { limit: limit ?? null });
 }
 
+/** Local SQLite cache only — no relay sync; works before Nostr unlock. */
+export async function fetchCommonsBroadcastsCached(limit?: number): Promise<CommonsBroadcastDto[]> {
+  return invoke<CommonsBroadcastDto[]>('commons_list_cached_broadcasts', { limit: limit ?? null });
+}
+
 export async function getLocalActiveCommonsBroadcast(
   subject: 'user' | 'squad',
   subjectId: string

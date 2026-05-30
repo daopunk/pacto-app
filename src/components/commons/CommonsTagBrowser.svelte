@@ -30,7 +30,7 @@
           on:click={() => onSelectCategory(category.id)}
         >
           {#if art}
-            <img class="commons-browser-art" src={art} alt="" loading="lazy" decoding="async" />
+            <img class="commons-browser-art" src={art} alt="" loading="eager" decoding="async" />
           {/if}
           <span class="commons-browser-scrim" aria-hidden="true"></span>
           <span class="commons-browser-content">
@@ -92,7 +92,13 @@
     position: absolute;
     inset: 0;
     z-index: 1;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.55) 100%);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.28) 0%,
+        rgba(0, 0, 0, 0.42) 45%,
+        rgba(0, 0, 0, 0.68) 100%
+      );
   }
 
   .commons-browser-content {
