@@ -14,7 +14,7 @@
   export let id: string = '';
   export let announce: AnnounceMessage;
   export let authorName: string = '';
-  /** Sender npub (MLS group messages); used by signer-share card to highlight which member posted this update. */
+  /** Sender npub (MLS group messages); used for first-person vs third-person copy on signer-share cards. */
   export let authorNpub: string | undefined = undefined;
   export let timestamp: string = '';
 
