@@ -85,7 +85,6 @@ import { PACTO_COMMONS_JOIN_REQUESTS_PREFIX } from '../commons/commons-join-requ
 
 /** Legacy (non-scoped) keys to remove for backwards compatibility. */
 const LEGACY_LOCAL_STORAGE_KEYS = [
-  'pacto_squads',
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',
@@ -99,7 +98,6 @@ const LEGACY_LOCAL_STORAGE_KEYS = [
 
 /** Npub-scoped key prefixes (suffix is _<npub>). Invite decision keys from invite-decisions module. */
 const SCOPED_KEY_PREFIXES = [
-  'pacto_squads',
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',

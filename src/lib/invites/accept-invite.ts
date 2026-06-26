@@ -9,6 +9,7 @@ import {
 } from '../api/nostr';
 import { defaultChannelRowsForGroupId } from '../parent-navbar';
 import { normalizeStoredSquad } from '../squad-pair';
+import { persistSquad } from '../squad/squad-catalog';
 import { dmError } from '../utils/dm-debug';
 import {
   squads,
@@ -104,6 +105,13 @@ export async function acceptAnnouncementsInvite(
       ? [...list.filter((s) => s.id !== newSquad.id), newSquad]
       : [...list, newSquad]
   );
+  try {
+    await persistSquad(newSquad);
+  } catch (e) {
+    dmError('persistSquad after accept invite', e);
+    squads.update((list: Squad[]) => list.filter((s) => s.id !== newSquad.id));
+    throw e;
+  }
   activeSquadId.set(newSquad.id);
   activeChannelId.set(payload.groupId);
   activeHubChannelName.set(ANNOUNCEMENTS_CHANNEL_NAME);
