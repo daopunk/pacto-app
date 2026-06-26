@@ -391,7 +391,7 @@
           }),
         }),
         '',
-        { virtualBucket: 'inbox' },
+        { virtualBucket: 'announcements' },
       );
     }
     await mergeSquadInfraForParent(params.parentId);

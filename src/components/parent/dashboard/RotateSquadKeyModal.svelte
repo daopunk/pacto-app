@@ -90,15 +90,4 @@
     display: flex;
     justify-content: flex-end;
   }
-
-  .btn-secondary {
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-subtle);
-    cursor: pointer;
-    font-family: inherit;
-  }
 </style>

@@ -6308,6 +6308,7 @@ pub fn run() {
             sign_evm_hash,
             evm::wallet_prices::wallet_get_usd_spot_prices,
             evm::wallet_ops::get_wallet_summary,
+            evm::wallet_ops::get_evm_native_balance,
             evm::wallet_ops::wallet_build_and_send_transaction,
             evm::evm_accounts::list_evm_accounts,
             evm::evm_accounts::export_evm_account_key_plaintext,

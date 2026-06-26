@@ -622,8 +622,6 @@
         {:else if dashboardView === 'settings'}
           {#await loadDashboardSettingsTab() then SettingsTab}
             <SettingsTab
-              {squadInfraRows}
-              {hasSponsor}
               {permissionsCtx}
               {squadAdminCtx}
             {settingsChainError}
@@ -636,7 +634,6 @@
               {squadMemberEvmByNpub}
               {memberHatByAddress}
               {memberRolesByAddress}
-              onOpenLaunchpad={openLaunchpad}
               onOpenSquadRolesModal={() => (showSquadRolesModal = true)}
             />
           {:catch}

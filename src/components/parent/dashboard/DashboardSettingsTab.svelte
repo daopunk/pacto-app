@@ -10,8 +10,6 @@
   /** Enable when squad key rotation backend is wired. */
   const ROTATE_SQUAD_KEY_ENABLED = false;
 
-  export let squadInfraRows: unknown[] | undefined = undefined;
-  export let hasSponsor = false;
   export let permissionsCtx: DashboardPermissionsContext;
   export let squadAdminCtx: ResolvedSquadAdminContext | null = null;
   export let settingsChainError = '';
@@ -24,7 +22,6 @@
   export let squadMemberEvmByNpub: Record<string, string> = {};
   export let memberHatByAddress: Record<string, string> = {};
   export let memberRolesByAddress: Record<string, string> = {};
-  export let onOpenLaunchpad: () => void = () => {};
   export let onOpenSquadRolesModal: () => void = () => {};
 
   let rotateModalOpen = false;
@@ -37,13 +34,6 @@
   $: myNpub = $currentUser?.npub ?? '';
   $: myRosterEvm = myNpub ? squadMemberEvmByNpub[myNpub]?.trim() : '';
 </script>
-
-{#if squadInfraRows !== undefined && !hasSponsor}
-  <div class="sponsor-empty-banner" role="status">
-    <p class="sponsor-empty-banner-text">Deploy squad sponsor first using the Deploy button below.</p>
-    <button type="button" class="btn-primary" on:click={onOpenLaunchpad}>Open Deploy</button>
-  </div>
-{/if}
 
 <section
   id="settings-user-squad"
@@ -182,26 +172,6 @@
 </section>
 
 <style>
-  .sponsor-empty-banner {
-    margin: 0 16px 16px;
-    padding: 14px 16px;
-    border: 1px solid var(--border-subtle);
-    border-radius: 10px;
-    background: var(--bg-elevated);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 16px;
-  }
-
-  .sponsor-empty-banner-text {
-    margin: 0;
-    flex: 1;
-    min-width: 200px;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-  }
-
   .dashboard-section {
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
