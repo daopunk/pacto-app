@@ -2783,17 +2783,30 @@ fn default_relay_mode() -> String {
     "both".to_string()
 }
 
-/// Validate a relay URL format (must be wss://)
+/// Validate a relay URL format. Secure WebSockets (`wss://`) are required for
+/// public relays; insecure `ws://` is allowed only for local development hosts
+/// so containers like the pacto dev-setup relay can be used without TLS.
 fn validate_relay_url(url: &str) -> Result<String, String> {
     let trimmed = url.trim();
 
-    // Must start with wss:// (secure WebSocket only)
-    if !trimmed.starts_with("wss://") {
+    let is_local_ws = trimmed.starts_with("ws://")
+        && {
+            let host_port = &trimmed[5..];
+            host_port.starts_with("localhost:")
+                || host_port.starts_with("localhost/")
+                || host_port == "localhost"
+                || host_port.starts_with("127.0.0.1:")
+                || host_port.starts_with("127.0.0.1/")
+                || host_port == "127.0.0.1"
+        };
+
+    if !(trimmed.starts_with("wss://") || is_local_ws) {
         return Err("Relay URL must start with wss://".to_string());
     }
 
     // Basic URL validation - must have host after protocol
-    let after_protocol = &trimmed[6..];
+    let protocol_len = if trimmed.starts_with("wss://") { 6 } else { 5 };
+    let after_protocol = &trimmed[protocol_len..];
     if after_protocol.is_empty() {
         return Err("Relay URL must include a host".to_string());
     }
