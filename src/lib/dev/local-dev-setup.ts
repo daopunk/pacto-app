@@ -18,11 +18,13 @@ const LOCAL_CHAIN_ID: SupportedChainId = 'local';
 const RELAY_TIMEOUT_MS = 5_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('timed out')), ms);
+  });
   return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('timed out')), ms);
-    }),
+    promise.finally(() => clearTimeout(timer)),
+    timeout,
   ]);
 }
 
@@ -50,7 +52,7 @@ function ensureLocalChainEnabled(npub: string): void {
 
 function ensureLocalDefaultRpc(npub: string): void {
   const current = loadDefaultRpc(npub, LOCAL_CHAIN_ID);
-  if (current === LOCAL_RPC_URL) return;
+  if (current) return;
   saveDefaultRpc(npub, LOCAL_CHAIN_ID, LOCAL_RPC_URL);
   console.log('[local-dev] set local default RPC', LOCAL_RPC_URL);
 }
@@ -58,8 +60,17 @@ function ensureLocalDefaultRpc(npub: string): void {
 export async function applyLocalDevDefaults(npub: string | null | undefined): Promise<void> {
   if (!import.meta.env.DEV || !npub) return;
 
-  // Run in parallel where possible; failures are logged, not thrown.
   await ensureLocalRelay();
-  ensureLocalChainEnabled(npub);
-  ensureLocalDefaultRpc(npub);
+  try {
+    ensureLocalChainEnabled(npub);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn('[local-dev] failed to enable local chain:', message);
+  }
+  try {
+    ensureLocalDefaultRpc(npub);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn('[local-dev] failed to set local default RPC:', message);
+  }
 }

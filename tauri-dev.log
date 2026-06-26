@@ -1,0 +1,960 @@
+Already up to date
+Done in 160ms using pnpm v11.9.0
+$ tauri dev
+     Running BeforeDevCommand (`pnpm dev`)
+$ vite dev
+
+  VITE v6.4.1  ready in 368 ms
+
+  ➜  Local:   http://localhost:1420/
+8:53:21 PM [vite-plugin-svelte] src/routes/+page.svelte:1103:2 Unused CSS selector ".squads-area"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/commons/CommonsBroadcastCard.svelte:115:0 noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex
+8:53:21 PM [vite-plugin-svelte] src/components/commons/CommonsBroadcastCard.svelte:115:0 Non-interactive element `<article>` should not be assigned mouse or keyboard event listeners
+https://svelte.dev/e/a11y_no_noninteractive_element_interactions
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:581:2 Unused CSS selector ".wallet-view-btn-action-outline"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:587:2 Unused CSS selector ".wallet-view-btn-action-outline:hover"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:626:2 Unused CSS selector ".wallet-view-section-head"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:642:2 Unused CSS selector ".wallet-view-section-head .wallet-view-h2"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:657:2 Unused CSS selector ".wallet-view-toggle-list"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:666:2 Unused CSS selector ".wallet-view-toggle"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:675:2 Unused CSS selector ".wallet-view-toggle input"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:679:2 Unused CSS selector ".wallet-view-chain-id"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:710:2 Unused CSS selector ".wallet-view-token-list"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:719:2 Unused CSS selector ".wallet-view-token-row"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:730:2 Unused CSS selector ".wallet-view-token-meta"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:738:2 Unused CSS selector ".wallet-view-token-sym"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:743:2 Unused CSS selector ".wallet-view-token-net"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:748:2 Unused CSS selector ".wallet-view-token-addr"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:753:2 Unused CSS selector ".wallet-view-token-src"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:759:2 Unused CSS selector ".wallet-view-btn-text"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:768:2 Unused CSS selector ".wallet-view-btn-text:hover"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:772:2 Unused CSS selector ".wallet-view-empty"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:786:2 Unused CSS selector ".wallet-view-account-actions"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:792:2 Unused CSS selector ".wallet-view-account-list"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:801:2 Unused CSS selector ".wallet-view-account-row"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:812:2 Unused CSS selector ".wallet-view-account-active"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:817:2 Unused CSS selector ".wallet-view-account-select"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:826:2 Unused CSS selector ".wallet-view-account-select input"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:830:2 Unused CSS selector ".wallet-view-account-meta"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:837:2 Unused CSS selector ".wallet-view-account-scheme"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:844:2 Unused CSS selector ".wallet-view-account-idx"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:850:2 Unused CSS selector ".wallet-view-account-name"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:856:2 Unused CSS selector ".wallet-view-account-addr"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:864:2 Unused CSS selector ".wallet-view-account-tools"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:871:2 Unused CSS selector ".wallet-view-account-more"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:886:2 Unused CSS selector ".wallet-view-account-more:hover:not(:disabled)"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:891:2 Unused CSS selector ".wallet-view-account-more:disabled"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:896:2 Unused CSS selector ".wallet-view-account-copy-icon-btn"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:911:2 Unused CSS selector ".wallet-view-account-copy-icon-btn:hover:not(:disabled)"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:917:2 Unused CSS selector ".wallet-view-account-copy-icon-btn:disabled"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:922:2 Unused CSS selector ".wallet-view-account-copy-svg"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/wallet/WalletView.svelte:926:2 Unused CSS selector ".wallet-view-account-badge"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/commons/CommonsTagPicker.svelte:167:4 Elements with the 'listbox' interactive role must have a tabindex value
+https://svelte.dev/e/a11y_interactive_supports_focus
+8:53:21 PM [vite-plugin-svelte] src/components/settings/EvmWalletExtras.svelte:641:2 Unused CSS selector ".evm-extras-code"
+https://svelte.dev/e/css_unused_selector
+8:53:21 PM [vite-plugin-svelte] src/components/channel/Channel.svelte:4:13 Component has unused export property 'type'. If it is for external reference only, please consider using `export const type`
+https://svelte.dev/e/export_let_unused
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info Watching /Users/opselite/src/covenant-gov/pacto-app/src-tauri for changes...
+[1m[33mwarning[0m[1m: unused import: `RECEIPT_WAIT_TIMEOUT`[0m
+  [1m[94m--> [0msrc/evm/rpc/mod.rs:12:36
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub use config::{parse_salt_nonce, RECEIPT_WAIT_TIMEOUT};
+   [1m[94m|[0m                                    [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: use of deprecated associated function `nostr_sdk::secp256k1::Message::from_slice`: use from_digest_slice instead[0m
+    [1m[94m--> [0msrc/lib.rs:4444:24
+     [1m[94m|[0m
+[1m[94m4444[0m [1m[94m|[0m     let msg = Message::from_slice(&hash_bytes).map_err(|_| "Hash must be a 32-byte message".to_string())?;
+     [1m[94m|[0m                        [1m[33m^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(deprecated)]` on by default
+
+[1m[33mwarning[0m[1m: unused import: `ReceiptResponse`[0m
+ [1m[94m--> [0msrc/evm/rpc/provider.rs:1:38
+  [1m[94m|[0m
+[1m[94m1[0m [1m[94m|[0m use alloy::network::{EthereumWallet, ReceiptResponse, TransactionBuilder};
+  [1m[94m|[0m                                      [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: type `QueueEntry` is more private than the item `ProfileSyncQueue::get_next_batch`[0m
+   [1m[94m--> [0msrc/profile_sync.rs:131:5
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     pub fn get_next_batch(&mut self) -> Vec<QueueEntry> {
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mmethod `ProfileSyncQueue::get_next_batch` is reachable at visibility `pub(crate)`[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: but type `QueueEntry` is only usable at visibility `pub(self)`
+   [1m[94m--> [0msrc/profile_sync.rs:51:1
+    [1m[94m|[0m
+[1m[94m 51[0m [1m[94m|[0m struct QueueEntry {
+    [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(private_interfaces)]` on by default
+
+[1m[33mwarning[0m[1m: function `event_exists_by_wrapper` is never used[0m
+    [1m[94m--> [0msrc/db.rs:3629:8
+     [1m[94m|[0m
+[1m[94m3629[0m [1m[94m|[0m pub fn event_exists_by_wrapper<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: function `update_event_status` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4221:8
+     [1m[94m|[0m
+[1m[94m4221[0m [1m[94m|[0m pub fn update_event_status<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `delete_event` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4239:8
+     [1m[94m|[0m
+[1m[94m4239[0m [1m[94m|[0m pub fn delete_event<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_message_count` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4255:8
+     [1m[94m|[0m
+[1m[94m4255[0m [1m[94m|[0m pub fn get_message_count<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_storage_version` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4276:8
+     [1m[94m|[0m
+[1m[94m4276[0m [1m[94m|[0m pub fn get_storage_version<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `upload_blob` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:262:14
+    [1m[94m|[0m
+[1m[94m262[0m [1m[94m|[0m pub async fn upload_blob<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `upload_blob_with_failover` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:320:14
+    [1m[94m|[0m
+[1m[94m320[0m [1m[94m|[0m pub async fn upload_blob_with_failover<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: fields `role_hat_clones_factory` and `role_hat_upgrader` are never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:137:9
+    [1m[94m|[0m
+[1m[94m128[0m [1m[94m|[0m pub struct PactoGovDeployAddresses {
+    [1m[94m|[0m            [1m[94m-----------------------[0m [1m[94mfields in this struct[0m
+[1m[94m...[0m
+[1m[94m137[0m [1m[94m|[0m     pub role_hat_clones_factory: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m138[0m [1m[94m|[0m     pub role_hat_upgrader: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `PactoGovDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: field `nave_pirata_registry` is never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:208:9
+    [1m[94m|[0m
+[1m[94m204[0m [1m[94m|[0m pub struct SquadSponsorDeployAddresses {
+    [1m[94m|[0m            [1m[94m---------------------------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m208[0m [1m[94m|[0m     pub nave_pirata_registry: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `SquadSponsorDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m: `pacto` (lib) generated 13 warnings (run `cargo fix --lib -p pacto` to apply 1 suggestion)
+[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 0.82s
+[1m[92m     Running[0m `target/debug/pacto`
+[MCP][PLUGIN][INFO] MCP Bridge plugin initialized for 'pacto' (io.pacto) on 0.0.0.0:9223
+[MCP][WS_SERVER][INFO] WebSocket server listening on: 0.0.0.0:9223
+[Account Manager] Created profile directory: /Users/opselite/Library/Application Support/io.pacto/npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[Account Manager] Initializing database: /Users/opselite/Library/Application Support/io.pacto/npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx/vector.db
+[Migration] Creating dm_peer_evm table (pairwise wallet address exchange)...
+[Migration] dm_peer_evm table created
+[Account Manager] Database schema created successfully
+[Relay] Added default relay: wss://jskitty.cat/nostr
+[Relay] Added default relay: wss://asia.vectorapp.io/nostr
+[Relay] Added default relay: wss://nostr.computingcache.com
+[Relay] Added default relay: wss://relay.damus.io
+[Relay] Added default relay: wss://relay.primal.net
+[Relay] Added default relay: wss://nos.lol
+[Relay] Added default relay: wss://relay.nostr.band
+[MLS] Ensuring persistent device KeyPackage after PIN setup...
+[SQL] Saved MLS device ID
+[MLS][KeyPackage] Connecting to TRUSTED_RELAY: wss://jskitty.cat/nostr
+[Account Manager] Created MLS directory: /Users/opselite/Library/Application Support/io.pacto/npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx/mls
+[MLS] Ensuring persistent device KeyPackage after PIN setup...
+[SQL] Saved 1 MLS keypackages
+[MLS] Device KeyPackage ready: device_id=zbyx2echyyik, cached=false
+[SQL] Saved 2 MLS keypackages
+[MLS] Device KeyPackage ready: device_id=zbyx2echyyik, cached=false
+[Startup] Set current account for SQL mode: npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[Relay] Added custom relay to pool: ws://localhost:7000 (mode: both)
+[Startup] Sync Complete - Dumped NIP-59 Decryption Cache (~0 KB Memory freed)
+[DB] Database vacuumed successfully
+9:13:39 PM [vite] (client) hmr update /src/routes/+layout.svelte, /src/routes/+page.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/dm/DmMessageRouter.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/components/wallet/WalletBar.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+9:13:39 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/components/wallet/WalletBar.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+[1m[92m   Compiling[0m pacto v0.1.0 (/Users/opselite/src/covenant-gov/pacto-app/src-tauri)
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `RECEIPT_WAIT_TIMEOUT`[0m
+  [1m[94m--> [0msrc/evm/rpc/mod.rs:12:36
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub use config::{parse_salt_nonce, RECEIPT_WAIT_TIMEOUT};
+   [1m[94m|[0m                                    [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: use of deprecated associated function `nostr_sdk::secp256k1::Message::from_slice`: use from_digest_slice instead[0m
+    [1m[94m--> [0msrc/lib.rs:4431:24
+     [1m[94m|[0m
+[1m[94m4431[0m [1m[94m|[0m     let msg = Message::from_slice(&hash_bytes).map_err(|_| "Hash must be a 32-byte message".to_string())?;
+     [1m[94m|[0m                        [1m[33m^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(deprecated)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `ReceiptResponse`[0m
+ [1m[94m--> [0msrc/evm/rpc/provider.rs:1:38
+  [1m[94m|[0m
+[1m[94m1[0m [1m[94m|[0m use alloy::network::{EthereumWallet, ReceiptResponse, TransactionBuilder};
+  [1m[94m|[0m                                      [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: type `QueueEntry` is more private than the item `ProfileSyncQueue::get_next_batch`[0m
+   [1m[94m--> [0msrc/profile_sync.rs:131:5
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     pub fn get_next_batch(&mut self) -> Vec<QueueEntry> {
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mmethod `ProfileSyncQueue::get_next_batch` is reachable at visibility `pub(crate)`[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: but type `QueueEntry` is only usable at visibility `pub(self)`
+   [1m[94m--> [0msrc/profile_sync.rs:51:1
+    [1m[94m|[0m
+[1m[94m 51[0m [1m[94m|[0m struct QueueEntry {
+    [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(private_interfaces)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `event_exists_by_wrapper` is never used[0m
+    [1m[94m--> [0msrc/db.rs:3628:8
+     [1m[94m|[0m
+[1m[94m3628[0m [1m[94m|[0m pub fn event_exists_by_wrapper<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `update_event_status` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4220:8
+     [1m[94m|[0m
+[1m[94m4220[0m [1m[94m|[0m pub fn update_event_status<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `delete_event` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4238:8
+     [1m[94m|[0m
+[1m[94m4238[0m [1m[94m|[0m pub fn delete_event<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_message_count` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4254:8
+     [1m[94m|[0m
+[1m[94m4254[0m [1m[94m|[0m pub fn get_message_count<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_storage_version` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4275:8
+     [1m[94m|[0m
+[1m[94m4275[0m [1m[94m|[0m pub fn get_storage_version<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:262:14
+    [1m[94m|[0m
+[1m[94m262[0m [1m[94m|[0m pub async fn upload_blob<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob_with_failover` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:320:14
+    [1m[94m|[0m
+[1m[94m320[0m [1m[94m|[0m pub async fn upload_blob_with_failover<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: fields `role_hat_clones_factory` and `role_hat_upgrader` are never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:137:9
+    [1m[94m|[0m
+[1m[94m128[0m [1m[94m|[0m pub struct PactoGovDeployAddresses {
+    [1m[94m|[0m            [1m[94m-----------------------[0m [1m[94mfields in this struct[0m
+[1m[94m...[0m
+[1m[94m137[0m [1m[94m|[0m     pub role_hat_clones_factory: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m138[0m [1m[94m|[0m     pub role_hat_upgrader: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `PactoGovDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: field `nave_pirata_registry` is never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:208:9
+    [1m[94m|[0m
+[1m[94m204[0m [1m[94m|[0m pub struct SquadSponsorDeployAddresses {
+    [1m[94m|[0m            [1m[94m---------------------------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m208[0m [1m[94m|[0m     pub nave_pirata_registry: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `SquadSponsorDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m: `pacto` (lib) generated 13 warnings (run `cargo fix --lib -p pacto` to apply 1 suggestion)
+[1m[96m    Building[0m [=======================> ] 864/865: pacto(bin)                  [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 16.59s
+[1m[92m     Running[0m `target/debug/pacto`
+[MCP][PLUGIN][INFO] MCP Bridge plugin initialized for 'pacto' (io.pacto) on 0.0.0.0:9223
+[MCP][WS_SERVER][INFO] WebSocket server listening on: 0.0.0.0:9223
+[MLS] Found persistent mls_device_id at startup: zbyx2echyyik
+9:14:22 PM [vite] (client) page reload src/lib/dev/local-dev-setup.ts
+9:14:22 PM [vite] (client) hmr update /src/routes/+layout.svelte, /src/routes/+page.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte
+9:14:22 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:14:22 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:14:22 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/dm/DmMessageRouter.svelte
+9:14:22 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:14:22 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+9:14:22 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:14:22 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/components/wallet/WalletBar.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+[1m[92m   Compiling[0m pacto v0.1.0 (/Users/opselite/src/covenant-gov/pacto-app/src-tauri)
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `RECEIPT_WAIT_TIMEOUT`[0m
+  [1m[94m--> [0msrc/evm/rpc/mod.rs:12:36
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub use config::{parse_salt_nonce, RECEIPT_WAIT_TIMEOUT};
+   [1m[94m|[0m                                    [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: use of deprecated associated function `nostr_sdk::secp256k1::Message::from_slice`: use from_digest_slice instead[0m
+    [1m[94m--> [0msrc/lib.rs:4444:24
+     [1m[94m|[0m
+[1m[94m4444[0m [1m[94m|[0m     let msg = Message::from_slice(&hash_bytes).map_err(|_| "Hash must be a 32-byte message".to_string())?;
+     [1m[94m|[0m                        [1m[33m^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(deprecated)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `ReceiptResponse`[0m
+ [1m[94m--> [0msrc/evm/rpc/provider.rs:1:38
+  [1m[94m|[0m
+[1m[94m1[0m [1m[94m|[0m use alloy::network::{EthereumWallet, ReceiptResponse, TransactionBuilder};
+  [1m[94m|[0m                                      [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: type `QueueEntry` is more private than the item `ProfileSyncQueue::get_next_batch`[0m
+   [1m[94m--> [0msrc/profile_sync.rs:131:5
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     pub fn get_next_batch(&mut self) -> Vec<QueueEntry> {
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mmethod `ProfileSyncQueue::get_next_batch` is reachable at visibility `pub(crate)`[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: but type `QueueEntry` is only usable at visibility `pub(self)`
+   [1m[94m--> [0msrc/profile_sync.rs:51:1
+    [1m[94m|[0m
+[1m[94m 51[0m [1m[94m|[0m struct QueueEntry {
+    [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(private_interfaces)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `event_exists_by_wrapper` is never used[0m
+    [1m[94m--> [0msrc/db.rs:3629:8
+     [1m[94m|[0m
+[1m[94m3629[0m [1m[94m|[0m pub fn event_exists_by_wrapper<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `update_event_status` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4221:8
+     [1m[94m|[0m
+[1m[94m4221[0m [1m[94m|[0m pub fn update_event_status<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `delete_event` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4239:8
+     [1m[94m|[0m
+[1m[94m4239[0m [1m[94m|[0m pub fn delete_event<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_message_count` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4255:8
+     [1m[94m|[0m
+[1m[94m4255[0m [1m[94m|[0m pub fn get_message_count<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_storage_version` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4276:8
+     [1m[94m|[0m
+[1m[94m4276[0m [1m[94m|[0m pub fn get_storage_version<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:262:14
+    [1m[94m|[0m
+[1m[94m262[0m [1m[94m|[0m pub async fn upload_blob<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob_with_failover` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:320:14
+    [1m[94m|[0m
+[1m[94m320[0m [1m[94m|[0m pub async fn upload_blob_with_failover<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: fields `role_hat_clones_factory` and `role_hat_upgrader` are never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:137:9
+    [1m[94m|[0m
+[1m[94m128[0m [1m[94m|[0m pub struct PactoGovDeployAddresses {
+    [1m[94m|[0m            [1m[94m-----------------------[0m [1m[94mfields in this struct[0m
+[1m[94m...[0m
+[1m[94m137[0m [1m[94m|[0m     pub role_hat_clones_factory: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m138[0m [1m[94m|[0m     pub role_hat_upgrader: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `PactoGovDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: field `nave_pirata_registry` is never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:208:9
+    [1m[94m|[0m
+[1m[94m204[0m [1m[94m|[0m pub struct SquadSponsorDeployAddresses {
+    [1m[94m|[0m            [1m[94m---------------------------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m208[0m [1m[94m|[0m     pub nave_pirata_registry: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `SquadSponsorDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/components/wallet/WalletBar.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+9:14:31 PM [vite] (client) Pre-transform error: Failed to load url /src/lib/dev/local-dev-setup.ts (resolved id: /Users/opselite/src/covenant-gov/pacto-app/src/lib/dev/local-dev-setup.ts) in /Users/opselite/src/covenant-gov/pacto-app/src/stores/persistence.ts. Does the file exist?
+
+[1;31m[404] GET /src/lib/dev/local-dev-setup.ts[0m
+
+[1;31m[404] GET /src/lib/dev/local-dev-setup.ts[0m
+9:14:31 PM [vite] (client) hmr update /src/routes/+layout.svelte, /src/routes/+page.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte
+9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/dm/DmMessageRouter.svelte
+9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:14:31 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/components/wallet/WalletBar.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+[1m[92m   Compiling[0m pacto v0.1.0 (/Users/opselite/src/covenant-gov/pacto-app/src-tauri)
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `RECEIPT_WAIT_TIMEOUT`[0m
+  [1m[94m--> [0msrc/evm/rpc/mod.rs:12:36
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub use config::{parse_salt_nonce, RECEIPT_WAIT_TIMEOUT};
+   [1m[94m|[0m                                    [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: use of deprecated associated function `nostr_sdk::secp256k1::Message::from_slice`: use from_digest_slice instead[0m
+    [1m[94m--> [0msrc/lib.rs:4431:24
+     [1m[94m|[0m
+[1m[94m4431[0m [1m[94m|[0m     let msg = Message::from_slice(&hash_bytes).map_err(|_| "Hash must be a 32-byte message".to_string())?;
+     [1m[94m|[0m                        [1m[33m^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(deprecated)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `ReceiptResponse`[0m
+ [1m[94m--> [0msrc/evm/rpc/provider.rs:1:38
+  [1m[94m|[0m
+[1m[94m1[0m [1m[94m|[0m use alloy::network::{EthereumWallet, ReceiptResponse, TransactionBuilder};
+  [1m[94m|[0m                                      [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: type `QueueEntry` is more private than the item `ProfileSyncQueue::get_next_batch`[0m
+   [1m[94m--> [0msrc/profile_sync.rs:131:5
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     pub fn get_next_batch(&mut self) -> Vec<QueueEntry> {
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mmethod `ProfileSyncQueue::get_next_batch` is reachable at visibility `pub(crate)`[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: but type `QueueEntry` is only usable at visibility `pub(self)`
+   [1m[94m--> [0msrc/profile_sync.rs:51:1
+    [1m[94m|[0m
+[1m[94m 51[0m [1m[94m|[0m struct QueueEntry {
+    [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(private_interfaces)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `event_exists_by_wrapper` is never used[0m
+    [1m[94m--> [0msrc/db.rs:3628:8
+     [1m[94m|[0m
+[1m[94m3628[0m [1m[94m|[0m pub fn event_exists_by_wrapper<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `update_event_status` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4220:8
+     [1m[94m|[0m
+[1m[94m4220[0m [1m[94m|[0m pub fn update_event_status<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `delete_event` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4238:8
+     [1m[94m|[0m
+[1m[94m4238[0m [1m[94m|[0m pub fn delete_event<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_message_count` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4254:8
+     [1m[94m|[0m
+[1m[94m4254[0m [1m[94m|[0m pub fn get_message_count<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_storage_version` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4275:8
+     [1m[94m|[0m
+[1m[94m4275[0m [1m[94m|[0m pub fn get_storage_version<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:262:14
+    [1m[94m|[0m
+[1m[94m262[0m [1m[94m|[0m pub async fn upload_blob<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob_with_failover` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:320:14
+    [1m[94m|[0m
+[1m[94m320[0m [1m[94m|[0m pub async fn upload_blob_with_failover<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: fields `role_hat_clones_factory` and `role_hat_upgrader` are never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:137:9
+    [1m[94m|[0m
+[1m[94m128[0m [1m[94m|[0m pub struct PactoGovDeployAddresses {
+    [1m[94m|[0m            [1m[94m-----------------------[0m [1m[94mfields in this struct[0m
+[1m[94m...[0m
+[1m[94m137[0m [1m[94m|[0m     pub role_hat_clones_factory: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m138[0m [1m[94m|[0m     pub role_hat_upgrader: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `PactoGovDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: field `nave_pirata_registry` is never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:208:9
+    [1m[94m|[0m
+[1m[94m204[0m [1m[94m|[0m pub struct SquadSponsorDeployAddresses {
+    [1m[94m|[0m            [1m[94m---------------------------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m208[0m [1m[94m|[0m     pub nave_pirata_registry: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `SquadSponsorDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       9:14:36 PM [vite] (client) hmr update /src/routes/+layout.svelte, /src/routes/+page.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte
+[K[1m[33mwarning[0m: `pacto` (lib) generated 13 warnings (run `cargo fix --lib -p pacto` to apply 1 suggestion)
+[1m[96m    Building[0m [=======================> ] 864/865: pacto(bin)                  [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 5.00s
+[1m[92m     Running[0m `target/debug/pacto`
+[MCP][PLUGIN][INFO] MCP Bridge plugin initialized for 'pacto' (io.pacto) on 0.0.0.0:9223
+[MCP][WS_SERVER][INFO] WebSocket server listening on: 0.0.0.0:9223
+[MLS] Found persistent mls_device_id at startup: zbyx2echyyik
+[Login] Set current account for SQL mode: npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[Relay] Added default relay: wss://jskitty.cat/nostr
+[Relay] Added default relay: wss://asia.vectorapp.io/nostr
+[Relay] Added default relay: wss://nostr.computingcache.com
+[Relay] Added default relay: wss://relay.damus.io
+[Relay] Added default relay: wss://relay.primal.net
+[Relay] Added default relay: wss://nos.lol
+[Relay] Added default relay: wss://relay.nostr.band
+[Relay] Added custom relay: ws://localhost:7000 (mode: both)
+[Startup] Set current account for SQL mode: npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[Startup] Set current account for SQL mode: npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[MLS] Ensuring persistent device KeyPackage...
+[MLS][KeyPackage] Connecting to TRUSTED_RELAY: wss://jskitty.cat/nostr
+[MLS][KeyPackage] Found cached reference 1680e85046fee0be0f8eeae09bb5489489887fc9f387036dfa1cb9e239d9e17f, verifying on relay...
+[MLS] Device KeyPackage ready: device_id=zbyx2echyyik, cached=true
+9:19:01 PM [vite] (client) page reload src/lib/dev/local-dev-setup.ts
+9:19:01 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:19:01 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:19:01 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/dm/DmThread.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/dm/DmMessageRouter.svelte
+9:19:01 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte
+9:19:01 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+9:19:01 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/wallet/WalletView.svelte, /src/components/wallet/WalletImportTokensModal.svelte, /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/settings/EvmWalletExtras.svelte, /src/components/wallet/WalletTxAnnouncementCard.svelte, /src/components/wallet/WalletTxRequestCard.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/layout/Navbar.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/profile/Profile.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/commons/CommonsView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/layout/TopNavbar.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/ui/Toast.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/DefaultWalletConfig.svelte
+9:19:01 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/components/wallet/WalletBar.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/db.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/evm/wallet_chain_config.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+[1m[92m   Compiling[0m pacto v0.1.0 (/Users/opselite/src/covenant-gov/pacto-app/src-tauri)
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `RECEIPT_WAIT_TIMEOUT`[0m
+  [1m[94m--> [0msrc/evm/rpc/mod.rs:12:36
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub use config::{parse_salt_nonce, RECEIPT_WAIT_TIMEOUT};
+   [1m[94m|[0m                                    [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: use of deprecated associated function `nostr_sdk::secp256k1::Message::from_slice`: use from_digest_slice instead[0m
+    [1m[94m--> [0msrc/lib.rs:4444:24
+     [1m[94m|[0m
+[1m[94m4444[0m [1m[94m|[0m     let msg = Message::from_slice(&hash_bytes).map_err(|_| "Hash must be a 32-byte message".to_string())?;
+     [1m[94m|[0m                        [1m[33m^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(deprecated)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `ReceiptResponse`[0m
+ [1m[94m--> [0msrc/evm/rpc/provider.rs:1:38
+  [1m[94m|[0m
+[1m[94m1[0m [1m[94m|[0m use alloy::network::{EthereumWallet, ReceiptResponse, TransactionBuilder};
+  [1m[94m|[0m                                      [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: type `QueueEntry` is more private than the item `ProfileSyncQueue::get_next_batch`[0m
+   [1m[94m--> [0msrc/profile_sync.rs:131:5
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     pub fn get_next_batch(&mut self) -> Vec<QueueEntry> {
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mmethod `ProfileSyncQueue::get_next_batch` is reachable at visibility `pub(crate)`[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: but type `QueueEntry` is only usable at visibility `pub(self)`
+   [1m[94m--> [0msrc/profile_sync.rs:51:1
+    [1m[94m|[0m
+[1m[94m 51[0m [1m[94m|[0m struct QueueEntry {
+    [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(private_interfaces)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `event_exists_by_wrapper` is never used[0m
+    [1m[94m--> [0msrc/db.rs:3629:8
+     [1m[94m|[0m
+[1m[94m3629[0m [1m[94m|[0m pub fn event_exists_by_wrapper<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `update_event_status` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4221:8
+     [1m[94m|[0m
+[1m[94m4221[0m [1m[94m|[0m pub fn update_event_status<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `delete_event` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4239:8
+     [1m[94m|[0m
+[1m[94m4239[0m [1m[94m|[0m pub fn delete_event<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_message_count` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4255:8
+     [1m[94m|[0m
+[1m[94m4255[0m [1m[94m|[0m pub fn get_message_count<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_storage_version` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4276:8
+     [1m[94m|[0m
+[1m[94m4276[0m [1m[94m|[0m pub fn get_storage_version<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:262:14
+    [1m[94m|[0m
+[1m[94m262[0m [1m[94m|[0m pub async fn upload_blob<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob_with_failover` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:320:14
+    [1m[94m|[0m
+[1m[94m320[0m [1m[94m|[0m pub async fn upload_blob_with_failover<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: fields `role_hat_clones_factory` and `role_hat_upgrader` are never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:137:9
+    [1m[94m|[0m
+[1m[94m128[0m [1m[94m|[0m pub struct PactoGovDeployAddresses {
+    [1m[94m|[0m            [1m[94m-----------------------[0m [1m[94mfields in this struct[0m
+[1m[94m...[0m
+[1m[94m137[0m [1m[94m|[0m     pub role_hat_clones_factory: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m138[0m [1m[94m|[0m     pub role_hat_upgrader: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `PactoGovDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: field `nave_pirata_registry` is never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:208:9
+    [1m[94m|[0m
+[1m[94m204[0m [1m[94m|[0m pub struct SquadSponsorDeployAddresses {
+    [1m[94m|[0m            [1m[94m---------------------------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m208[0m [1m[94m|[0m     pub nave_pirata_registry: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `SquadSponsorDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m: `pacto` (lib) generated 13 warnings (run `cargo fix --lib -p pacto` to apply 1 suggestion)
+[1m[96m    Building[0m [=======================> ] 864/865: pacto(bin)                  [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 13.59s
+[1m[92m     Running[0m `target/debug/pacto`
+[MCP][PLUGIN][INFO] MCP Bridge plugin initialized for 'pacto' (io.pacto) on 0.0.0.0:9223
+[MCP][WS_SERVER][INFO] WebSocket server listening on: 0.0.0.0:9223
+[MLS] Found persistent mls_device_id at startup: zbyx2echyyik
+[Login] Set current account for SQL mode: npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[Relay] Added default relay: wss://jskitty.cat/nostr
+[Relay] Added default relay: wss://asia.vectorapp.io/nostr
+[Relay] Added default relay: wss://nostr.computingcache.com
+[Relay] Added default relay: wss://relay.damus.io
+[Relay] Added default relay: wss://relay.primal.net
+[Relay] Added default relay: wss://nos.lol
+[Relay] Added default relay: wss://relay.nostr.band
+[Relay] Added custom relay: ws://localhost:7000 (mode: both)
+[Startup] Set current account for SQL mode: npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[Startup] Set current account for SQL mode: npub1cxmwrug5uel9pa2eyl0zptmh0uwha6d9xaqqawe47pxnh9kxdkxqrpzllx
+[MLS] Ensuring persistent device KeyPackage...
+[MLS][KeyPackage] Connecting to TRUSTED_RELAY: wss://jskitty.cat/nostr
+[MLS][KeyPackage] Found cached reference 1680e85046fee0be0f8eeae09bb5489489887fc9f387036dfa1cb9e239d9e17f, verifying on relay...
+[MLS] Device KeyPackage ready: device_id=zbyx2echyyik, cached=true
+[Startup] Sync Complete - Dumped NIP-59 Decryption Cache (~0 KB Memory freed)
+9:43:05 PM [vite] (client) page reload .svelte-kit/generated/client/nodes/0.js
+9:43:05 PM [vite] (client) page reload .svelte-kit/generated/client/nodes/1.js
+9:43:05 PM [vite] (client) page reload .svelte-kit/generated/client/nodes/2.js
+9:43:05 PM [vite] (client) page reload .svelte-kit/generated/client/app.js
+9:43:05 PM [vite] (client) page reload .svelte-kit/generated/client/matchers.js
+9:43:05 PM [vite] (ssr) page reload .svelte-kit/generated/server/internal.js
+9:43:05 PM [vite] (client) page reload .svelte-kit/generated/root.js
+9:43:05 PM [vite] (ssr) page reload .svelte-kit/generated/root.js
+9:43:11 PM [vite] (client) page reload .svelte-kit/generated/client/nodes/0.js
+9:43:11 PM [vite] (client) page reload .svelte-kit/generated/client/nodes/1.js
+9:43:11 PM [vite] (client) page reload .svelte-kit/generated/client/nodes/2.js
+9:43:11 PM [vite] (client) page reload .svelte-kit/generated/client/app.js
+9:43:11 PM [vite] (client) page reload .svelte-kit/generated/client/matchers.js
+9:43:11 PM [vite] (ssr) page reload .svelte-kit/generated/server/internal.js
+9:43:11 PM [vite] (client) page reload .svelte-kit/generated/root.js
+9:43:11 PM [vite] (ssr) page reload .svelte-kit/generated/root.js
+9:56:05 PM [vite] (client) hmr update /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/components/wallet/WalletBar.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/wallet/WalletView.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+9:56:11 PM [vite] (client) hmr update /src/components/wallet/WalletBar.svelte, /src/components/wallet/WalletView.svelte, /src/routes/+page.svelte, /src/components/layout/TopNavbar.svelte, /src/components/layout/Navbar.svelte, /src/components/profile/Profile.svelte, /src/components/dm/MessengerChatView.svelte, /src/components/dm/MessengerNavbar.svelte, /src/components/dm/DmThread.svelte, /src/components/ui/Toast.svelte, /src/routes/+layout.svelte, /src/components/auth/Login.svelte, /src/components/commons/PersonalBroadcastModal.svelte, /src/components/layout/ParentNavbar.svelte, /src/components/wallet/WalletHomeSendModal.svelte, /src/components/wallet/WalletTransferStubModal.svelte, /src/components/commons/CommonsView.svelte, /src/components/commons/CommonsPersonalPanel.svelte, /src/components/commons/CommonsBroadcastCard.svelte, /src/components/settings/ProfileSection.svelte, /src/components/dm/DmMessageRouter.svelte, /src/components/commons/CommonsBroadcastDetailModal.svelte, /src/components/channel/ChatView.svelte, /src/components/announcements/SignerShareAnnounceBody.svelte, /src/components/settings/NostrSettingsSection.svelte, /src/components/settings/DangerZoneSection.svelte, /src/components/commons/BroadcastSquadModal.svelte, /src/components/wallet/WalletAdvancedPanel.svelte, /src/components/inbox/SquadRosterKeyInboxCard.svelte, /src/components/parent/DashboardPollsPanel.svelte, /src/components/settings/EvmAccountsSection.svelte, /src/components/announcements/Safe/SafeAnnounceBody.svelte, /src/components/settings/EvmWalletExtras.svelte
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+        Info File src-tauri/src/lib.rs changed. Rebuilding application...
+     Running DevCommand (`cargo  run --no-default-features --features whisper --color always --`)
+[1m[92m   Compiling[0m pacto v0.1.0 (/Users/opselite/src/covenant-gov/pacto-app/src-tauri)
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `RECEIPT_WAIT_TIMEOUT`[0m
+  [1m[94m--> [0msrc/evm/rpc/mod.rs:12:36
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub use config::{parse_salt_nonce, RECEIPT_WAIT_TIMEOUT};
+   [1m[94m|[0m                                    [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: use of deprecated associated function `nostr_sdk::secp256k1::Message::from_slice`: use from_digest_slice instead[0m
+    [1m[94m--> [0msrc/lib.rs:4444:24
+     [1m[94m|[0m
+[1m[94m4444[0m [1m[94m|[0m     let msg = Message::from_slice(&hash_bytes).map_err(|_| "Hash must be a 32-byte message".to_string())?;
+     [1m[94m|[0m                        [1m[33m^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(deprecated)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: unused import: `ReceiptResponse`[0m
+ [1m[94m--> [0msrc/evm/rpc/provider.rs:1:38
+  [1m[94m|[0m
+[1m[94m1[0m [1m[94m|[0m use alloy::network::{EthereumWallet, ReceiptResponse, TransactionBuilder};
+  [1m[94m|[0m                                      [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: type `QueueEntry` is more private than the item `ProfileSyncQueue::get_next_batch`[0m
+   [1m[94m--> [0msrc/profile_sync.rs:131:5
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     pub fn get_next_batch(&mut self) -> Vec<QueueEntry> {
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mmethod `ProfileSyncQueue::get_next_batch` is reachable at visibility `pub(crate)`[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: but type `QueueEntry` is only usable at visibility `pub(self)`
+   [1m[94m--> [0msrc/profile_sync.rs:51:1
+    [1m[94m|[0m
+[1m[94m 51[0m [1m[94m|[0m struct QueueEntry {
+    [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(private_interfaces)]` on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `event_exists_by_wrapper` is never used[0m
+    [1m[94m--> [0msrc/db.rs:3629:8
+     [1m[94m|[0m
+[1m[94m3629[0m [1m[94m|[0m pub fn event_exists_by_wrapper<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `update_event_status` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4221:8
+     [1m[94m|[0m
+[1m[94m4221[0m [1m[94m|[0m pub fn update_event_status<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `delete_event` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4239:8
+     [1m[94m|[0m
+[1m[94m4239[0m [1m[94m|[0m pub fn delete_event<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_message_count` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4255:8
+     [1m[94m|[0m
+[1m[94m4255[0m [1m[94m|[0m pub fn get_message_count<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `get_storage_version` is never used[0m
+    [1m[94m--> [0msrc/db.rs:4276:8
+     [1m[94m|[0m
+[1m[94m4276[0m [1m[94m|[0m pub fn get_storage_version<R: Runtime>(
+     [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:262:14
+    [1m[94m|[0m
+[1m[94m262[0m [1m[94m|[0m pub async fn upload_blob<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: function `upload_blob_with_failover` is never used[0m
+   [1m[94m--> [0msrc/blossom.rs:320:14
+    [1m[94m|[0m
+[1m[94m320[0m [1m[94m|[0m pub async fn upload_blob_with_failover<T>(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: fields `role_hat_clones_factory` and `role_hat_upgrader` are never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:137:9
+    [1m[94m|[0m
+[1m[94m128[0m [1m[94m|[0m pub struct PactoGovDeployAddresses {
+    [1m[94m|[0m            [1m[94m-----------------------[0m [1m[94mfields in this struct[0m
+[1m[94m...[0m
+[1m[94m137[0m [1m[94m|[0m     pub role_hat_clones_factory: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m138[0m [1m[94m|[0m     pub role_hat_upgrader: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `PactoGovDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m[1m: field `nave_pirata_registry` is never read[0m
+   [1m[94m--> [0msrc/evm/pacto_chain_config.rs:208:9
+    [1m[94m|[0m
+[1m[94m204[0m [1m[94m|[0m pub struct SquadSponsorDeployAddresses {
+    [1m[94m|[0m            [1m[94m---------------------------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m208[0m [1m[94m|[0m     pub nave_pirata_registry: Option<Address>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `SquadSponsorDeployAddresses` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+[1m[96m    Building[0m [=======================> ] 863/865: pacto                       [K[1m[33mwarning[0m: `pacto` (lib) generated 13 warnings (run `cargo fix --lib -p pacto` to apply 1 suggestion)
+[1m[96m    Building[0m [=======================> ] 864/865: pacto(bin)                  [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 13.51s
+[1m[92m     Running[0m `target/debug/pacto`
+[MCP][PLUGIN][INFO] MCP Bridge plugin initialized for 'pacto' (io.pacto) on 0.0.0.0:9223
+[MCP][WS_SERVER][INFO] WebSocket server listening on: 0.0.0.0:9223
+[MLS] Found persistent mls_device_id at startup: zbyx2echyyik

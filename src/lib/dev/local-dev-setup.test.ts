@@ -74,4 +74,24 @@ describe('applyLocalDevDefaults', () => {
     await applyLocalDevDefaults(npub);
     expect(saveDefaultRpc).not.toHaveBeenCalled();
   });
+
+  it('preserves a user-set local default RPC that differs from the default', async () => {
+    vi.mocked(loadDefaultRpc).mockReturnValue('http://127.0.0.1:8545');
+    vi.mocked(listRelays).mockResolvedValue([]);
+    await applyLocalDevDefaults(npub);
+    expect(saveDefaultRpc).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when not in a Vite dev build', async () => {
+    const prevDev = (import.meta.env as { DEV?: boolean }).DEV;
+    (import.meta.env as { DEV?: boolean }).DEV = false;
+    try {
+      await applyLocalDevDefaults(npub);
+      expect(listRelays).not.toHaveBeenCalled();
+      expect(saveWalletEnabledChains).not.toHaveBeenCalled();
+      expect(saveDefaultRpc).not.toHaveBeenCalled();
+    } finally {
+      (import.meta.env as { DEV?: boolean }).DEV = prevDev;
+    }
+  });
 });

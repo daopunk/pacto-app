@@ -14,6 +14,10 @@ export const WALLET_UI_ENABLED_CHAINS_PREFIX = 'pacto_wallet_ui_enabled_chains_v
 export const walletUiEnabledChainsTick = writable(0);
 
 export function defaultWalletEnabledChains(): SupportedChainId[] {
+  // Hide the local/Anvil dev chain in production builds.
+  if (!import.meta.env.DEV) {
+    return WALLET_ASSETS_CHAIN_IDS.filter((id) => id !== 'local');
+  }
   return [...WALLET_ASSETS_CHAIN_IDS];
 }
 

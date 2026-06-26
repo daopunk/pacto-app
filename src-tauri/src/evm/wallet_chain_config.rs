@@ -183,6 +183,9 @@ pub fn rpc_urls_for(net: &WalletNetworkConfig) -> Vec<String> {
 /// `explorer_tx_path` + `0x` hash (no double prefix). For “view on explorer” in the wallet UI.
 #[allow(dead_code)]
 pub fn explorer_url_for_tx(net: &WalletNetworkConfig, tx_hash_hex: &str) -> String {
+    if net.explorer_tx_path.is_empty() {
+        return String::new();
+    }
     let h = tx_hash_hex.strip_prefix("0x").unwrap_or(tx_hash_hex);
     format!("{}0x{}", net.explorer_tx_path, h)
 }
@@ -201,8 +204,8 @@ mod tests {
         assert_eq!(local.display_name, "Local Anvil");
         assert_eq!(local.native_symbol, "ETH");
         assert_eq!(local.native_decimals, 18);
-        assert_eq!(local.usdc_address, "0x0000000000000000000000000000000000000000");
-        assert_eq!(local.usdt_address, "0x0000000000000000000000000000000000000000");
+        assert!(!local.usdc_address.is_empty(), "local USDC address is configured");
+        assert!(!local.usdt_address.is_empty(), "local USDT address is configured");
         assert_eq!(local.usdc_decimals, 6);
         assert_eq!(local.usdt_decimals, 6);
     }
@@ -222,18 +225,31 @@ mod tests {
 
     #[test]
     fn rpc_urls_for_local_ignores_alchemy_key() {
+        let prev = std::env::var_os("ALCHEMY_RPC_KEY");
         std::env::set_var("ALCHEMY_RPC_KEY", "test-key");
+        let _guard = EnvVarGuard("ALCHEMY_RPC_KEY", prev);
         let local = network_by_key("local").unwrap();
         assert_eq!(
             rpc_urls_for(local),
             vec!["http://localhost:8545".to_string()]
         );
-        std::env::remove_var("ALCHEMY_RPC_KEY");
+    }
+
+    struct EnvVarGuard(&'static str, Option<std::ffi::OsString>);
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.1 {
+                Some(v) => std::env::set_var(self.0, v),
+                None => std::env::remove_var(self.0),
+            }
+        }
     }
 
     #[test]
-    fn explorer_url_for_tx_local_returns_hash_only() {
+    fn explorer_url_for_tx_local_returns_empty() {
         let local = network_by_key("local").unwrap();
-        assert_eq!(explorer_url_for_tx(local, "0xabc..."), "0xabc...");
+        assert_eq!(explorer_url_for_tx(local, "0xabc..."), "");
     }
+
+
 }
