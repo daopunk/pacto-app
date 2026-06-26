@@ -15,18 +15,29 @@ import type { SupportedChainId } from '../wallet/chains';
 const LOCAL_RELAY_URL = 'ws://localhost:7000';
 const LOCAL_RPC_URL = 'http://localhost:8545';
 const LOCAL_CHAIN_ID: SupportedChainId = 'local';
+const RELAY_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('timed out')), ms);
+    }),
+  ]);
+}
 
 async function ensureLocalRelay(): Promise<void> {
   try {
-    const relays = await listRelays();
+    const relays = await withTimeout(listRelays(), RELAY_TIMEOUT_MS);
     const alreadyAdded = relays.some(
       (r) => r.url.toLowerCase() === LOCAL_RELAY_URL.toLowerCase(),
     );
     if (alreadyAdded) return;
-    await addCustomRelay(LOCAL_RELAY_URL, 'both');
+    await withTimeout(addCustomRelay(LOCAL_RELAY_URL, 'both'), RELAY_TIMEOUT_MS);
     console.log('[local-dev] added local relay', LOCAL_RELAY_URL);
   } catch (e) {
-    console.warn('[local-dev] failed to add local relay:', e);
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn('[local-dev] failed to add local relay:', message);
   }
 }
 
