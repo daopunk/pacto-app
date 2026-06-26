@@ -1,7 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
+import { get } from 'svelte/store';
 import {
   squads,
   normalizeSquadFromStorage,
+  isPlaceholderChannelName,
+  ungroupedChannels,
   type Squad,
 } from '../../stores/squads';
 import type { PairedSquads, SquadKind, SquadVisibility } from '../squad-pair';
@@ -129,4 +132,47 @@ export async function persistSquad(squad: Squad): Promise<Squad> {
 export async function persistCreatedSquad(tempId: string, squad: Squad): Promise<Squad> {
   squads.update((list) => list.map((s) => (s.id !== tempId ? s : squad)));
   return persistSquad(squad);
+}
+
+/** Apply a patch in the store, then upsert the merged row. */
+export async function persistSquadPatch(
+  parentId: string,
+  patch: (squad: Squad) => Squad,
+): Promise<Squad | null> {
+  const current = get(squads).find((s) => s.id === parentId);
+  if (!current) return null;
+  const patched = normalizeSquadFromStorage(patch({ ...current, updatedAt: Date.now() }));
+  squads.update((list) => list.map((s) => (s.id !== parentId ? s : patched)));
+  return persistSquad(patched);
+}
+
+export function updateChannelNameIfPlaceholder(groupId: string, newName: string): void {
+  if (!newName || typeof newName !== 'string') return;
+  const name = newName.trim();
+  if (!name) return;
+
+  const parentIds = new Set<string>();
+  squads.update((list) =>
+    list.map((s) => {
+      let changed = false;
+      const channels = s.channels.map((ch) => {
+        if (ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)) {
+          changed = true;
+          return { ...ch, name };
+        }
+        return ch;
+      });
+      if (changed) parentIds.add(s.id);
+      return changed ? { ...s, channels, updatedAt: Date.now() } : s;
+    }),
+  );
+  ungroupedChannels.update((list) =>
+    list.map((ch) =>
+      ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name) ? { ...ch, name } : ch,
+    ),
+  );
+  for (const parentId of parentIds) {
+    const squad = get(squads).find((s) => s.id === parentId);
+    if (squad) void persistSquad(squad);
+  }
 }

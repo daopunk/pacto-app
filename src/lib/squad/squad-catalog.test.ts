@@ -16,6 +16,7 @@ import {
   hydrateSquadsFromDb,
   listSquads,
   persistSquad,
+  persistSquadPatch,
   upsertSquad,
 } from './squad-catalog';
 
@@ -106,6 +107,32 @@ describe('squad-catalog', () => {
     const saved = await persistSquad(get(squads)[0]!);
     expect(saved.name).toBe('Alpha');
     expect(get(squads)[0]?.name).toBe('Alpha');
+  });
+
+  it('persistSquadPatch invokes upsert with patched channels', async () => {
+    vi.mocked(invoke).mockResolvedValue({
+      ...sampleRow,
+      channels: [
+        { name: 'announcements', groupId: 'g1', order: 0 },
+        { name: 'general', groupId: 'g2', order: 1 },
+      ],
+    });
+    squads.set([
+      {
+        id: 'squad-1',
+        name: 'Alpha',
+        channels: [{ name: 'announcements', groupId: 'g1', order: 0 }],
+        kind: 'squad',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    await persistSquadPatch('squad-1', (s) => ({
+      ...s,
+      channels: [...s.channels, { name: 'general', groupId: 'g2', order: 1 }],
+    }));
+    expect(invoke).toHaveBeenCalledWith('upsert_squad', expect.any(Object));
+    expect(get(squads)[0]?.channels).toHaveLength(4);
   });
 
   it('hydrateSquadsFromDb clears squads on invoke failure', async () => {

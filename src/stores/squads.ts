@@ -68,30 +68,6 @@ export function isPlaceholderChannelName(groupId: string, name: string): boolean
   return name === placeholder || name === groupId.slice(0, 12);
 }
 
-export function updateChannelNameIfPlaceholder(groupId: string, newName: string): void {
-  if (!newName || typeof newName !== 'string') return;
-  const name = newName.trim();
-  if (!name) return;
-
-  squads.update((list) =>
-    list.map((s) => ({
-      ...s,
-      channels: s.channels.map((ch) =>
-        ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)
-          ? { ...ch, name }
-          : ch
-      ),
-    }))
-  );
-  ungroupedChannels.update((list) =>
-    list.map((ch) =>
-      ch.groupId === groupId && isPlaceholderChannelName(groupId, ch.name)
-        ? { ...ch, name }
-        : ch
-    )
-  );
-}
-
 export const parentsCreatingAnnouncements = writable<Set<string>>(new Set());
 
 export function addParentCreatingAnnouncements(id: string): void {
