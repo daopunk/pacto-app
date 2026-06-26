@@ -15,10 +15,12 @@
   import { showToast } from '../../stores/toast';
   import { currentUser } from '../../stores/auth';
   import SettingsCollapsibleSection from './SettingsCollapsibleSection.svelte';
+  import EvmAccountKeyExportModal from './EvmAccountKeyExportModal.svelte';
 
   $: userNpub = $currentUser?.npub ?? '';
 
   let copiedNpub = false;
+  let exportModalOpen = false;
 
   async function copyNpub() {
     if (!userNpub) return;
@@ -142,6 +144,9 @@
           {copiedNpub ? 'Copied' : 'Copy'}
         </button>
       </div>
+      <button type="button" class="nostr-export-key-btn" on:click={() => (exportModalOpen = true)}>
+        Export key
+      </button>
     {:else}
       <p class="nostr-settings-muted">Log in to see your nPub.</p>
     {/if}
@@ -246,6 +251,13 @@
   </div>
 </SettingsCollapsibleSection>
 
+<EvmAccountKeyExportModal
+  variant="nostr"
+  open={exportModalOpen}
+  npub={userNpub}
+  onClose={() => (exportModalOpen = false)}
+/>
+
 <style>
   .nostr-npub-block {
     margin-bottom: 28px;
@@ -299,6 +311,25 @@
 
   .nostr-npub-copy-btn:hover {
     border-color: var(--border);
+    color: var(--text-primary);
+  }
+
+  .nostr-export-key-btn {
+    margin-top: 12px;
+    min-height: 2rem;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .nostr-export-key-btn:hover {
+    border-color: var(--accent);
     color: var(--text-primary);
   }
 

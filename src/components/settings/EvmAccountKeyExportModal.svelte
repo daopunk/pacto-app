@@ -7,7 +7,11 @@
   import { showToast } from '../../stores/toast';
 
   export let open = false;
+  /** `evm`: squad/advanced account key; `nostr`: logged-in account nsec. */
+  export let variant: 'evm' | 'nostr' = 'evm';
   export let account: EvmAccountRow | null = null;
+  /** Shown in PIN step when `variant` is `nostr`. */
+  export let npub = '';
   export let onClose: () => void = () => {};
 
   type Phase = 'pin' | 'key';
@@ -45,7 +49,8 @@
   }
 
   async function handlePinSubmit() {
-    if (!account || busy) return;
+    if (busy) return;
+    if (variant === 'evm' && !account) return;
     const pinValue = pinDigits.join('');
     if (pinValue.length !== 6) {
       pinError = 'PIN must be 6 digits';
@@ -55,15 +60,24 @@
     busy = true;
     pinError = '';
     try {
-      await loadAndDecryptKey(pinValue);
-      privateKey = await exportEvmAccountKeyPlaintext(account.id);
+      if (variant === 'nostr') {
+        privateKey = await loadAndDecryptKey(pinValue);
+      } else {
+        await loadAndDecryptKey(pinValue);
+        privateKey = await exportEvmAccountKeyPlaintext(account!.id);
+      }
       revealed = false;
       copied = false;
       phase = 'key';
     } catch (e) {
       pinError = 'Incorrect PIN or export failed';
-      console.error('EVM key export failed:', e);
-      showToast(getInvokeErrorMessage(e, 'Could not export private key.'));
+      console.error('Key export failed:', e);
+      showToast(
+        getInvokeErrorMessage(
+          e,
+          variant === 'nostr' ? 'Could not export nsec.' : 'Could not export private key.'
+        )
+      );
       pinDigits = ['', '', '', '', '', ''];
       setTimeout(() => pinInputs[0]?.focus(), 100);
     } finally {
@@ -118,17 +132,17 @@
     const ok = await copyTextToClipboard(privateKey);
     if (ok) {
       copied = true;
-      showToast('Private key copied');
+      showToast(variant === 'nostr' ? 'nsec copied' : 'Private key copied');
       setTimeout(() => {
         copied = false;
       }, 2000);
     } else {
-      showToast('Could not copy private key');
+      showToast(variant === 'nostr' ? 'Could not copy nsec' : 'Could not copy private key');
     }
   }
 </script>
 
-{#if open && account}
+{#if open && (variant === 'nostr' || account)}
   <div
     class="modal-overlay"
     on:click={handleClose}
@@ -148,9 +162,14 @@
       {#if phase === 'pin'}
         <h2 id="evm-export-modal-title">Enter PIN</h2>
         <p class="modal-subtitle">
-          Enter your PIN to export the private key for
-          <code class="modal-addr">{account.address}</code>
-          ({evmAccountSchemeLabel(account.scheme)}).
+          {#if variant === 'nostr'}
+            Enter your PIN to export the nsec private key for
+            <code class="modal-addr">{npub || 'this account'}</code>.
+          {:else}
+            Enter your PIN to export the private key for
+            <code class="modal-addr">{account?.address}</code>
+            ({evmAccountSchemeLabel(account!.scheme)}).
+          {/if}
         </p>
 
         {#if pinError}
@@ -187,15 +206,23 @@
           </button>
         </div>
       {:else}
-        <h2 id="evm-export-modal-title">Export private key</h2>
+        <h2 id="evm-export-modal-title">{variant === 'nostr' ? 'Export nsec' : 'Export private key'}</h2>
         <p class="modal-subtitle">
-          {account.label?.trim() || account.address}
-          {#if account.hdIndex != null}
-            · Derived #{account.hdIndex}
+          {#if variant === 'nostr'}
+            Nostr private key (nsec) for this account.
+          {:else}
+            {account?.label?.trim() || account?.address}
+            {#if account?.hdIndex != null}
+              · Derived #{account.hdIndex}
+            {/if}
           {/if}
         </p>
         <p class="modal-warning">
-          Anyone with this key controls the account. Store it offline and never share it.
+          {#if variant === 'nostr'}
+            Anyone with this nsec controls your Nostr identity and linked Pacto account. Store it offline and never share it.
+          {:else}
+            Anyone with this key controls the account. Store it offline and never share it.
+          {/if}
         </p>
 
         <div class="secret-value-shell">
@@ -211,7 +238,7 @@
               type="button"
               class="btn-reveal-secret"
               aria-pressed={revealed}
-              aria-label={revealed ? 'Hide private key' : 'Reveal private key'}
+              aria-label={revealed ? (variant === 'nostr' ? 'Hide nsec' : 'Hide private key') : (variant === 'nostr' ? 'Reveal nsec' : 'Reveal private key')}
               title={revealed ? 'Hide' : 'Reveal'}
               on:click={() => (revealed = !revealed)}
             >
