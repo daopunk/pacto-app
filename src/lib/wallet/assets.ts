@@ -9,6 +9,7 @@ import type { SupportedChainId } from './chains';
 
 import walletAssetsJson from './wallet-assets.json';
 
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 export type WalletStablecoin = 'USDC' | 'USDT';
 
 export type WalletAssetCode = 'ETH' | WalletStablecoin;
@@ -115,6 +116,7 @@ export function listWalletAssetOptionsForChain(chainId: SupportedChainId): {
   ];
   for (const sym of ['USDC', 'USDT'] as const) {
     const t = net.tokens[sym];
+    if ((t.address as string).toLowerCase() === ZERO_ADDRESS) continue;
     out.push({
       code: sym,
       kind: 'erc20',

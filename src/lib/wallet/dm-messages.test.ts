@@ -221,8 +221,22 @@ describe('local anvil network support', () => {
     expect(p!.network).toBe('local');
   });
 
+  it('parseWalletTxRequest accepts network "anvil" and returns network "local"', () => {
+    const j = `{"version":1,"type":"wallet_tx_request","request_id":"550e8400-e29b-41d4-a716-446655440000","network":"anvil","asset":"ETH","amount":"0.05","from_evm_address":"${SAMPLE_FROM_EVM}"}`;
+    const p = parseWalletTxRequest(j);
+    expect(p).not.toBeNull();
+    expect(p!.network).toBe('local');
+  });
+
   it('parseWalletTxAnnouncement accepts network "local"', () => {
     const j = `{"version":1,"type":"wallet_tx_announcement","network":"local","asset":"USDC","amount":"10.00","tx_hash":"0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789","from_npub":"npub1senderaaaaaaaaaaaaaaaa","to_npub":"npub1recipientbbbbbbbbbbbbbb","from_evm_address":"${SAMPLE_FROM_EVM}"}`;
+    const p = parseWalletTxAnnouncement(j);
+    expect(p).not.toBeNull();
+    expect(p!.network).toBe('local');
+  });
+
+  it('parseWalletTxAnnouncement accepts network "anvil"', () => {
+    const j = `{"version":1,"type":"wallet_tx_announcement","network":"anvil","asset":"USDC","amount":"10.00","tx_hash":"0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789","from_npub":"npub1senderaaaaaaaaaaaaaaaa","to_npub":"npub1recipientbbbbbbbbbbbbbb","from_evm_address":"${SAMPLE_FROM_EVM}"}`;
     const p = parseWalletTxAnnouncement(j);
     expect(p).not.toBeNull();
     expect(p!.network).toBe('local');

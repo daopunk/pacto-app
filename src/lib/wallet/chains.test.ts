@@ -17,8 +17,7 @@ describe('SUPPORTED_CHAINS.local', () => {
       name: 'Ether',
       symbol: 'ETH',
     });
-    expect(SUPPORTED_CHAINS.local.rpcUrls.default.http).toEqual(['http://localhost:8545']);
-    expect(SUPPORTED_CHAINS.local.testnet).toBe(true);
+    expect(SUPPORTED_CHAINS.local.rpcUrls.default.http).toEqual(['http://127.0.0.1:8545']);
   });
 });
 
@@ -39,7 +38,7 @@ describe('parseSupportedChainId', () => {
 });
 
 describe('getChainConfig', () => {
-  it('returns Anvil chain and localhost RPC for local', () => {
+  it('returns Anvil chain and curated localhost RPC for local', () => {
     const { chain, rpcUrls } = getChainConfig('local');
     expect(chain.id).toBe(31_337);
     expect(rpcUrls).toContain('http://localhost:8545');

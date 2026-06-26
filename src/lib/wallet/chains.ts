@@ -4,18 +4,9 @@
  */
 
 import { createPublicClient, type Chain, type PublicClient, fallback, http } from 'viem';
-import { arbitrum, gnosis, mainnet, optimism, sepolia } from 'viem/chains';
+import { anvil as anvilChain, arbitrum, gnosis, mainnet, optimism, sepolia } from 'viem/chains';
 
-const anvil: Chain = {
-  id: 31_337,
-  name: 'Anvil',
-  nativeCurrency: { decimals: 18, name: 'Ether', symbol: 'ETH' },
-  rpcUrls: {
-    default: { http: ['http://localhost:8545'] },
-    public: { http: ['http://localhost:8545'] },
-  },
-  testnet: true,
-};
+/** Anvil local testnet chain from viem/chains (chain id 31337). */
 
 /**
  * Supported chains for the embedded wallet (DM WalletBar + Squad Safe).
@@ -27,7 +18,7 @@ export const SUPPORTED_CHAINS = {
   mainnet,
   optimism,
   sepolia,
-  local: anvil,
+  local: anvilChain,
 } as const;
 
 export type SupportedChainId = keyof typeof SUPPORTED_CHAINS;

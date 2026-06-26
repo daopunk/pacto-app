@@ -23,13 +23,16 @@ They are **not** the same envelope as squad/network **`# announcements`** messag
 
 ### `network`
 
-Must match **`SupportedChainId`** in `src/lib/wallet/chains.ts` (and rows in `wallet-assets.json`):
+Must match **`SupportedChainId`** in `src/lib/wallet/chains.ts` (and rows in `wallet-assets.json`). The value `anvil` is accepted as a wire alias for `local`.
 
 | Value       | Meaning              |
 |------------|----------------------|
 | `mainnet`  | Ethereum mainnet     |
+| `arbitrum` | Arbitrum One         |
 | `optimism` | OP Mainnet           |
+| `gnosis`   | Gnosis Chain         |
 | `sepolia`  | Ethereum Sepolia     |
+| `local`    | Local Anvil devnet   |
 
 ### `asset`
 
@@ -70,7 +73,7 @@ Posted by the user who **creates** the request. The **recipient** is the other p
 | `version`     | number  | yes      | Must be `1`. |
 | `type`        | string  | yes      | Must be `wallet_tx_request`. |
 | `request_id`  | string  | yes      | Unique id for idempotency and linking to announcements. |
-| `network`     | string  | yes      | `mainnet` \| `optimism` \| `sepolia`. |
+| `network`     | string  | yes      | `mainnet` \| `arbitrum` \| `optimism` \| `gnosis` \| `sepolia` \| `local`. |
 | `asset`       | string  | yes      | `ETH` \| `USDC` \| `USDT`. |
 | `amount`      | string  | yes      | Human decimal amount (see above). |
 | `from_evm_address` | string | yes | Posting user’s **active** EVM signer: `0x` + 40 hex. |
@@ -92,7 +95,7 @@ Posted **only** after a **successful** transaction receipt. Carries everything n
 |----------------|--------|----------|-------------|
 | `version`      | number | yes      | Must be `1`. |
 | `type`         | string | yes      | Must be `wallet_tx_announcement`. |
-| `network`      | string | yes      | `mainnet` \| `optimism` \| `sepolia`. |
+| `network`      | string  | yes      | `mainnet` \| `arbitrum` \| `optimism` \| `gnosis` \| `sepolia` \| `local`. |
 | `asset`        | string | yes      | `ETH` \| `USDC` \| `USDT`. |
 | `amount`       | string | yes      | Human decimal amount (should match what was sent). |
 | `tx_hash`      | string | yes      | `0x` + 64 hex. |

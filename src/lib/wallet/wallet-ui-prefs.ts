@@ -47,7 +47,7 @@ export function loadWalletEnabledChains(accountNpub: string | null | undefined):
     };
     if (parsed?.v !== STORAGE_VERSION) return defaultWalletEnabledChains();
     const n = normalizeChains(parsed.chains);
-    return n ?? defaultWalletEnabledChains();
+    return (n ?? defaultWalletEnabledChains()).filter((id) => id === 'local' ? import.meta.env.DEV : true);
   } catch {
     return defaultWalletEnabledChains();
   }
@@ -57,7 +57,9 @@ export function saveWalletEnabledChains(accountNpub: string, chains: SupportedCh
   if (!accountNpub || typeof localStorage === 'undefined') return;
   const allowed = new Set(WALLET_ASSETS_CHAIN_IDS);
   const next = [...new Set(chains.filter((c) => allowed.has(c)))];
-  const toSave = next.length > 0 ? next : defaultWalletEnabledChains();
+  const toSave = (next.length > 0 ? next : defaultWalletEnabledChains()).filter(
+    (id) => (id === 'local' ? import.meta.env.DEV : true)
+  );
   localStorage.setItem(
     storageKey(accountNpub),
     JSON.stringify({ v: STORAGE_VERSION, chains: toSave })

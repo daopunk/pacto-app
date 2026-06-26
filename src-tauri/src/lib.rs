@@ -2788,32 +2788,33 @@ fn default_relay_mode() -> String {
 /// so containers like the pacto dev-setup relay can be used without TLS.
 fn validate_relay_url(url: &str) -> Result<String, String> {
     let trimmed = url.trim();
+    let parsed = url::Url::parse(trimmed).map_err(|_| {
+        "Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)".to_string()
+    })?;
 
-    let is_local_ws = trimmed.starts_with("ws://")
-        && {
-            let host_port = &trimmed[5..];
-            host_port.starts_with("localhost:")
-                || host_port.starts_with("localhost/")
-                || host_port == "localhost"
-                || host_port.starts_with("127.0.0.1:")
-                || host_port.starts_with("127.0.0.1/")
-                || host_port == "127.0.0.1"
-        };
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "Relay URL must include a host".to_string())?;
 
-    if !(trimmed.starts_with("wss://") || is_local_ws) {
-        return Err("Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)".to_string());
+    match parsed.scheme() {
+        "wss" => {}
+        "ws" => {
+            let is_localhost = host == "localhost";
+            let is_loopback_with_port = host == "127.0.0.1" && parsed.port().is_some();
+            if !is_localhost && !is_loopback_with_port {
+                return Err("Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)".to_string());
+            }
+        }
+        _ => {
+            return Err("Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)".to_string());
+        }
     }
 
-    // Basic URL validation - must have host after protocol
-    let protocol_len = if trimmed.starts_with("wss://") { 6 } else { 5 };
-    let after_protocol = &trimmed[protocol_len..];
-    if after_protocol.is_empty() {
-        return Err("Relay URL must include a host".to_string());
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("Relay URL must not contain userinfo".to_string());
     }
 
-    // Don't allow trailing slashes for consistency
     let normalized = trimmed.trim_end_matches('/');
-
     Ok(normalized.to_string())
 }
 
@@ -2853,6 +2854,21 @@ mod validate_relay_url_tests {
     #[test]
     fn rejects_ws_localhost_with_userinfo_bypass() {
         assert!(validate_relay_url("ws://localhost:7000@evil.com").is_err());
+    }
+
+    #[test]
+    fn rejects_ws_userinfo_at_localhost() {
+        assert!(validate_relay_url("ws://user@localhost:7000").is_err());
+    }
+
+    #[test]
+    fn rejects_ws_127_0_0_1() {
+        assert!(validate_relay_url("ws://127.0.0.1").is_err());
+    }
+
+    #[test]
+    fn rejects_wss_missing_host() {
+        assert!(validate_relay_url("wss://").is_err());
     }
 
     #[test]

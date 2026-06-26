@@ -1,4 +1,3 @@
-import { applyLocalDevDefaults } from '../lib/dev/local-dev-setup';
 import { hydrateWalletSummaryCacheFromDisk } from '../lib/wallet/wallet-summary-cache';
 import { hydrateTreasurySafesCacheFromDisk } from '../lib/dashboard/treasury-safes-cache';
 import { hydrateSquadInfraCacheFromDisk } from '../lib/dashboard/squad-infra-cache';
@@ -46,7 +45,6 @@ export function loadAccountState(npub: string): void {
   setCurrentNpubForPersistence(npub);
   void hydrateSquadsFromDb();
   if (typeof localStorage === 'undefined') return;
-  void applyLocalDevDefaults(npub);
   try {
     const pinnedKey = `${PINNED_DM_NPUBS_PREFIX}_${npub}`;
     const rawPinned = localStorage.getItem(pinnedKey);

@@ -4,6 +4,9 @@ import {
   WALLET_CHAIN_GROUPS,
   getWalletAssetsForChain,
   getWalletNetworkDisplayName,
+  getExplorerTxUrl,
+  explorerTxLinkLabel,
+  listWalletAssetOptionsForChain,
 } from './assets';
 
 describe('WALLET_ASSETS_CHAIN_IDS', () => {
@@ -32,12 +35,12 @@ describe('getWalletAssetsForChain', () => {
     expect(assets?.tokens.USDC).toEqual({
       address: '0x0000000000000000000000000000000000000000',
       decimals: 6,
-      note: 'Zero-address placeholder; deploy a local USDC mock to test transfers',
+      note: 'Zero-address placeholder; not selectable for transfers. Deploy a local USDC mock to test transfers.',
     });
     expect(assets?.tokens.USDT).toEqual({
       address: '0x0000000000000000000000000000000000000000',
       decimals: 6,
-      note: 'Zero-address placeholder; deploy a local USDT mock to test transfers',
+      note: 'Zero-address placeholder; not selectable for transfers. Deploy a local USDT mock to test transfers.',
     });
   });
 });
@@ -45,5 +48,24 @@ describe('getWalletAssetsForChain', () => {
 describe('getWalletNetworkDisplayName', () => {
   it('returns Local Anvil for the local chain', () => {
     expect(getWalletNetworkDisplayName('local')).toBe('Local Anvil');
+  });
+});
+describe('getExplorerTxUrl', () => {
+  it('returns null for the local chain', () => {
+    expect(getExplorerTxUrl('local', '0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789')).toBeNull();
+  });
+});
+
+describe('explorerTxLinkLabel', () => {
+  it('returns the fallback label for the local chain', () => {
+    expect(explorerTxLinkLabel('local')).toBe('View on block explorer');
+  });
+});
+
+describe('listWalletAssetOptionsForChain', () => {
+  it('includes ETH and excludes zero-address USDC/USDT on local', () => {
+    const options = listWalletAssetOptionsForChain('local');
+    expect(options.map((o) => o.code)).toEqual(['ETH']);
+    expect(options.every((o) => o.kind !== 'erc20' || o.address !== '0x0000000000000000000000000000000000000000')).toBe(true);
   });
 });
