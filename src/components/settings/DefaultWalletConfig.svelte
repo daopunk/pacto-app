@@ -14,6 +14,8 @@
     type EvmAccountRow,
   } from '../../lib/wallet/evm-accounts';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
+  import { portal } from '../../lib/utils/portal';
+  import { settingsSectionCollapsed } from '../../lib/settings/settings-section-collapse';
   import { showToast } from '../../stores/toast';
 
   export let accountNpub: string;
@@ -38,6 +40,10 @@
   $: preferredNetworkLabel = getPreferredNetworkDisplayName(preferredNetwork);
 
   $: accountNpub, $walletPreferredNetworkTick, syncPreferredNetwork();
+
+  $: if (($settingsSectionCollapsed['settings-evm'] ?? true) && editOpen && !saving) {
+    editOpen = false;
+  }
 
   onMount(syncPreferredNetwork);
 
@@ -162,6 +168,7 @@
 </section>
 
 {#if editOpen}
+  <div use:portal>
   <div class="dwc-modal-backdrop" role="presentation" on:click={closeEdit}></div>
   <div class="dwc-modal" role="dialog" aria-labelledby="wallet-default-evm-edit-title" aria-modal="true">
     <h2 id="wallet-default-evm-edit-title" class="dwc-title">Edit default EVM account</h2>
@@ -211,6 +218,7 @@
         {saving ? 'Saving…' : 'Save'}
       </button>
     </div>
+  </div>
   </div>
 {/if}
 
@@ -376,7 +384,7 @@
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
-    z-index: 900;
+    z-index: 10000;
   }
 
   .dwc-modal {
@@ -384,7 +392,7 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    z-index: 901;
+    z-index: 10001;
     width: min(480px, calc(100vw - 32px));
     max-height: calc(100vh - 48px);
     overflow-y: auto;

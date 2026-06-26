@@ -17,6 +17,7 @@
   import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
   import { showToast } from '../../stores/toast';
   import EvmAccountKeyExportModal from './EvmAccountKeyExportModal.svelte';
+  import { settingsSectionCollapsed } from '../../lib/settings/settings-section-collapse';
 
   export let accountNpub: string | null = null;
   export let evmAddress: string | null = null;
@@ -41,6 +42,10 @@
   $: displayRows = embeddedInSettings ? squadList : [...squadList, ...advancedList];
 
   $: accountNpub, evmAccountList, void loadBindings();
+
+  $: if (embeddedInSettings && ($settingsSectionCollapsed['settings-evm'] ?? true) && exportModalOpen) {
+    closeExportModal();
+  }
 
   onMount(() => {
     void loadBindings();

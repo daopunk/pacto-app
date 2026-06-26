@@ -4,6 +4,7 @@
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
   import { evmAccountSchemeLabel, type EvmAccountRow } from '../../lib/wallet/evm-accounts';
+  import { portal } from '../../lib/utils/portal';
   import { showToast } from '../../stores/toast';
 
   export let open = false;
@@ -25,12 +26,16 @@
   let copied = false;
   let pinInputs: HTMLInputElement[] = [];
 
-  $: if (!open) {
-    resetState();
-  }
+  let wasOpen = false;
 
-  $: if (open && phase === 'pin') {
-    setTimeout(() => pinInputs[0]?.focus(), 100);
+  $: {
+    if (open && !wasOpen && phase === 'pin') {
+      setTimeout(() => pinInputs[0]?.focus(), 100);
+    }
+    if (!open && wasOpen) {
+      resetState();
+    }
+    wasOpen = open;
   }
 
   function resetState() {
@@ -44,7 +49,7 @@
   }
 
   function handleClose() {
-    privateKey = '';
+    resetState();
     onClose();
   }
 
@@ -162,12 +167,12 @@
 </script>
 
 {#if open && (variant === 'nostr' || variant === 'seed' || account)}
+  <div use:portal>
   <div
     class="modal-overlay"
     on:click={handleClose}
     on:keydown={(e) => e.key === 'Escape' && handleClose()}
-    role="button"
-    tabindex="-1"
+    role="presentation"
   >
     <div
       class="modal-content"
@@ -322,6 +327,7 @@
       {/if}
     </div>
   </div>
+  </div>
 {/if}
 
 <style>
@@ -332,7 +338,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 10000;
     backdrop-filter: blur(4px);
   }
 

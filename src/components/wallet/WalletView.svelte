@@ -36,6 +36,8 @@
   import DefaultWalletConfig from '../settings/DefaultWalletConfig.svelte';
   import EvmAccountsSection from '../settings/EvmAccountsSection.svelte';
   import EvmWalletExtras from '../settings/EvmWalletExtras.svelte';
+  import { portal } from '../../lib/utils/portal';
+  import { settingsSectionCollapsed } from '../../lib/settings/settings-section-collapse';
 
   /** When true, omit the standalone page title (embedded under Settings → EVM). */
   export let embeddedInSettings = false;
@@ -107,6 +109,18 @@
   }
 
   $: accountNpub, $walletUiEnabledChainsTick, syncFromDisk();
+
+  $: if (
+    embeddedInSettings &&
+    ($settingsSectionCollapsed['settings-evm'] ?? true)
+  ) {
+    if (accountFormMode) closeAccountFormModal();
+    if (importKeyModalOpen && !importKeyBusy) {
+      importKeyModalOpen = false;
+      importKeyInput = '';
+    }
+    if (importModalOpen) importModalOpen = false;
+  }
 
   onMount(syncFromDisk);
 
@@ -390,6 +404,7 @@
 {/if}
 
 {#if accountFormMode}
+  <div use:portal>
   <div
     class="wallet-view-modal-backdrop"
     role="presentation"
@@ -467,9 +482,11 @@
       </button>
     </div>
   </div>
+  </div>
 {/if}
 
 {#if importKeyModalOpen}
+  <div use:portal>
   <div
     class="wallet-view-modal-backdrop"
     role="presentation"
@@ -508,6 +525,7 @@
         {importKeyBusy ? 'Importing…' : 'Import'}
       </button>
     </div>
+  </div>
   </div>
 {/if}
 
@@ -935,7 +953,7 @@
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    z-index: 1200;
+    z-index: 10000;
   }
 
   .wallet-view-modal {
@@ -943,7 +961,7 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    z-index: 1201;
+    z-index: 10001;
     width: min(420px, calc(100vw - 32px));
     max-height: min(480px, calc(100vh - 48px));
     overflow: auto;

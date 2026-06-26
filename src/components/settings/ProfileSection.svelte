@@ -10,6 +10,7 @@
   import { showToast } from '../../stores/toast';
   import SettingsCollapsibleSection from './SettingsCollapsibleSection.svelte';
   import EvmAccountKeyExportModal from './EvmAccountKeyExportModal.svelte';
+  import ExportAllSecretsModal from './ExportAllSecretsModal.svelte';
   $: userNpub = $currentUser?.npub || '';
   $: profile = userNpub ? $profiles[userNpub] : null;
   $: loading = userNpub ? ($profileLoadingStates[userNpub] || false) : false;
@@ -31,6 +32,7 @@
 
   let copiedNpub = false;
   let exportSeedModalOpen = false;
+  let exportAllModalOpen = false;
 
   // Watch for changes to userNpub and load profile
   $: if (userNpub) {
@@ -304,13 +306,22 @@
                 </svg>
                 Profile
               </button>
-              <button
-                type="button"
-                class="btn-export-seed"
-                on:click={() => (exportSeedModalOpen = true)}
-              >
-                Export seed phrase
-              </button>
+              <div class="profile-actions-exports">
+                <button
+                  type="button"
+                  class="btn-export-seed"
+                  on:click={() => (exportSeedModalOpen = true)}
+                >
+                  Export seed phrase
+                </button>
+                <button
+                  type="button"
+                  class="btn-export-all"
+                  on:click={() => (exportAllModalOpen = true)}
+                >
+                  Export all
+                </button>
+              </div>
             </div>
           {/if}
         </div>
@@ -327,6 +338,12 @@
   open={exportSeedModalOpen}
   npub={userNpub}
   onClose={() => (exportSeedModalOpen = false)}
+/>
+
+<ExportAllSecretsModal
+  open={exportAllModalOpen}
+  npub={userNpub}
+  onClose={() => (exportAllModalOpen = false)}
 />
 
 <style>
@@ -529,6 +546,18 @@
     gap: 12px;
   }
 
+  .profile-actions-exports {
+    display: flex;
+    gap: 12px;
+  }
+
+  .profile-actions-exports .btn-export-seed,
+  .profile-actions-exports .btn-export-all {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
   .edit-error {
     color: var(--danger);
     font-size: 0.875rem;
@@ -645,7 +674,8 @@
   }
 
   .btn-edit-profile,
-  .btn-export-seed {
+  .btn-export-seed,
+  .btn-export-all {
     width: 100%;
     min-height: 48px;
     padding: 0 16px;
@@ -670,7 +700,8 @@
   }
 
   .btn-edit-profile:hover,
-  .btn-export-seed:hover {
+  .btn-export-seed:hover,
+  .btn-export-all:hover {
     border-color: var(--accent);
   }
 </style>
