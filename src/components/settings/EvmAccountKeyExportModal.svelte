@@ -1,14 +1,14 @@
 <script lang="ts">
   import { loadAndDecryptKey } from '../../lib/api/encryption';
-  import { exportEvmAccountKeyPlaintext } from '../../lib/api/auth';
+  import { exportEvmAccountKeyPlaintext, exportRecoveryPhrase } from '../../lib/api/auth';
   import { getInvokeErrorMessage } from '../../lib/utils/tauri-errors';
   import { copyTextToClipboard } from '../../lib/wallet/clipboard-copy';
   import { evmAccountSchemeLabel, type EvmAccountRow } from '../../lib/wallet/evm-accounts';
   import { showToast } from '../../stores/toast';
 
   export let open = false;
-  /** `evm`: squad/advanced account key; `nostr`: logged-in account nsec. */
-  export let variant: 'evm' | 'nostr' = 'evm';
+  /** `evm` | `nostr` | `seed` (BIP-39 recovery phrase). */
+  export let variant: 'evm' | 'nostr' | 'seed' = 'evm';
   export let account: EvmAccountRow | null = null;
   /** Shown in PIN step when `variant` is `nostr`. */
   export let npub = '';
@@ -62,6 +62,9 @@
     try {
       if (variant === 'nostr') {
         privateKey = await loadAndDecryptKey(pinValue);
+      } else if (variant === 'seed') {
+        await loadAndDecryptKey(pinValue);
+        privateKey = await exportRecoveryPhrase();
       } else {
         await loadAndDecryptKey(pinValue);
         privateKey = await exportEvmAccountKeyPlaintext(account!.id);
@@ -75,7 +78,11 @@
       showToast(
         getInvokeErrorMessage(
           e,
-          variant === 'nostr' ? 'Could not export nsec.' : 'Could not export private key.'
+          variant === 'nostr'
+            ? 'Could not export nsec.'
+            : variant === 'seed'
+              ? 'Could not export seed phrase.'
+              : 'Could not export private key.'
         )
       );
       pinDigits = ['', '', '', '', '', ''];
@@ -132,17 +139,29 @@
     const ok = await copyTextToClipboard(privateKey);
     if (ok) {
       copied = true;
-      showToast(variant === 'nostr' ? 'nsec copied' : 'Private key copied');
+      showToast(
+        variant === 'nostr'
+          ? 'nsec copied'
+          : variant === 'seed'
+            ? 'Seed phrase copied'
+            : 'Private key copied'
+      );
       setTimeout(() => {
         copied = false;
       }, 2000);
     } else {
-      showToast(variant === 'nostr' ? 'Could not copy nsec' : 'Could not copy private key');
+      showToast(
+        variant === 'nostr'
+          ? 'Could not copy nsec'
+          : variant === 'seed'
+            ? 'Could not copy seed phrase'
+            : 'Could not copy private key'
+      );
     }
   }
 </script>
 
-{#if open && (variant === 'nostr' || account)}
+{#if open && (variant === 'nostr' || variant === 'seed' || account)}
   <div
     class="modal-overlay"
     on:click={handleClose}
@@ -165,6 +184,8 @@
           {#if variant === 'nostr'}
             Enter your PIN to export the nsec private key for
             <code class="modal-addr">{npub || 'this account'}</code>.
+          {:else if variant === 'seed'}
+            Enter your PIN to export the recovery seed phrase for this account.
           {:else}
             Enter your PIN to export the private key for
             <code class="modal-addr">{account?.address}</code>
@@ -206,10 +227,14 @@
           </button>
         </div>
       {:else}
-        <h2 id="evm-export-modal-title">{variant === 'nostr' ? 'Export nsec' : 'Export private key'}</h2>
+        <h2 id="evm-export-modal-title">
+          {variant === 'nostr' ? 'Export nsec' : variant === 'seed' ? 'Export seed phrase' : 'Export private key'}
+        </h2>
         <p class="modal-subtitle">
           {#if variant === 'nostr'}
             Nostr private key (nsec) for this account.
+          {:else if variant === 'seed'}
+            BIP-39 recovery phrase — use on another device to restore this account.
           {:else}
             {account?.label?.trim() || account?.address}
             {#if account?.hdIndex != null}
@@ -220,6 +245,8 @@
         <p class="modal-warning">
           {#if variant === 'nostr'}
             Anyone with this nsec controls your Nostr identity and linked Pacto account. Store it offline and never share it.
+          {:else if variant === 'seed'}
+            Anyone with this seed phrase can restore your full account on another device. Write it down offline and never share it.
           {:else}
             Anyone with this key controls the account. Store it offline and never share it.
           {/if}
@@ -228,7 +255,7 @@
         <div class="secret-value-shell">
           <div class="secret-value-main">
             {#if revealed}
-              <span class="secret-plain">{privateKey}</span>
+              <span class="secret-plain" class:secret-plain-seed={variant === 'seed'}>{privateKey}</span>
             {:else}
               <span class="secret-mask" aria-hidden="true">•••••••••••••••••••••••••••••••••</span>
             {/if}
@@ -238,7 +265,17 @@
               type="button"
               class="btn-reveal-secret"
               aria-pressed={revealed}
-              aria-label={revealed ? (variant === 'nostr' ? 'Hide nsec' : 'Hide private key') : (variant === 'nostr' ? 'Reveal nsec' : 'Reveal private key')}
+              aria-label={revealed
+                ? variant === 'nostr'
+                  ? 'Hide nsec'
+                  : variant === 'seed'
+                    ? 'Hide seed phrase'
+                    : 'Hide private key'
+                : variant === 'nostr'
+                  ? 'Reveal nsec'
+                  : variant === 'seed'
+                    ? 'Reveal seed phrase'
+                    : 'Reveal private key'}
               title={revealed ? 'Hide' : 'Reveal'}
               on:click={() => (revealed = !revealed)}
             >
@@ -253,8 +290,28 @@
                 </svg>
               {/if}
             </button>
-            <button type="button" class="btn-copy" on:click={copyPrivateKey}>
-              {copied ? 'Copied' : 'Copy'}
+            <button
+              type="button"
+              class="btn-copy"
+              aria-label={copied ? 'Copied' : 'Copy to clipboard'}
+              title={copied ? 'Copied' : 'Copy'}
+              on:click={copyPrivateKey}
+            >
+              <svg
+                class="copy-icon"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
             </button>
           </div>
         </div>
@@ -408,6 +465,13 @@
     word-break: break-all;
   }
 
+  .secret-plain-seed {
+    font-family: inherit;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    word-break: normal;
+  }
+
   .secret-mask {
     color: var(--text-muted);
     letter-spacing: 0.04em;
@@ -446,13 +510,26 @@
   }
 
   .btn-copy {
-    padding: 8px 14px;
-    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: var(--accent);
-    color: #fff;
-    font-size: 0.875rem;
-    font-weight: 600;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
     cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .btn-copy:hover {
+    border-color: var(--accent);
+  }
+
+  .copy-icon {
+    width: 1.15rem;
+    height: 1.15rem;
   }
 </style>

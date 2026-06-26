@@ -108,11 +108,11 @@
   }
 </script>
 
-<section class="dwc" aria-labelledby="wallet-default-config-heading">
-  <h2 id="wallet-default-config-heading" class="dwc-title">Default wallet config</h2>
+<section class="dwc" aria-labelledby="wallet-default-evm-heading">
+  <h2 id="wallet-default-evm-heading" class="dwc-title">Default EVM account</h2>
 
   <p class="dwc-hint">
-    Preferred network, signing address, and published receiving address for squad operations and your profile.
+    Preferred network, default signing address, and published receiving address for DMs, profile, and squad operations.
   </p>
 
   <div class="dwc-summary">
@@ -132,23 +132,39 @@
     </dl>
     <button
       type="button"
-      class="dwc-btn dwc-btn-secondary dwc-summary-edit"
+      class="dwc-summary-edit"
       disabled={accountsLoading || squadAccounts.length === 0}
+      aria-label="Edit default EVM account"
+      title="Edit"
       on:click={openEdit}
     >
-      Edit
+      <svg
+        class="dwc-summary-edit-icon"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+      </svg>
     </button>
   </div>
 
   {#if squadAccounts.length === 0 && !accountsLoading}
-    <p class="dwc-hint dwc-hint-tight">Add a squad account below before editing defaults.</p>
+    <p class="dwc-hint dwc-hint-tight">Add a squad EVM account below before editing defaults.</p>
   {/if}
 </section>
 
 {#if editOpen}
   <div class="dwc-modal-backdrop" role="presentation" on:click={closeEdit}></div>
-  <div class="dwc-modal" role="dialog" aria-labelledby="wallet-default-config-edit-title" aria-modal="true">
-    <h2 id="wallet-default-config-edit-title" class="dwc-title">Edit default wallet config</h2>
+  <div class="dwc-modal" role="dialog" aria-labelledby="wallet-default-evm-edit-title" aria-modal="true">
+    <h2 id="wallet-default-evm-edit-title" class="dwc-title">Edit default EVM account</h2>
     <p class="dwc-hint">Only derived squad accounts can be signer or receiver.</p>
 
     <label class="dwc-label" for="wallet-default-network">Preferred network</label>
@@ -249,7 +265,35 @@
     align-self: start;
     justify-self: end;
     flex-shrink: 0;
-    padding: 8px 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  .dwc-summary-edit:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+
+  .dwc-summary-edit:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .dwc-summary-edit-icon {
+    display: block;
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
   }
 
   .dwc-summary-row dt {

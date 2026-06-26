@@ -278,7 +278,7 @@
 
     {#if accountNpub}
       {#if embeddedInSettings}
-        <section class="wallet-view-section" aria-labelledby="wallet-default-config-heading">
+        <section class="wallet-view-section" aria-labelledby="wallet-default-evm-heading">
           <DefaultWalletConfig
             accountNpub={accountNpub}
             squadAccounts={squadAccountList}
@@ -421,7 +421,7 @@
     {:else if accountFormIsAdvanced}
       <p class="wallet-view-hint">Update the display name. Advanced accounts cannot be squad signers or receiving addresses.</p>
     {:else if embeddedInSettings}
-      <p class="wallet-view-hint">Update the display name. Signer and receiver are set in Default wallet config above.</p>
+      <p class="wallet-view-hint">Update the display name. Signer and receiver are set in Default EVM account above.</p>
     {:else}
       <p class="wallet-view-hint">
         Update the display name and whether this account is the signer or published receiving address. Name is only stored on this device.
@@ -433,7 +433,7 @@
       type="text"
       class="wallet-view-add-account-input"
       maxlength="64"
-      placeholder="e.g. Savings"
+      placeholder="e.g. Squad Name"
       bind:value={accountFormLabel}
       disabled={accountFormBusy}
     />
@@ -869,23 +869,24 @@
   }
 
   .wallet-view-account-more {
-    min-width: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
     height: 2rem;
-    padding: 0 0.35rem;
+    padding: 0;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--bg-hover);
     color: var(--text-primary);
-    font-size: 1rem;
-    line-height: 1;
-    letter-spacing: 0.02em;
     cursor: pointer;
     flex-shrink: 0;
+    transition: border-color 0.2s;
   }
 
   .wallet-view-account-more:hover:not(:disabled) {
-    border-color: var(--text-muted);
-    background: var(--bg-elevated);
+    border-color: var(--accent);
+    background: var(--bg-hover);
   }
 
   .wallet-view-account-more:disabled {
