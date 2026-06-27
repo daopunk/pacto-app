@@ -1,6 +1,26 @@
 # Wiring the local Docker dev stack into pacto-app
 
-This guide assumes the `local` Anvil chain (chain ID `31337`) has already been added to pacto-app and you have the local Docker dev stack running. It explains how to point the app at the local relay and RPC, fund a test account, deploy the governance contracts, and make the app use those local deployments.
+This guide explains how to use the `local` Anvil chain (chain ID `31337`) with the `pacto-dev-env` Docker stack. In Vite dev builds the app can auto-wire the local relay and RPC; the rest of this guide covers manual setup, contract deployment, and how the network is kept out of production builds.
+
+## Auto-wiring in dev builds
+
+In **Vite dev builds** (`import.meta.env.DEV`), the app automatically wires the local stack into a newly unlocked account once per session:
+
+1. Adds `ws://localhost:7000` as a custom Nostr relay if it is missing.
+2. Enables the `Local Anvil` chain in Settings → EVM.
+3. Sets the default RPC for `Local Anvil` to `http://localhost:8545` if none is set.
+
+Existing user changes are never overwritten. The applied marker is stored in `sessionStorage`, so it resets when the app restarts. Auto-wiring lives in `src/lib/dev/local-dev-setup.ts` and runs from account create / import / unlock flows in `src/stores/auth.ts`.
+
+If the relay is not running when the account unlocks, auto-wiring logs a warning and continues. The manual steps below cover the same configuration.
+
+## Build gating
+
+`Local Anvil` is a **dev-only** network. Two mechanisms keep it out of production builds:
+
+1. **TypeScript:** `import.meta.env.DEV` guards the auto-wiring logic, enabled-chain defaults (`src/lib/wallet/wallet-ui-prefs.ts`), and RPC prefs (`src/lib/wallet/rpc-prefs.ts`). Production builds never show `Local Anvil` in Settings or persist local RPC URLs.
+2. **Rust:** `NETWORK_KEYS` in `src-tauri/src/evm/wallet_chain_config.rs` includes `local` only under `#[cfg(any(debug_assertions, test))]`. In release builds, `wallet_networks()` omits `local` and `network_by_key("local")` returns `None`, so the wallet summary never attempts to connect to `http://localhost:8545`.
+
 
 ## 1. Start the local services
 
@@ -161,3 +181,17 @@ Then run the app and test:
 - `ws://localhost:7000` and `http://localhost:8545` are unencrypted local endpoints. Do not expose them to a network.
 - Do not commit your local `pacto-protocol-addresses.json` changes unless the project explicitly asks for them; local contract addresses are not portable across Anvil restarts.
 - When Anvil restarts, all state resets. You must redeploy the contracts and update the addresses again.
+
+## Files to review when changing local behavior
+
+- `src/lib/dev/local-dev-setup.ts` — dev auto-wiring
+- `src/lib/wallet/chains.ts` — frontend chain config + `anvil` alias
+- `src/lib/wallet/assets.ts` — chain groups and asset metadata
+- `src/lib/wallet/wallet-ui-prefs.ts` — enabled-chains list
+- `src/lib/wallet/rpc-prefs.ts` — RPC preferences
+- `src/lib/wallet/rpc-catalog.ts` — curated RPC defaults
+- `src/lib/wallet/dm-messages.ts` — DM wallet message network parsing
+- `src/lib/wallet/wallet-assets.json` — asset table
+- `src-tauri/src/evm/wallet_chain_config.rs` — backend network table
+- `src-tauri/src/lib.rs` — relay URL validator
+- `src/lib/evm/pacto-protocol-addresses.json` — local contract addresses
