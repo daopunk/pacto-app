@@ -8,6 +8,12 @@ import { activeTopNavTab, DEFAULT_TOP_NAV_TAB } from './navigation';
 import { loadAccountState } from './persistence';
 import { clearAccountState } from '../lib/utils/clear-account-state';
 
+async function maybeApplyLocalDevDefaults(npub: string): Promise<void> {
+  if (!import.meta.env.DEV) return;
+  const { applyLocalDevDefaults } = await import('../lib/dev/local-dev-setup');
+  await applyLocalDevDefaults(npub);
+}
+
 // Auth state
 export const isAuthenticated = writable<boolean>(false);
 export const authLoading = writable<boolean>(false);
@@ -95,6 +101,7 @@ export async function createAccount(pin: string): Promise<void> {
     });
     activeTopNavTab.set(DEFAULT_TOP_NAV_TAB);
     loadAccountState(npub);
+    await maybeApplyLocalDevDefaults(npub);
 
     dmLog('createAccount: done (fetchMessages will run from +page onMount)');
     authLoading.set(false);
@@ -143,6 +150,7 @@ export async function importAccount(recoveryPhrase: string, pin: string): Promis
     });
     activeTopNavTab.set(DEFAULT_TOP_NAV_TAB);
     loadAccountState(npub);
+    await maybeApplyLocalDevDefaults(npub);
     authLoading.set(false);
     runPostLoginNetworkSync(npub);
 
@@ -175,6 +183,7 @@ export async function unlockWithPin(pin: string): Promise<void> {
     });
     activeTopNavTab.set(DEFAULT_TOP_NAV_TAB);
     loadAccountState(npub);
+    await maybeApplyLocalDevDefaults(npub);
     runPostLoginNetworkSync(npub);
 
     dmLog('unlockWithPin: done');

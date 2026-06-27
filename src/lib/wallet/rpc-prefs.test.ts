@@ -12,11 +12,18 @@ import {
 
 const NPUB = 'npub1test';
 
+function setDev(value: boolean) {
+  (import.meta.env as { DEV?: boolean }).DEV = value;
+}
+
 describe('rpc prefs', () => {
   const store = new Map<string, string>();
+  let originalDev: boolean | undefined;
 
   beforeEach(() => {
+    originalDev = (import.meta.env as { DEV?: boolean }).DEV;
     store.clear();
+    setDev(false);
     (globalThis as unknown as { localStorage: Storage }).localStorage = {
       getItem: (k: string) => store.get(k) ?? null,
       setItem: (k: string, v: string) => {
@@ -34,6 +41,11 @@ describe('rpc prefs', () => {
   });
 
   afterEach(() => {
+    if (originalDev === undefined) {
+      delete (import.meta.env as { DEV?: boolean }).DEV;
+    } else {
+      setDev(originalDev);
+    }
     delete (globalThis as unknown as { localStorage?: Storage }).localStorage;
   });
 
@@ -64,5 +76,42 @@ describe('rpc prefs', () => {
     saveDefaultRpc(NPUB, 'optimism', 'https://mainnet.optimism.io');
     expect(store.has(`${WALLET_RPC_PREFS_PREFIX}_${NPUB}`)).toBe(true);
     expect(loadRpcPrefs(NPUB).defaultRpc.optimism).toBe('https://mainnet.optimism.io');
+  });
+
+  it('ignores local personal RPCs in non-DEV builds', () => {
+    expect(addPersonalRpc(NPUB, 'local', 'http://localhost:8545').ok).toBe(true);
+    expect(listPersonalRpcs(NPUB, 'local')).toEqual([]);
+  });
+
+  it('ignores local default RPCs in non-DEV builds', () => {
+    saveDefaultRpc(NPUB, 'local', 'http://localhost:8545');
+    expect(loadDefaultRpc(NPUB, 'local')).toBeNull();
+  });
+
+  it('resolves empty URLs for local in non-DEV builds', () => {
+    expect(resolveUserRpcUrls('local', NPUB)).toEqual([]);
+  });
+
+  it('allows local personal RPCs in dev builds', () => {
+    setDev(true);
+    const url = 'http://localhost:8545';
+    expect(addPersonalRpc(NPUB, 'local', url).ok).toBe(true);
+    expect(listPersonalRpcs(NPUB, 'local')).toEqual([url]);
+  });
+
+  it('allows local default RPCs in dev builds', () => {
+    setDev(true);
+    const url = 'http://localhost:8545';
+    addPersonalRpc(NPUB, 'local', url);
+    saveDefaultRpc(NPUB, 'local', url);
+    expect(loadDefaultRpc(NPUB, 'local')).toBe(url);
+  });
+
+  it('resolves local URLs in dev builds', () => {
+    setDev(true);
+    const url = 'http://localhost:8545';
+    addPersonalRpc(NPUB, 'local', url);
+    saveDefaultRpc(NPUB, 'local', url);
+    expect(resolveUserRpcUrls('local', NPUB)).toEqual([url]);
   });
 });

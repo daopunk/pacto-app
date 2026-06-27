@@ -2783,25 +2783,101 @@ fn default_relay_mode() -> String {
     "both".to_string()
 }
 
-/// Validate a relay URL format (must be wss://)
+/// Validate a relay URL format. Secure WebSockets (`wss://`) are required for
+/// public relays; insecure `ws://` is allowed only for local development hosts
+/// so containers like the pacto dev-setup relay can be used without TLS.
 fn validate_relay_url(url: &str) -> Result<String, String> {
     let trimmed = url.trim();
+    let parsed = url::Url::parse(trimmed).map_err(|_| {
+        "Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)".to_string()
+    })?;
 
-    // Must start with wss:// (secure WebSocket only)
-    if !trimmed.starts_with("wss://") {
-        return Err("Relay URL must start with wss://".to_string());
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "Relay URL must include a host".to_string())?;
+
+    match parsed.scheme() {
+        "wss" => {}
+        "ws" => {
+            let is_localhost = host == "localhost";
+            let is_loopback_with_port = host == "127.0.0.1" && parsed.port().is_some();
+            if !is_localhost && !is_loopback_with_port {
+                return Err("Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)".to_string());
+            }
+        }
+        _ => {
+            return Err("Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)".to_string());
+        }
     }
 
-    // Basic URL validation - must have host after protocol
-    let after_protocol = &trimmed[6..];
-    if after_protocol.is_empty() {
-        return Err("Relay URL must include a host".to_string());
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("Relay URL must not contain userinfo".to_string());
     }
 
-    // Don't allow trailing slashes for consistency
     let normalized = trimmed.trim_end_matches('/');
-
     Ok(normalized.to_string())
+}
+
+#[cfg(test)]
+mod validate_relay_url_tests {
+    use super::validate_relay_url;
+
+    #[test]
+    fn accepts_wss_relay() {
+        assert_eq!(
+            validate_relay_url("wss://relay.example.com").unwrap(),
+            "wss://relay.example.com"
+        );
+    }
+
+    #[test]
+    fn accepts_ws_localhost_with_port() {
+        assert_eq!(
+            validate_relay_url("ws://localhost:7000").unwrap(),
+            "ws://localhost:7000"
+        );
+    }
+
+    #[test]
+    fn accepts_ws_127_0_0_1_with_port() {
+        assert_eq!(
+            validate_relay_url("ws://127.0.0.1:7000").unwrap(),
+            "ws://127.0.0.1:7000"
+        );
+    }
+
+    #[test]
+    fn rejects_public_ws() {
+        assert!(validate_relay_url("ws://relay.example.com").is_err());
+    }
+
+    #[test]
+    fn rejects_ws_localhost_with_userinfo_bypass() {
+        assert!(validate_relay_url("ws://localhost:7000@evil.com").is_err());
+    }
+
+    #[test]
+    fn rejects_ws_userinfo_at_localhost() {
+        assert!(validate_relay_url("ws://user@localhost:7000").is_err());
+    }
+
+    #[test]
+    fn rejects_ws_127_0_0_1() {
+        assert!(validate_relay_url("ws://127.0.0.1").is_err());
+    }
+
+    #[test]
+    fn rejects_wss_missing_host() {
+        assert!(validate_relay_url("wss://").is_err());
+    }
+
+    #[test]
+    fn normalizes_trailing_slash() {
+        assert_eq!(
+            validate_relay_url("wss://relay.example.com/").unwrap(),
+            "wss://relay.example.com"
+        );
+    }
 }
 
 /// Get the list of custom relays from settings

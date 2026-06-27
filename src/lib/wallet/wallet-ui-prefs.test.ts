@@ -7,13 +7,20 @@ import {
 } from './wallet-ui-prefs';
 import type { SupportedChainId } from './chains';
 
+function setDev(value: boolean) {
+  (import.meta.env as { DEV?: boolean }).DEV = value;
+}
+
 describe('wallet-ui-prefs', () => {
   const npub = 'npub1testwalletprefsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 
   const store = new Map<string, string>();
+  let originalDev: boolean | undefined;
 
   beforeEach(() => {
+    originalDev = (import.meta.env as { DEV?: boolean }).DEV;
     store.clear();
+    setDev(false);
     (globalThis as unknown as { localStorage: Storage }).localStorage = {
       getItem: (k: string) => store.get(k) ?? null,
       setItem: (k: string, v: string) => {
@@ -31,13 +38,24 @@ describe('wallet-ui-prefs', () => {
   });
 
   afterEach(() => {
+    if (originalDev === undefined) {
+      delete (import.meta.env as { DEV?: boolean }).DEV;
+    } else {
+      setDev(originalDev);
+    }
     delete (globalThis as unknown as { localStorage?: Storage }).localStorage;
   });
-
-  it('defaults to all configured chains', () => {
+  it('defaults to all non-local configured chains in non-DEV builds', () => {
     const d = defaultWalletEnabledChains();
     expect(d.length).toBeGreaterThanOrEqual(3);
     expect(d).toContain('sepolia');
+    expect(d).not.toContain('local');
+  });
+
+  it('defaults include local in dev builds', () => {
+    setDev(true);
+    const d = defaultWalletEnabledChains();
+    expect(d).toContain('local');
   });
 
   it('round-trips enabled subset', () => {
@@ -52,6 +70,34 @@ describe('wallet-ui-prefs', () => {
       JSON.stringify({ v: 1, chains: ['sepolia', 'fakechain'] })
     );
     expect(loadWalletEnabledChains(npub)).toEqual(['sepolia']);
+  });
+
+  it('filters local out of loaded chains in non-DEV builds', () => {
+    localStorage.setItem(
+      `${WALLET_UI_ENABLED_CHAINS_PREFIX}_${npub}`,
+      JSON.stringify({ v: 1, chains: ['sepolia', 'local'] })
+    );
+    expect(loadWalletEnabledChains(npub)).toEqual(['sepolia']);
+  });
+
+  it('keeps local in loaded chains in dev builds', () => {
+    setDev(true);
+    localStorage.setItem(
+      `${WALLET_UI_ENABLED_CHAINS_PREFIX}_${npub}`,
+      JSON.stringify({ v: 1, chains: ['sepolia', 'local'] })
+    );
+    expect(loadWalletEnabledChains(npub)).toEqual(['sepolia', 'local']);
+  });
+
+  it('filters local out of saved chains in non-DEV builds', () => {
+    saveWalletEnabledChains(npub, ['sepolia', 'local']);
+    expect(loadWalletEnabledChains(npub)).toEqual(['sepolia']);
+  });
+
+  it('keeps local in saved chains in dev builds', () => {
+    setDev(true);
+    saveWalletEnabledChains(npub, ['sepolia', 'local']);
+    expect(loadWalletEnabledChains(npub)).toEqual(['sepolia', 'local']);
   });
 
   it('falls back to defaults when empty array stored', () => {

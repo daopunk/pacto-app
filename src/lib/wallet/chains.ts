@@ -4,7 +4,9 @@
  */
 
 import { createPublicClient, type Chain, type PublicClient, fallback, http } from 'viem';
-import { arbitrum, gnosis, mainnet, optimism, sepolia } from 'viem/chains';
+import { anvil as anvilChain, arbitrum, gnosis, mainnet, optimism, sepolia } from 'viem/chains';
+
+/** Anvil local testnet chain from viem/chains (chain id 31337). */
 
 /**
  * Supported chains for the embedded wallet (DM WalletBar + Squad Safe).
@@ -16,6 +18,7 @@ export const SUPPORTED_CHAINS = {
   mainnet,
   optimism,
   sepolia,
+  local: anvilChain,
 } as const;
 
 export type SupportedChainId = keyof typeof SUPPORTED_CHAINS;
@@ -85,6 +88,7 @@ export function parseSupportedChainId(raw: string | undefined | null): Supported
   if (c === 'optimism' || c === 'op') return 'optimism';
   if (c === 'arbitrum' || c === 'arb') return 'arbitrum';
   if (c === 'gnosis' || c === 'gno' || c === 'xdai') return 'gnosis';
+  if (c === 'local' || c === 'anvil') return 'local';
   return 'sepolia';
 }
 
@@ -103,6 +107,7 @@ export function explorerAddressUrl(chainId: SupportedChainId, address: string): 
 const SAFE_APP_CHAIN_PREFIX: Record<SupportedChainId, string> = {
   arbitrum: 'arb1',
   gnosis: 'gno',
+  local: '',
   mainnet: 'eth',
   sepolia: 'sep',
   optimism: 'oeth',
