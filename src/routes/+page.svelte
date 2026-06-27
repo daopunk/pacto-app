@@ -30,7 +30,7 @@
   } from '../lib/api/nostr';
   import { buildAnnounceContent, ANNOUNCE_TYPE_SAFE_UPDATED, ANNOUNCE_TYPE_GOVERNANCE_UPDATED } from '../lib/announcements';
   import { getExplorerTxUrl } from '../lib/wallet/assets';
-  import { parseSupportedChainId } from '../lib/wallet/chains';
+  import { resumePendingWalletTxConfirmations } from '../lib/wallet/wallet-dm-transfer';
   import { getAddress } from 'viem';
   import {
     formatWalletPeerInfoGrant,
@@ -106,6 +106,11 @@
     declinedWalletPeerInfoRequestMessageIds,
     dmWalletPeerExchangeTick,
   } from '../stores/app';
+  import {
+    clearDmUnread,
+    clearPactoAppInboxUnread,
+    syncUnreadCountForNpub,
+  } from '../stores/dm-unread';
   import { pendingReadyToast, showToast } from '../stores/toast';
   import {
     closeCommonsBroadcastModal,
@@ -604,6 +609,24 @@
     return list;
   })();
 
+  $: if ($activeTopNavTab === 'dms' && $activeDmId && $currentUser?.npub && !isPactoAppThreadId($activeDmId)) {
+    resumePendingWalletTxConfirmations($activeDmId, mergedDmMessages, {
+      fromNpub: $currentUser.npub,
+      sendDm: handleDmSend,
+    });
+  }
+
+  function handleMarkReadUpTo(messageId: string) {
+    const id = get(activeDmId);
+    if (!id || !messageId) return;
+    if (isPactoAppThreadId(id)) {
+      clearPactoAppInboxUnread(messageId);
+      return;
+    }
+    clearDmUnread(id, messageId);
+    markAsRead(id, messageId).catch(() => {});
+  }
+
   // Load backend messages when active DM changes; queue profile sync, get total count.
   $: if ($activeDmId && $activeTopNavTab === 'dms' && !isPactoAppThreadId($activeDmId)) {
     const npub = $activeDmId;
@@ -630,9 +653,8 @@
         });
         reconcilePeerThreadInvites();
         loadedOffsetByChat.update((by: Record<string, number>) => ({ ...by, [npub]: PAGE_SIZE }));
-        // Mark as read up to the latest message (backend returns newest first)
-        const lastMessageId = msgs.length > 0 ? (msgs[0] as DmMessage).id : null;
-        markAsRead(npub, lastMessageId).catch(() => {});
+        const merged = filterPeerThreadMessages(get(backendDmMessages)[npub] ?? loaded);
+        syncUnreadCountForNpub(npub, merged);
       })
       .catch((err) => {
         dmError('open conversation: getDmMessages failed', err);
@@ -948,6 +970,7 @@
                     ids.includes(msg.id) ? ids : [...ids, msg.id]
                   )}
                 onOpenInviterChat={openInviterDm}
+                onMarkReadUpTo={handleMarkReadUpTo}
                 acceptingSquadInviteId={$acceptingSquadInviteId}
                 acceptingChannelInSquadId={$acceptingChannelInSquadId}
                 onAcceptWalletPeerInfoRequest={handleAcceptWalletPeerInfoRequest}

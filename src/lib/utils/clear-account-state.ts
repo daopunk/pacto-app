@@ -41,6 +41,12 @@ import {
   dmSendError,
 } from '../../stores/dm';
 import {
+  dmLastReadByNpub,
+  dmUnreadByNpub,
+  pactoAppInboxLastReadId,
+  dmThreadScrolledToBottom,
+} from '../../stores/dm-unread';
+import {
   acceptedSquadInviteIds,
   declinedSquadInviteIds,
   acceptedChannelInviteMessageIds,
@@ -83,23 +89,8 @@ import { recentEmojisStore } from '../../stores/emojis';
 import { PACTO_COMMONS_BROADCASTS_PREFIX } from '../commons/local-broadcast-state';
 import { PACTO_COMMONS_JOIN_REQUESTS_PREFIX } from '../commons/commons-join-request';
 
-/** Legacy (non-scoped) keys to remove for backwards compatibility. */
-const LEGACY_LOCAL_STORAGE_KEYS = [
-  'pacto_squads',
-  'pacto_last_dm_npub',
-  'pacto_last_squad_id',
-  'pacto_last_channel_id',
-  'pacto_pinned_dm_npubs',
-  'pacto_wallet_tx_request_accepted',
-  ...INVITE_DECISION_SCOPED_PREFIXES,
-  'recentEmojis',
-  'favoriteEmojis',
-  '__pacto_init_finished_unlisten',
-] as const;
-
-/** Npub-scoped key prefixes (suffix is _<npub>). Invite decision keys from invite-decisions module. */
+/** Npub-scoped key prefixes (suffix is `_<npub>`). */
 const SCOPED_KEY_PREFIXES = [
-  'pacto_squads',
   'pacto_last_dm_npub',
   'pacto_last_squad_id',
   'pacto_last_channel_id',
@@ -125,23 +116,14 @@ const SCOPED_KEY_PREFIXES = [
 ] as const;
 
 function clearAccountLocalStorage(npub?: string): void {
-  if (typeof localStorage === 'undefined') return;
-  for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // ignore
-    }
-  }
-  if (npub) {
-    for (const prefix of SCOPED_KEY_PREFIXES) {
+  if (typeof localStorage === 'undefined' || !npub) return;
+  for (const prefix of SCOPED_KEY_PREFIXES) {
       try {
         localStorage.removeItem(`${prefix}_${npub}`);
       } catch {
         // ignore
       }
     }
-  }
 }
 
 /**
@@ -212,6 +194,10 @@ export function clearAccountState(npub?: string): void {
   backendDmMessages.set({});
   dmThreadAnnouncementsByNpub.set({});
   pactoAppInboxMessages.set([]);
+  dmLastReadByNpub.set({});
+  dmUnreadByNpub.set({});
+  pactoAppInboxLastReadId.set('');
+  dmThreadScrolledToBottom.set(false);
   messageCountByChat.set({});
   loadedOffsetByChat.set({});
   dmSyncStatus.set('idle');

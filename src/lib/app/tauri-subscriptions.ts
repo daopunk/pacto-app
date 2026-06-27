@@ -1,12 +1,15 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { listPendingMlsWelcomes, fetchMessages } from '../api/nostr';
 import { parseAnnouncement, ANNOUNCE_TYPE_GOVERNANCE_UPDATED } from '../announcements';
+import { parseWalletTxAnnouncement } from '../wallet/dm-messages';
 import {
   isPactoAppRoutableInviteContent,
   resolveInviteInviterNpub,
 } from '../pacto-app-inbox';
 import { handleChannelAddedToSquad, handleMlsWelcomeAccepted } from '../invites/accept-invite';
+import { updateChannelNameIfPlaceholder } from '../squad/squad-catalog';
 import { dmLog, dmError } from '../utils/dm-debug';
+import { get } from 'svelte/store';
 import {
   backendDmMessages,
   backendGroupMessages,
@@ -18,11 +21,12 @@ import {
   pendingMlsWelcomes,
   bumpMembershipVersion,
   dashboardPollReplicaNonceByParentId,
-  updateChannelNameIfPlaceholder,
+  activeDmId,
   type DmMessage,
   type DmChatState,
   type SyncStatus,
 } from '../../stores/app';
+import { incrementDmUnread, dmThreadScrolledToBottom } from '../../stores/dm-unread';
 
 const TYPING_EXPIRY_SEC = 15;
 
@@ -32,7 +36,7 @@ export interface AppEventHandlers {
 }
 
 function normalizeDmPayload(message: DmMessage): DmMessage {
-  return {
+  const base = {
     id: message.id,
     content: message.content,
     at: message.at,
@@ -47,6 +51,11 @@ function normalizeDmPayload(message: DmMessage): DmMessage {
     replied_to_has_attachment: (message as { replied_to_has_attachment?: boolean | null })
       .replied_to_has_attachment,
   };
+  const ann = parseWalletTxAnnouncement(message.content ?? '');
+  if (ann?.block_number) {
+    return { ...base, pending: false };
+  }
+  return base;
 }
 
 async function refreshPendingWelcomes(): Promise<void> {
@@ -101,6 +110,13 @@ export function subscribeAppEvents(handlers: AppEventHandlers): () => void {
         );
         return { ...byNpub, [chat_id]: [...withoutOpt, m] };
       });
+      if (!m.mine) {
+        const active = get(activeDmId);
+        const atBottom = get(dmThreadScrolledToBottom);
+        if (active !== chat_id || !atBottom) {
+          incrementDmUnread(chat_id);
+        }
+      }
       dmChatsByNpub.update((map: Record<string, DmChatState>) => {
         const cur = map[chat_id];
         const next = {

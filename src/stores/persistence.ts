@@ -31,8 +31,8 @@ import {
   PACTO_APP_INBOX_PREFIX,
   LAST_DM_NPUB_PREFIX,
 } from './dm';
-import { hydrateSquadsFromDisk } from './squads';
-import { restoreSquadsHubSelection } from '../lib/squad-hub-nav';
+import { pactoAppInboxLastReadId, PACTO_APP_INBOX_LAST_READ_PREFIX } from './dm-unread';
+import { hydrateSquadsFromDb } from '../lib/squad/squad-catalog';
 
 export {
   currentNpubForPersistence,
@@ -43,8 +43,8 @@ export {
 /** Load account-specific state from localStorage for the given npub. Call after login/create/import/unlock. */
 export function loadAccountState(npub: string): void {
   setCurrentNpubForPersistence(npub);
+  void hydrateSquadsFromDb();
   if (typeof localStorage === 'undefined') return;
-  hydrateSquadsFromDisk(npub);
   try {
     const pinnedKey = `${PINNED_DM_NPUBS_PREFIX}_${npub}`;
     const rawPinned = localStorage.getItem(pinnedKey);
@@ -65,7 +65,8 @@ export function loadAccountState(npub: string): void {
     } else {
       pactoAppInboxMessages.set([]);
     }
-    const lastDm = localStorage.getItem(`${LAST_DM_NPUB_PREFIX}_${npub}`)?.trim();
+    const rawInboxLastRead = localStorage.getItem(`${PACTO_APP_INBOX_LAST_READ_PREFIX}_${npub}`);
+    pactoAppInboxLastReadId.set(typeof rawInboxLastRead === 'string' ? rawInboxLastRead : '');
     if (lastDm) activeDmId.set(lastDm);
     const lastSquad = localStorage.getItem(`${LAST_SQUAD_ID_PREFIX}_${npub}`);
     if (lastSquad) lastOpenedSquadId.set(lastSquad);
@@ -116,5 +117,4 @@ export function loadAccountState(npub: string): void {
   hydrateSafeStateCacheFromDisk(npub, (rows) => {
     safeStateByTreasuryId.update((cur) => ({ ...cur, ...rows }));
   });
-  restoreSquadsHubSelection();
 }

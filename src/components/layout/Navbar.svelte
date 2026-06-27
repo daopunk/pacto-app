@@ -28,6 +28,7 @@
     composingNewChat,
     dmList,
     pinnedList,
+    dmTabHasUnread,
     addParentCreatingAnnouncements,
     removeParentCreatingAnnouncements,
     parentCreateErrorById,
@@ -50,6 +51,7 @@
     syncCommonsUserActiveBroadcast,
   } from '../../stores/commons-ui';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
+  import { persistCreatedSquad } from '../../lib/squad/squad-catalog';
   import { getProfileDisplayName } from '../../lib/utils/profile';
   import { profiles } from '../../stores/profiles';
 
@@ -205,9 +207,18 @@
       try {
         const { parentId, channels } = await createDefaultParentChannels(memberNpubs);
         const groupId = parentId;
-        squads.update((list) =>
-          list.map((s) => (s.id !== tempId ? s : { ...s, id: groupId, channels, updatedAt: Date.now() }))
-        );
+        const finalized: Squad = {
+          id: groupId,
+          name,
+          iconUrl: options.iconUrl,
+          channels,
+          kind: 'squad',
+          visibility,
+          commonsTags: visibility === 'public' ? options.commonsTags : undefined,
+          createdAt: squad.createdAt,
+          updatedAt: Date.now(),
+        };
+        await persistCreatedSquad(tempId, finalized);
         removeParentCreatingAnnouncements(tempId);
         parentCreateErrorById.update((m) => {
           const next = { ...m };
@@ -338,7 +349,7 @@
         role="button"
         tabindex="0"
       >
-        <Tab label="Pinned" icon={pinIcon} active={$activeView === 'hub' && $activeDmTab === 'pinned'} />
+        <Tab label="Pinned" icon={pinIcon} active={$activeView === 'hub' && $activeDmTab === 'pinned'} hasUnreadDot={$dmTabHasUnread.pinned} />
       </div>
       <div
         on:click={() => selectDmTab('friends')}
@@ -346,7 +357,7 @@
         role="button"
         tabindex="0"
       >
-        <Tab label="Friends" icon={friendsIcon} active={$activeView === 'hub' && $activeDmTab === 'friends'} />
+        <Tab label="Friends" icon={friendsIcon} active={$activeView === 'hub' && $activeDmTab === 'friends'} hasUnreadDot={$dmTabHasUnread.friends} />
       </div>
       <div
         on:click={() => selectDmTab('requests')}
@@ -354,7 +365,7 @@
         role="button"
         tabindex="0"
       >
-        <Tab label="Requests" icon={requestsIcon} active={$activeView === 'hub' && $activeDmTab === 'requests'} />
+        <Tab label="Requests" icon={requestsIcon} active={$activeView === 'hub' && $activeDmTab === 'requests'} hasUnreadDot={$dmTabHasUnread.requests} />
       </div>
       <div
         on:click={() => selectDmTab('pending')}
@@ -362,7 +373,7 @@
         role="button"
         tabindex="0"
       >
-        <Tab label="Pending" icon={pendingIcon} active={$activeView === 'hub' && $activeDmTab === 'pending'} />
+        <Tab label="Pending" icon={pendingIcon} active={$activeView === 'hub' && $activeDmTab === 'pending'} hasUnreadDot={$dmTabHasUnread.pending} />
       </div>
       <div
         on:click={() => selectDmTab('search')}
