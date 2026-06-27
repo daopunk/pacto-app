@@ -25,18 +25,18 @@ function appliedFlagKey(npub: string): string {
 }
 
 function markApplied(npub: string): void {
-  if (typeof localStorage === 'undefined') return;
+  if (typeof sessionStorage === 'undefined') return;
   try {
-    localStorage.setItem(appliedFlagKey(npub), '1');
+    sessionStorage.setItem(appliedFlagKey(npub), '1');
   } catch {
     // ignore storage errors
   }
 }
 
 function isApplied(npub: string): boolean {
-  if (typeof localStorage === 'undefined') return false;
+  if (typeof sessionStorage === 'undefined') return false;
   try {
-    return localStorage.getItem(appliedFlagKey(npub)) === '1';
+    return sessionStorage.getItem(appliedFlagKey(npub)) === '1';
   } catch {
     return false;
   }

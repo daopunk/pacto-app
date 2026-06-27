@@ -15,8 +15,10 @@ describe('wallet-ui-prefs', () => {
   const npub = 'npub1testwalletprefsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 
   const store = new Map<string, string>();
+  let originalDev: boolean | undefined;
 
   beforeEach(() => {
+    originalDev = (import.meta.env as { DEV?: boolean }).DEV;
     store.clear();
     setDev(false);
     (globalThis as unknown as { localStorage: Storage }).localStorage = {
@@ -36,10 +38,13 @@ describe('wallet-ui-prefs', () => {
   });
 
   afterEach(() => {
-    setDev(true);
+    if (originalDev === undefined) {
+      delete (import.meta.env as { DEV?: boolean }).DEV;
+    } else {
+      setDev(originalDev);
+    }
     delete (globalThis as unknown as { localStorage?: Storage }).localStorage;
   });
-
   it('defaults to all non-local configured chains in non-DEV builds', () => {
     const d = defaultWalletEnabledChains();
     expect(d.length).toBeGreaterThanOrEqual(3);

@@ -18,8 +18,10 @@ function setDev(value: boolean) {
 
 describe('rpc prefs', () => {
   const store = new Map<string, string>();
+  let originalDev: boolean | undefined;
 
   beforeEach(() => {
+    originalDev = (import.meta.env as { DEV?: boolean }).DEV;
     store.clear();
     setDev(false);
     (globalThis as unknown as { localStorage: Storage }).localStorage = {
@@ -39,7 +41,11 @@ describe('rpc prefs', () => {
   });
 
   afterEach(() => {
-    setDev(true);
+    if (originalDev === undefined) {
+      delete (import.meta.env as { DEV?: boolean }).DEV;
+    } else {
+      setDev(originalDev);
+    }
     delete (globalThis as unknown as { localStorage?: Storage }).localStorage;
   });
 

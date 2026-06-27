@@ -28,7 +28,7 @@ describe('applyLocalDevDefaults', () => {
 
   beforeEach(() => {
     storage = {};
-    vi.stubGlobal('localStorage', {
+    vi.stubGlobal('sessionStorage', {
       getItem: vi.fn((key: string) => storage[key] ?? null),
       setItem: vi.fn((key: string, value: string) => { storage[key] = value; }),
       removeItem: vi.fn((key: string) => { delete storage[key]; }),
