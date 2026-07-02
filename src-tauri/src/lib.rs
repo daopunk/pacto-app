@@ -2525,8 +2525,39 @@ async fn notifs() -> Result<bool, String> {
                                             None
                                         }
                                         mdk_core::prelude::MessageProcessingResult::Unprocessable { mls_group_id: _ } => {
-                                            // Unprocessable result - could be many reasons (out of order, can't decrypt, etc.)
-                                            // Don't try to detect eviction here - wait for next message to trigger error-based detection
+                                            if let Some(reason) =
+                                                crate::mls::mls_wrapper_failure_reason(ev.id.as_ref())
+                                            {
+                                                if reason.contains(crate::mls::MLS_LEAVE_PROPOSAL_FAILURE) {
+                                                    let gid = group_id_for_persist.clone();
+                                                    let leaver = ev.pubkey;
+                                                    rt.block_on(async move {
+                                                        if let Ok(svc) =
+                                                            MlsService::new_persistent(&app_handle)
+                                                        {
+                                                            match svc
+                                                                .finalize_voluntary_leave_as_admin(
+                                                                    &gid, leaver,
+                                                                )
+                                                                .await
+                                                            {
+                                                                Ok(true) => eprintln!(
+                                                                    "[MLS] Live: finalized voluntary leave for {} in {}",
+                                                                    leaver.to_hex(),
+                                                                    gid
+                                                                ),
+                                                                Ok(false) => {}
+                                                                Err(e) => eprintln!(
+                                                                    "[MLS] Live: failed to finalize voluntary leave for {} in {}: {}",
+                                                                    leaver.to_hex(),
+                                                                    gid,
+                                                                    e
+                                                                ),
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            }
                                             None
                                         }
                                         // Other message types (ExternalJoinProposal) are not persisted as chat messages
@@ -5863,7 +5894,7 @@ struct GroupMembers {
 
 /// Sync the participants array for an MLS group chat with the actual members from the engine
 /// This ensures chat.participants is always up-to-date
-async fn sync_mls_group_participants(group_id: String) -> Result<(), String> {
+pub(crate) async fn sync_mls_group_participants(group_id: String) -> Result<(), String> {
     // Get actual members from the engine
     let group_members = get_mls_group_members(group_id.clone()).await?;
     
