@@ -1649,10 +1649,10 @@ async fn handle_text_message(mut msg: Message, contact: &str, is_mine: bool, is_
             }
         };
         for reply in updated_replies {
-            eprintln!("[handle_text_message] emitting message_update for backfilled reply: {}", reply.id);
             if let Some(handle) = TAURI_APP.get() {
+                let reply_id = reply.id.clone();
                 let _ = handle.emit("message_update", serde_json::json!({
-                    "old_id": reply.id,
+                    "old_id": reply_id,
                     "message": reply,
                     "chat_id": contact
                 }));

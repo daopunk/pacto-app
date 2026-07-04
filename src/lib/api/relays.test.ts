@@ -16,7 +16,6 @@ describe('validateRelayUrlInput', () => {
   it('rejects empty and non-local ws:// URLs', () => {
     expect(validateRelayUrlInput('')).toBeTruthy();
     expect(validateRelayUrlInput('ws://relay.example.com')).toBeTruthy();
-    expect(validateRelayUrlInput('ws://127.0.0.1')).toBeTruthy();
     expect(validateRelayUrlInput('ws://localhost.evil.com')).toBeTruthy();
     expect(validateRelayUrlInput('ws://user@localhost:7000')).toBeTruthy();
     expect(validateRelayUrlInput('https://relay.example.com')).toBeTruthy();

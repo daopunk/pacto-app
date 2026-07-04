@@ -48,8 +48,8 @@ export function validateRelayUrlInput(url: string): string | null {
   if (parsed.protocol === 'ws:') {
     const host = parsed.hostname;
     const isLocalhost = host === 'localhost';
-    const isLoopbackWithPort = host === '127.0.0.1' && parsed.port !== '';
-    if (isLocalhost || isLoopbackWithPort) return null;
+    const isLoopback = host === '127.0.0.1';
+    if (isLocalhost || isLoopback) return null;
   }
 
   return 'Relay URL must start with wss:// (ws:// is allowed only for localhost/127.0.0.1 development relays)';

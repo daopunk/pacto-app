@@ -847,8 +847,9 @@ pub async fn message(
                                     
                                     // Also emit updates for replies whose context was backfilled
                                     for reply in updated_replies {
+                                        let reply_id = reply.id.clone();
                                         let _ = handle.emit("message_update", serde_json::json!({
-                                            "old_id": reply.id,
+                                            "old_id": reply_id,
                                             "message": reply,
                                             "chat_id": &receiver
                                         }));
