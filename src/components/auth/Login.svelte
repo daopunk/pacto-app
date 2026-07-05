@@ -20,9 +20,6 @@
       const status = await checkAuthStatus();
       currentStep = status === 'needs-pin' ? 'pin-unlock' : 'welcome';
     } catch {
-      currentStep = 'welcome';
-    }
-  });
 
   // Subscribe to auth store errors
   authError.subscribe(err => {
