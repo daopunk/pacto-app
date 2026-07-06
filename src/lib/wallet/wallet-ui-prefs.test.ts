@@ -45,17 +45,13 @@ describe('wallet-ui-prefs', () => {
     }
     delete (globalThis as unknown as { localStorage?: Storage }).localStorage;
   });
-  it('defaults to all non-local configured chains in non-DEV builds', () => {
-    const d = defaultWalletEnabledChains();
-    expect(d.length).toBeGreaterThanOrEqual(3);
-    expect(d).toContain('sepolia');
-    expect(d).not.toContain('local');
+  it('defaults to Arbitrum only in non-DEV builds', () => {
+    expect(defaultWalletEnabledChains()).toEqual(['arbitrum']);
   });
 
-  it('defaults include local in dev builds', () => {
+  it('defaults to Sepolia + Local Anvil in dev builds', () => {
     setDev(true);
-    const d = defaultWalletEnabledChains();
-    expect(d).toContain('local');
+    expect(defaultWalletEnabledChains()).toEqual(['sepolia', 'local']);
   });
 
   it('round-trips enabled subset', () => {
@@ -72,16 +68,7 @@ describe('wallet-ui-prefs', () => {
     expect(loadWalletEnabledChains(npub)).toEqual(['sepolia']);
   });
 
-  it('filters local out of loaded chains in non-DEV builds', () => {
-    localStorage.setItem(
-      `${WALLET_UI_ENABLED_CHAINS_PREFIX}_${npub}`,
-      JSON.stringify({ v: 1, chains: ['sepolia', 'local'] })
-    );
-    expect(loadWalletEnabledChains(npub)).toEqual(['sepolia']);
-  });
-
-  it('keeps local in loaded chains in dev builds', () => {
-    setDev(true);
+  it('keeps local as a normal chain when loaded in non-DEV builds', () => {
     localStorage.setItem(
       `${WALLET_UI_ENABLED_CHAINS_PREFIX}_${npub}`,
       JSON.stringify({ v: 1, chains: ['sepolia', 'local'] })
@@ -89,13 +76,7 @@ describe('wallet-ui-prefs', () => {
     expect(loadWalletEnabledChains(npub)).toEqual(['sepolia', 'local']);
   });
 
-  it('filters local out of saved chains in non-DEV builds', () => {
-    saveWalletEnabledChains(npub, ['sepolia', 'local']);
-    expect(loadWalletEnabledChains(npub)).toEqual(['sepolia']);
-  });
-
-  it('keeps local in saved chains in dev builds', () => {
-    setDev(true);
+  it('keeps local as a normal chain when saved in non-DEV builds', () => {
     saveWalletEnabledChains(npub, ['sepolia', 'local']);
     expect(loadWalletEnabledChains(npub)).toEqual(['sepolia', 'local']);
   });

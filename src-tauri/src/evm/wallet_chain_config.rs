@@ -51,15 +51,9 @@ struct TokenJson {
 }
 
 /// Stable iteration order (must match product expectations and frontend `WALLET_ASSETS_CHAIN_IDS`).
-/// `local` is only included in dev/test builds so production users do not attempt to connect
-/// to a non-running localhost Anvil node.
-const NETWORK_KEYS: &[&str] = &[
-    "mainnet",
-    "arbitrum",
-    "sepolia",
-    #[cfg(any(debug_assertions, test))]
-    "local",
-];
+/// `local` (Anvil) is a normal opt-in network in every build; the user must enable and
+/// configure it in Settings → EVM, so nothing is auto-queried when Anvil is not running.
+const NETWORK_KEYS: &[&str] = &["mainnet", "arbitrum", "sepolia", "local"];
 
 fn chain_id_for_key(key: &str) -> Option<u64> {
     match key {
@@ -150,8 +144,7 @@ fn build_ordered_networks() -> Vec<WalletNetworkConfig> {
 
 static ORDERED_NETWORKS: Lazy<Vec<WalletNetworkConfig>> = Lazy::new(build_ordered_networks);
 
-/// All configured networks in product order.
-/// In release builds the `local` dev network is omitted.
+/// All configured networks in product order (includes `local` Anvil in every build).
 pub fn wallet_networks() -> &'static [WalletNetworkConfig] {
     ORDERED_NETWORKS.as_slice()
 }
