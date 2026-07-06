@@ -52,7 +52,7 @@ pub fn default_safe_factory_addresses_for_chain_id(chain_id: u64) -> Option<Safe
             proxy_factory: address!("0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2"),
             fallback_handler: address!("0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4"),
         }),
-        10 | 11_155_111 => Some(SafeFactoryAddresses {
+        11_155_111 => Some(SafeFactoryAddresses {
             singleton: address!("0x69f4D1788e39c87893C980c06EdF4b7f686e2938"),
             proxy_factory: address!("0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC"),
             fallback_handler: address!("0x017062a1dE2FE6b99BE3d9d37841FeD19F573804"),
@@ -160,14 +160,15 @@ mod tests {
     }
 
     #[test]
-    fn factory_addresses_optimism_and_sepolia_eip155() {
-        let o = default_safe_factory_addresses_for_chain_id(10).expect("optimism");
+    fn factory_addresses_sepolia_eip155() {
         let s = default_safe_factory_addresses_for_chain_id(11_155_111).expect("sepolia");
-        assert_eq!(o.singleton, s.singleton);
-        assert_eq!(o.proxy_factory, s.proxy_factory);
         assert_eq!(
-            o.singleton,
+            s.singleton,
             address!("0x69f4D1788e39c87893C980c06EdF4b7f686e2938")
+        );
+        assert_eq!(
+            s.proxy_factory,
+            address!("0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC")
         );
     }
 

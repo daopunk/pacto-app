@@ -34,10 +34,6 @@ function governanceChainDisplayName(key: SupportedChainId): string {
       return 'Ethereum';
     case 'arbitrum':
       return 'Arbitrum';
-    case 'optimism':
-      return 'Optimism';
-    case 'gnosis':
-      return 'Gnosis';
     case 'sepolia':
       return 'Sepolia';
     case 'local':

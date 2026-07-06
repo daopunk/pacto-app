@@ -144,7 +144,7 @@
                   disabled={enabledSet.has(chain) && enabledSet.size <= 1}
                   on:change={() => onToggleChain(chain)}
                 />
-                <span>{getWalletNetworkDisplayName(chain)}{chain === DEFAULT_PREFERRED_NETWORK ? ' (recommended)' : ''}</span>
+                <span>{getWalletNetworkDisplayName(chain)}</span>
               </label>
             </li>
           {/each}

@@ -73,9 +73,9 @@ describe('rpc prefs', () => {
   });
 
   it('persists under scoped storage key', () => {
-    saveDefaultRpc(NPUB, 'optimism', 'https://mainnet.optimism.io');
+    saveDefaultRpc(NPUB, 'mainnet', 'https://ethereum.publicnode.com');
     expect(store.has(`${WALLET_RPC_PREFS_PREFIX}_${NPUB}`)).toBe(true);
-    expect(loadRpcPrefs(NPUB).defaultRpc.optimism).toBe('https://mainnet.optimism.io');
+    expect(loadRpcPrefs(NPUB).defaultRpc.mainnet).toBe('https://ethereum.publicnode.com');
   });
 
   it('ignores local personal RPCs in non-DEV builds', () => {

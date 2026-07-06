@@ -56,8 +56,6 @@ struct TokenJson {
 const NETWORK_KEYS: &[&str] = &[
     "mainnet",
     "arbitrum",
-    "optimism",
-    "gnosis",
     "sepolia",
     #[cfg(any(debug_assertions, test))]
     "local",
@@ -66,10 +64,8 @@ const NETWORK_KEYS: &[&str] = &[
 fn chain_id_for_key(key: &str) -> Option<u64> {
     match key {
         "arbitrum" => Some(42_161),
-        "gnosis" => Some(100),
         "local" => Some(31_337),
         "mainnet" => Some(1),
-        "optimism" => Some(10),
         "sepolia" => Some(11155111),
         _ => None,
     }
@@ -86,14 +82,6 @@ fn default_rpc_urls_for_key(key: &str) -> Vec<&'static str> {
         "mainnet" => vec![
             "https://ethereum.publicnode.com",
             "https://1rpc.io/eth",
-        ],
-        "optimism" => vec![
-            "https://mainnet.optimism.io",
-            "https://optimism.publicnode.com",
-        ],
-        "gnosis" => vec![
-            "https://rpc.gnosischain.com",
-            "https://gnosis.publicnode.com",
         ],
         // `rpc.sepolia.org` often returns Cloudflare 522; prefer publicnode / 1rpc / drpc first.
         "sepolia" => vec![

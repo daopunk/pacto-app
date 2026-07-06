@@ -10,7 +10,7 @@ const pactoGovRow: SquadInfraDto = {
   id: 'pacto-gov-p1',
   parentId: 'p1',
   infraType: 'pacto_gov',
-  chain: 'optimism',
+  chain: 'arbitrum',
   canonicalRef: '298',
   createdAtMs: 1,
   updatedAtMs: 1,
@@ -65,9 +65,9 @@ describe('resolveDashboardStructureSummary', () => {
   it('returns summary for pacto_gov', () => {
     const s = resolveDashboardStructureSummary(pactoGovRow);
     expect(s?.treeIdRaw).toBe('298');
-    expect(s?.chainIdNumeric).toBe(10);
-    expect(s?.chainDisplayName).toBe('Optimism');
-    expect(s?.hatsExplorerUrl).toBe('https://app.hatsprotocol.xyz/trees/10/298');
+    expect(s?.chainIdNumeric).toBe(42161);
+    expect(s?.chainDisplayName).toBe('Arbitrum');
+    expect(s?.hatsExplorerUrl).toBe('https://app.hatsprotocol.xyz/trees/42161/298');
   });
 
   it('returns summary for local anvil chain', () => {
