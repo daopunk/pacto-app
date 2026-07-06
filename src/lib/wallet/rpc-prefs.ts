@@ -7,6 +7,7 @@ import { writable } from 'svelte/store';
 import { currentNpubForPersistence } from '../../stores/app';
 import { getCuratedRpcUrlsForChain } from './rpc-catalog';
 import { WALLET_ASSETS_CHAIN_IDS } from './assets';
+import type { SupportedChainId } from './chains';
 
 const STORAGE_VERSION = 1 as const;
 export const WALLET_RPC_PREFS_PREFIX = 'pacto_wallet_rpc_prefs_v1';
@@ -34,6 +35,10 @@ function storageKey(accountNpub: string): string {
 
 function isSupportedChainId(raw: string): raw is SupportedChainId {
   return (WALLET_ASSETS_CHAIN_IDS as readonly string[]).includes(raw);
+}
+
+function isDevLocalAllowed(chainId: SupportedChainId): boolean {
+  return chainId !== 'local' || import.meta.env.DEV;
 }
 
 export function isValidRpcUrl(raw: string): boolean {
@@ -129,6 +134,7 @@ export function listPersonalRpcs(
   accountNpub: string | null | undefined,
   chainId: SupportedChainId,
 ): string[] {
+  if (!isDevLocalAllowed(chainId)) return [];
   return loadRpcPrefs(accountNpub).personal[chainId] ?? [];
 }
 
@@ -136,6 +142,7 @@ export function loadDefaultRpc(
   accountNpub: string | null | undefined,
   chainId: SupportedChainId,
 ): string | null {
+  if (!isDevLocalAllowed(chainId)) return null;
   return loadRpcPrefs(accountNpub).defaultRpc[chainId] ?? null;
 }
 
@@ -187,6 +194,7 @@ export function addPersonalRpc(
   chainId: SupportedChainId,
   rawUrl: string,
 ): { ok: true } | { ok: false; error: string } {
+  if (!isDevLocalAllowed(chainId)) return { ok: true };
   const url = normalizeRpcUrl(rawUrl);
   if (!url) return { ok: false, error: 'Enter a valid http(s) RPC URL.' };
 
@@ -224,6 +232,7 @@ export function saveDefaultRpc(
   chainId: SupportedChainId,
   rawUrl: string | null,
 ): void {
+  if (!isDevLocalAllowed(chainId)) return;
   const prefs = loadRpcPrefs(accountNpub);
   if (!rawUrl) {
     delete prefs.defaultRpc[chainId];
@@ -247,6 +256,7 @@ export function resolveUserRpcUrls(
   chainId: SupportedChainId,
   accountNpub?: string | null,
 ): string[] {
+  if (!isDevLocalAllowed(chainId)) return [];
   const npub = accountNpub ?? getActiveAccountNpubForRpc();
   const curated = getCuratedRpcUrlsForChain(chainId);
   if (!npub) return curated;

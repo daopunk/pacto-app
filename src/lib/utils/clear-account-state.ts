@@ -112,6 +112,7 @@ const SCOPED_KEY_PREFIXES = [
   'pacto_wallet_tx_request_accepted',
   PACTO_COMMONS_BROADCASTS_PREFIX,
   PACTO_COMMONS_JOIN_REQUESTS_PREFIX,
+  'pacto_local_dev_defaults_applied_v1',
   ...INVITE_DECISION_SCOPED_PREFIXES,
 ] as const;
 

@@ -51,12 +51,23 @@ struct TokenJson {
 }
 
 /// Stable iteration order (must match product expectations and frontend `WALLET_ASSETS_CHAIN_IDS`).
-const NETWORK_KEYS: &[&str] = &["mainnet", "arbitrum", "optimism", "gnosis", "sepolia"];
+/// `local` is only included in dev/test builds so production users do not attempt to connect
+/// to a non-running localhost Anvil node.
+const NETWORK_KEYS: &[&str] = &[
+    "mainnet",
+    "arbitrum",
+    "optimism",
+    "gnosis",
+    "sepolia",
+    #[cfg(any(debug_assertions, test))]
+    "local",
+];
 
 fn chain_id_for_key(key: &str) -> Option<u64> {
     match key {
         "arbitrum" => Some(42_161),
         "gnosis" => Some(100),
+        "local" => Some(31_337),
         "mainnet" => Some(1),
         "optimism" => Some(10),
         "sepolia" => Some(11155111),
@@ -71,6 +82,7 @@ fn default_rpc_urls_for_key(key: &str) -> Vec<&'static str> {
             "https://arb1.arbitrum.io/rpc",
             "https://arbitrum.publicnode.com",
         ],
+        "local" => vec!["http://localhost:8545"],
         "mainnet" => vec![
             "https://ethereum.publicnode.com",
             "https://1rpc.io/eth",
@@ -150,7 +162,8 @@ fn build_ordered_networks() -> Vec<WalletNetworkConfig> {
 
 static ORDERED_NETWORKS: Lazy<Vec<WalletNetworkConfig>> = Lazy::new(build_ordered_networks);
 
-/// All configured networks in product order (mainnet, arbitrum, optimism, gnosis, sepolia).
+/// All configured networks in product order.
+/// In release builds the `local` dev network is omitted.
 pub fn wallet_networks() -> &'static [WalletNetworkConfig] {
     ORDERED_NETWORKS.as_slice()
 }
@@ -158,7 +171,8 @@ pub fn wallet_networks() -> &'static [WalletNetworkConfig] {
 /// Lookup by wallet network key (case-insensitive).
 pub fn network_by_key(key: &str) -> Option<&'static WalletNetworkConfig> {
     let k = key.to_lowercase();
-    wallet_networks().iter().find(|n| n.key == k)
+    let lookup_key = if k == "anvil" { "local" } else { k.as_str() };
+    wallet_networks().iter().find(|n| n.key == lookup_key)
 }
 
 /// Resolved RPC URL list: operator provider key + public fallbacks, or public defaults only.
@@ -181,6 +195,81 @@ pub fn rpc_urls_for(net: &WalletNetworkConfig) -> Vec<String> {
 /// `explorer_tx_path` + `0x` hash (no double prefix). For “view on explorer” in the wallet UI.
 #[allow(dead_code)]
 pub fn explorer_url_for_tx(net: &WalletNetworkConfig, tx_hash_hex: &str) -> String {
+    if net.explorer_tx_path.is_empty() {
+        return String::new();
+    }
     let h = tx_hash_hex.strip_prefix("0x").unwrap_or(tx_hash_hex);
     format!("{}0x{}", net.explorer_tx_path, h)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_network_is_in_wallet_networks() {
+        let local = wallet_networks()
+            .iter()
+            .find(|n| n.key == "local")
+            .expect("local network should be present");
+        assert_eq!(local.chain_id, 31_337);
+        assert_eq!(local.display_name, "Local Anvil");
+        assert_eq!(local.native_symbol, "ETH");
+        assert_eq!(local.native_decimals, 18);
+        assert!(!local.usdc_address.is_empty(), "local USDC address is configured");
+        assert!(!local.usdt_address.is_empty(), "local USDT address is configured");
+        assert_eq!(local.usdc_decimals, 6);
+        assert_eq!(local.usdt_decimals, 6);
+    }
+
+    #[test]
+    fn network_by_key_is_case_insensitive_for_local() {
+        for key in ["local", "LOCAL", "Local"] {
+            let net = network_by_key(key).expect("local lookup should succeed");
+            assert_eq!(net.key, "local", "key '{}' should resolve to local", key);
+        }
+    }
+    #[test]
+    fn network_by_key_anvil_alias_resolves_to_local() {
+        let net = network_by_key("anvil").expect("anvil should resolve to local");
+        assert_eq!(net.key, "local");
+    }
+
+    #[test]
+    fn network_by_key_anvil_alias_is_case_insensitive() {
+        for key in ["anvil", "ANVIL", "Anvil"] {
+            let net = network_by_key(key).expect("anvil lookup should succeed");
+            assert_eq!(net.key, "local", "key '{}' should resolve to local", key);
+        }
+    }
+
+    #[test]
+    fn rpc_urls_for_local_ignores_alchemy_key() {
+        let prev = std::env::var_os("ALCHEMY_RPC_KEY");
+        std::env::set_var("ALCHEMY_RPC_KEY", "test-key");
+        let _guard = EnvVarGuard("ALCHEMY_RPC_KEY", prev);
+        let local = network_by_key("local").unwrap();
+        assert_eq!(
+            rpc_urls_for(local),
+            vec!["http://localhost:8545".to_string()]
+        );
+    }
+
+    struct EnvVarGuard(&'static str, Option<std::ffi::OsString>);
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.1 {
+                Some(v) => std::env::set_var(self.0, v),
+                None => std::env::remove_var(self.0),
+            }
+        }
+    }
+
+    #[test]
+    fn explorer_url_for_tx_local_returns_empty() {
+        let local = network_by_key("local").unwrap();
+        assert_eq!(explorer_url_for_tx(local, "0xabc..."), "");
+    }
+
+
 }
