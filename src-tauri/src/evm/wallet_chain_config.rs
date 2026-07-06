@@ -159,8 +159,7 @@ pub fn wallet_networks() -> &'static [WalletNetworkConfig] {
 /// Lookup by wallet network key (case-insensitive).
 pub fn network_by_key(key: &str) -> Option<&'static WalletNetworkConfig> {
     let k = key.to_lowercase();
-    let lookup_key = if k == "anvil" { "local" } else { k.as_str() };
-    wallet_networks().iter().find(|n| n.key == lookup_key)
+    wallet_networks().iter().find(|n| n.key == k)
 }
 
 /// Resolved RPC URL list: operator provider key + public fallbacks, or public defaults only.
@@ -217,18 +216,10 @@ mod tests {
             assert_eq!(net.key, "local", "key '{}' should resolve to local", key);
         }
     }
-    #[test]
-    fn network_by_key_anvil_alias_resolves_to_local() {
-        let net = network_by_key("anvil").expect("anvil should resolve to local");
-        assert_eq!(net.key, "local");
-    }
 
     #[test]
-    fn network_by_key_anvil_alias_is_case_insensitive() {
-        for key in ["anvil", "ANVIL", "Anvil"] {
-            let net = network_by_key(key).expect("anvil lookup should succeed");
-            assert_eq!(net.key, "local", "key '{}' should resolve to local", key);
-        }
+    fn network_by_key_rejects_anvil_alias() {
+        assert!(network_by_key("anvil").is_none(), "only 'local' is canonical");
     }
 
     #[test]

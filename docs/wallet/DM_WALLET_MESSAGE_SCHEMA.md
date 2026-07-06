@@ -23,14 +23,12 @@ They are **not** the same envelope as squad/network **`# announcements`** messag
 
 ### `network`
 
-Must match **`SupportedChainId`** in `src/lib/wallet/chains.ts` (and rows in `wallet-assets.json`). The value `anvil` is accepted as a wire alias for `local`.
+Must match **`SupportedChainId`** in `src/lib/wallet/chains.ts` (and rows in `wallet-assets.json`). The local devnet key is `local` — there is no `anvil` alias (see `docs/CHAIN_TERMINOLOGY.md`).
 
 | Value       | Meaning              |
 |------------|----------------------|
 | `mainnet`  | Ethereum mainnet     |
 | `arbitrum` | Arbitrum One         |
-| `optimism` | OP Mainnet           |
-| `gnosis`   | Gnosis Chain         |
 | `sepolia`  | Ethereum Sepolia     |
 | `local`    | Local Anvil devnet   |
 

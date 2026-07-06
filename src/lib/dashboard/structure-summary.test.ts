@@ -78,9 +78,8 @@ describe('resolveDashboardStructureSummary', () => {
     expect(s?.hatsExplorerUrl).toBe('https://app.hatsprotocol.xyz/trees/31337/298');
   });
 
-  it('normalizes chain "anvil" to local', () => {
+  it('treats the retired "anvil" alias as unknown (falls back to sepolia)', () => {
     const s = resolveDashboardStructureSummary({ ...pactoGovRow, chain: 'anvil' });
-    expect(s?.chainKey).toBe('local');
-    expect(s?.chainIdNumeric).toBe(31337);
+    expect(s?.chainKey).toBe('sepolia');
   });
 });

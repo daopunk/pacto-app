@@ -84,7 +84,7 @@ export function parseSupportedChainId(raw: string | undefined | null): Supported
   const c = (raw ?? 'sepolia').trim().toLowerCase();
   if (c === 'mainnet' || c === 'ethereum' || c === 'eth') return 'mainnet';
   if (c === 'arbitrum' || c === 'arb') return 'arbitrum';
-  if (c === 'local' || c === 'anvil') return 'local';
+  if (c === 'local') return 'local';
   return 'sepolia';
 }
 

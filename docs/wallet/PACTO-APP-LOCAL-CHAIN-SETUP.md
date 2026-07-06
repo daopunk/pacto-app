@@ -185,7 +185,7 @@ Then run the app and test:
 ## Files to review when changing local behavior
 
 - `src/lib/dev/local-dev-setup.ts` — dev auto-wiring
-- `src/lib/wallet/chains.ts` — frontend chain config + `anvil` alias
+- `src/lib/wallet/chains.ts` — frontend chain config (canonical `local` key; see `docs/CHAIN_TERMINOLOGY.md`)
 - `src/lib/wallet/assets.ts` — chain groups and asset metadata
 - `src/lib/wallet/wallet-ui-prefs.ts` — enabled-chains list
 - `src/lib/wallet/rpc-prefs.ts` — RPC preferences
