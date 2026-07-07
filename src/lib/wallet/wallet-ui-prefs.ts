@@ -13,12 +13,14 @@ export const WALLET_UI_ENABLED_CHAINS_PREFIX = 'pacto_wallet_ui_enabled_chains_v
 /** Bump so `WalletBar` reactively re-reads prefs when toggles change in Wallet view. */
 export const walletUiEnabledChainsTick = writable(0);
 
+/**
+ * Initial checkmarks in Settings → EVM → Enabled chains for a fresh account.
+ * Only the default set differs by build; every chain stays visible and toggleable.
+ * Dev: Sepolia + Local Anvil. Prod: Arbitrum.
+ */
 export function defaultWalletEnabledChains(): SupportedChainId[] {
-  // Hide the local/Anvil dev chain in production builds.
-  if (!import.meta.env.DEV) {
-    return WALLET_ASSETS_CHAIN_IDS.filter((id) => id !== 'local');
-  }
-  return [...WALLET_ASSETS_CHAIN_IDS];
+  if (import.meta.env.DEV) return ['sepolia', 'local'];
+  return ['arbitrum'];
 }
 
 function storageKey(accountNpub: string): string {
@@ -46,8 +48,7 @@ export function loadWalletEnabledChains(accountNpub: string | null | undefined):
       chains?: unknown;
     };
     if (parsed?.v !== STORAGE_VERSION) return defaultWalletEnabledChains();
-    const n = normalizeChains(parsed.chains);
-    return (n ?? defaultWalletEnabledChains()).filter((id) => id === 'local' ? import.meta.env.DEV : true);
+    return normalizeChains(parsed.chains) ?? defaultWalletEnabledChains();
   } catch {
     return defaultWalletEnabledChains();
   }
@@ -57,9 +58,7 @@ export function saveWalletEnabledChains(accountNpub: string, chains: SupportedCh
   if (!accountNpub || typeof localStorage === 'undefined') return;
   const allowed = new Set(WALLET_ASSETS_CHAIN_IDS);
   const next = [...new Set(chains.filter((c) => allowed.has(c)))];
-  const toSave = (next.length > 0 ? next : defaultWalletEnabledChains()).filter(
-    (id) => (id === 'local' ? import.meta.env.DEV : true)
-  );
+  const toSave = next.length > 0 ? next : defaultWalletEnabledChains();
   localStorage.setItem(
     storageKey(accountNpub),
     JSON.stringify({ v: STORAGE_VERSION, chains: toSave })

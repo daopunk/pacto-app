@@ -2,22 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { applyLocalDevDefaults } from './local-dev-setup';
 import { listRelays, addCustomRelay } from '../api/relays';
 import type { RelayInfo } from '../api/relays';
-import { loadWalletEnabledChains, saveWalletEnabledChains } from '../wallet/wallet-ui-prefs';
-import { loadDefaultRpc, saveDefaultRpc } from '../wallet/rpc-prefs';
 
 vi.mock('../api/relays', () => ({
   listRelays: vi.fn(),
   addCustomRelay: vi.fn(),
-}));
-
-vi.mock('../wallet/wallet-ui-prefs', () => ({
-  loadWalletEnabledChains: vi.fn(),
-  saveWalletEnabledChains: vi.fn(),
-}));
-
-vi.mock('../wallet/rpc-prefs', () => ({
-  loadDefaultRpc: vi.fn(),
-  saveDefaultRpc: vi.fn(),
 }));
 
 const APPLIED_FLAG_KEY = 'pacto_local_dev_defaults_applied_v1_npub1test';
@@ -36,10 +24,6 @@ describe('applyLocalDevDefaults', () => {
 
     vi.mocked(listRelays).mockReset();
     vi.mocked(addCustomRelay).mockReset().mockResolvedValue({ url: 'ws://localhost:7000', enabled: true, mode: 'both' });
-    vi.mocked(loadWalletEnabledChains).mockReset().mockReturnValue(['sepolia']);
-    vi.mocked(saveWalletEnabledChains).mockReset();
-    vi.mocked(loadDefaultRpc).mockReset().mockReturnValue(null);
-    vi.mocked(saveDefaultRpc).mockReset();
   });
 
   afterEach(() => {
@@ -49,7 +33,6 @@ describe('applyLocalDevDefaults', () => {
   it('does nothing when npub is missing', async () => {
     await applyLocalDevDefaults(null);
     expect(listRelays).not.toHaveBeenCalled();
-    expect(saveWalletEnabledChains).not.toHaveBeenCalled();
   });
 
   it('adds the local relay when absent', async () => {
@@ -64,37 +47,11 @@ describe('applyLocalDevDefaults', () => {
     expect(addCustomRelay).not.toHaveBeenCalled();
   });
 
-  it('enables the local chain when absent', async () => {
+  it('does not auto-wire the EVM chain or RPC (Anvil is manual/opt-in)', async () => {
     vi.mocked(listRelays).mockResolvedValue([]);
     await applyLocalDevDefaults(npub);
-    expect(saveWalletEnabledChains).toHaveBeenCalledWith(npub, ['sepolia', 'local']);
-  });
-
-  it('does not duplicate the local chain when already enabled', async () => {
-    vi.mocked(loadWalletEnabledChains).mockReturnValue(['sepolia', 'local']);
-    vi.mocked(listRelays).mockResolvedValue([]);
-    await applyLocalDevDefaults(npub);
-    expect(saveWalletEnabledChains).not.toHaveBeenCalled();
-  });
-
-  it('sets the local default RPC when unset', async () => {
-    vi.mocked(listRelays).mockResolvedValue([]);
-    await applyLocalDevDefaults(npub);
-    expect(saveDefaultRpc).toHaveBeenCalledWith(npub, 'local', 'http://localhost:8545');
-  });
-
-  it('does not overwrite an existing local default RPC', async () => {
-    vi.mocked(loadDefaultRpc).mockReturnValue('http://localhost:8545');
-    vi.mocked(listRelays).mockResolvedValue([]);
-    await applyLocalDevDefaults(npub);
-    expect(saveDefaultRpc).not.toHaveBeenCalled();
-  });
-
-  it('preserves a user-set local default RPC that differs from the default', async () => {
-    vi.mocked(loadDefaultRpc).mockReturnValue('http://127.0.0.1:8545');
-    vi.mocked(listRelays).mockResolvedValue([]);
-    await applyLocalDevDefaults(npub);
-    expect(saveDefaultRpc).not.toHaveBeenCalled();
+    // Only the relay is touched; no wallet-ui-prefs / rpc-prefs writes occur.
+    expect(addCustomRelay).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing when not in a Vite dev build', async () => {
@@ -103,8 +60,6 @@ describe('applyLocalDevDefaults', () => {
     try {
       await applyLocalDevDefaults(npub);
       expect(listRelays).not.toHaveBeenCalled();
-      expect(saveWalletEnabledChains).not.toHaveBeenCalled();
-      expect(saveDefaultRpc).not.toHaveBeenCalled();
     } finally {
       (import.meta.env as { DEV?: boolean }).DEV = prevDev;
     }
@@ -118,7 +73,6 @@ describe('applyLocalDevDefaults', () => {
     vi.mocked(listRelays).mockClear();
     await applyLocalDevDefaults(npub);
     expect(listRelays).not.toHaveBeenCalled();
-    expect(saveWalletEnabledChains).toHaveBeenCalledTimes(1);
   });
 
   it('runs again after the applied flag is cleared', async () => {
@@ -138,7 +92,6 @@ describe('applyLocalDevDefaults', () => {
       applyLocalDevDefaults(npub),
     ]);
     expect(listRelays).toHaveBeenCalledTimes(1);
-    expect(saveWalletEnabledChains).toHaveBeenCalledTimes(1);
   });
 
   it('does not call addCustomRelay when listRelays hangs past the timeout', async () => {

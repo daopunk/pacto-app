@@ -43,8 +43,6 @@ export const WALLET_ASSETS = walletAssetsJson as WalletAssetsFile;
 const CHAIN_KEYS = [
   'mainnet',
   'arbitrum',
-  'optimism',
-  'gnosis',
   'sepolia',
   'local',
 ] as const satisfies readonly SupportedChainId[];
@@ -61,7 +59,7 @@ export const WALLET_CHAIN_GROUPS: ReadonlyArray<{
   chains: readonly SupportedChainId[];
 }> = [
   { id: 'l1', label: 'L1', chains: ['mainnet'] },
-  { id: 'l2', label: 'L2', chains: ['arbitrum', 'optimism', 'gnosis'] },
+  { id: 'l2', label: 'L2', chains: ['arbitrum'] },
   { id: 'testnet', label: 'Testnet', chains: ['sepolia'] },
   { id: 'local', label: 'Local', chains: ['local'] },
 ];

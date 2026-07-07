@@ -51,25 +51,15 @@ struct TokenJson {
 }
 
 /// Stable iteration order (must match product expectations and frontend `WALLET_ASSETS_CHAIN_IDS`).
-/// `local` is only included in dev/test builds so production users do not attempt to connect
-/// to a non-running localhost Anvil node.
-const NETWORK_KEYS: &[&str] = &[
-    "mainnet",
-    "arbitrum",
-    "optimism",
-    "gnosis",
-    "sepolia",
-    #[cfg(any(debug_assertions, test))]
-    "local",
-];
+/// `local` (Anvil) is a normal opt-in network in every build; the user must enable and
+/// configure it in Settings → EVM, so nothing is auto-queried when Anvil is not running.
+const NETWORK_KEYS: &[&str] = &["mainnet", "arbitrum", "sepolia", "local"];
 
 fn chain_id_for_key(key: &str) -> Option<u64> {
     match key {
         "arbitrum" => Some(42_161),
-        "gnosis" => Some(100),
         "local" => Some(31_337),
         "mainnet" => Some(1),
-        "optimism" => Some(10),
         "sepolia" => Some(11155111),
         _ => None,
     }
@@ -86,14 +76,6 @@ fn default_rpc_urls_for_key(key: &str) -> Vec<&'static str> {
         "mainnet" => vec![
             "https://ethereum.publicnode.com",
             "https://1rpc.io/eth",
-        ],
-        "optimism" => vec![
-            "https://mainnet.optimism.io",
-            "https://optimism.publicnode.com",
-        ],
-        "gnosis" => vec![
-            "https://rpc.gnosischain.com",
-            "https://gnosis.publicnode.com",
         ],
         // `rpc.sepolia.org` often returns Cloudflare 522; prefer publicnode / 1rpc / drpc first.
         "sepolia" => vec![
@@ -162,8 +144,7 @@ fn build_ordered_networks() -> Vec<WalletNetworkConfig> {
 
 static ORDERED_NETWORKS: Lazy<Vec<WalletNetworkConfig>> = Lazy::new(build_ordered_networks);
 
-/// All configured networks in product order.
-/// In release builds the `local` dev network is omitted.
+/// All configured networks in product order (includes `local` Anvil in every build).
 pub fn wallet_networks() -> &'static [WalletNetworkConfig] {
     ORDERED_NETWORKS.as_slice()
 }
@@ -171,8 +152,7 @@ pub fn wallet_networks() -> &'static [WalletNetworkConfig] {
 /// Lookup by wallet network key (case-insensitive).
 pub fn network_by_key(key: &str) -> Option<&'static WalletNetworkConfig> {
     let k = key.to_lowercase();
-    let lookup_key = if k == "anvil" { "local" } else { k.as_str() };
-    wallet_networks().iter().find(|n| n.key == lookup_key)
+    wallet_networks().iter().find(|n| n.key == k)
 }
 
 /// Resolved RPC URL list: operator provider key + public fallbacks, or public defaults only.
@@ -229,18 +209,10 @@ mod tests {
             assert_eq!(net.key, "local", "key '{}' should resolve to local", key);
         }
     }
-    #[test]
-    fn network_by_key_anvil_alias_resolves_to_local() {
-        let net = network_by_key("anvil").expect("anvil should resolve to local");
-        assert_eq!(net.key, "local");
-    }
 
     #[test]
-    fn network_by_key_anvil_alias_is_case_insensitive() {
-        for key in ["anvil", "ANVIL", "Anvil"] {
-            let net = network_by_key(key).expect("anvil lookup should succeed");
-            assert_eq!(net.key, "local", "key '{}' should resolve to local", key);
-        }
+    fn network_by_key_rejects_anvil_alias() {
+        assert!(network_by_key("anvil").is_none(), "only 'local' is canonical");
     }
 
     #[test]

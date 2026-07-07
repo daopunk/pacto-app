@@ -1206,6 +1206,15 @@ async fn get_message_views<R: Runtime>(
     Ok(messages)
 }
 
+/// Re-apply governance/treasury/roster automation side effects from persisted MLS chat rows.
+#[tauri::command]
+async fn replay_mls_automation_side_effects<R: Runtime>(
+    handle: AppHandle<R>,
+    chat_id: String,
+) -> Result<u32, String> {
+    db::replay_automation_side_effects_for_chat(&handle, chat_id.trim()).await
+}
+
 /// Get messages around a specific message ID (for scrolling to replied-to messages)
 /// Loads messages from (target - context_before) to the most recent
 #[tauri::command]
@@ -1542,6 +1551,32 @@ fn dm_peer_display_name(state: &ChatState, npub: &str) -> String {
 }
 
 /// If `content` is a `wallet_tx_announcement` JSON DM, return a role-specific OS notification body; otherwise `None`.
+fn wallet_tx_hash_from_announcement_content(content: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(content).ok()?;
+    if v.get("type").and_then(|t| t.as_str()) != Some("wallet_tx_announcement") {
+        return None;
+    }
+    let h = v.get("tx_hash").and_then(|t| t.as_str())?;
+    Some(h.to_lowercase())
+}
+
+fn dm_chat_has_wallet_tx_hash(state: &ChatState, peer_npub: &str, tx_hash_lower: &str) -> bool {
+    for chat in &state.chats {
+        if chat.chat_type != ChatType::DirectMessage || chat.id != peer_npub {
+            continue;
+        }
+        for m in &chat.messages {
+            if let Some(h) = wallet_tx_hash_from_announcement_content(&m.content) {
+                if h == tx_hash_lower {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    false
+}
+
 fn try_wallet_tx_announcement_notify_body(
     content: &str,
     is_mine: bool,
@@ -1618,6 +1653,13 @@ async fn handle_text_message(mut msg: Message, contact: &str, is_mine: bool, is_
     if !msg.replied_to.is_empty() {
         if let Some(handle) = TAURI_APP.get() {
             let _ = db::populate_reply_context(&handle, &mut msg).await;
+        }
+    }
+
+    if let Some(tx_hash) = wallet_tx_hash_from_announcement_content(&msg.content) {
+        let state = STATE.lock().await;
+        if dm_chat_has_wallet_tx_hash(&state, contact, &tx_hash) {
+            return false;
         }
     }
 
@@ -2483,8 +2525,39 @@ async fn notifs() -> Result<bool, String> {
                                             None
                                         }
                                         mdk_core::prelude::MessageProcessingResult::Unprocessable { mls_group_id: _ } => {
-                                            // Unprocessable result - could be many reasons (out of order, can't decrypt, etc.)
-                                            // Don't try to detect eviction here - wait for next message to trigger error-based detection
+                                            if let Some(reason) =
+                                                crate::mls::mls_wrapper_failure_reason(ev.id.as_ref())
+                                            {
+                                                if reason.contains(crate::mls::MLS_LEAVE_PROPOSAL_FAILURE) {
+                                                    let gid = group_id_for_persist.clone();
+                                                    let leaver = ev.pubkey;
+                                                    rt.block_on(async move {
+                                                        if let Ok(svc) =
+                                                            MlsService::new_persistent(&app_handle)
+                                                        {
+                                                            match svc
+                                                                .finalize_voluntary_leave_as_admin(
+                                                                    &gid, leaver,
+                                                                )
+                                                                .await
+                                                            {
+                                                                Ok(true) => eprintln!(
+                                                                    "[MLS] Live: finalized voluntary leave for {} in {}",
+                                                                    leaver.to_hex(),
+                                                                    gid
+                                                                ),
+                                                                Ok(false) => {}
+                                                                Err(e) => eprintln!(
+                                                                    "[MLS] Live: failed to finalize voluntary leave for {} in {}: {}",
+                                                                    leaver.to_hex(),
+                                                                    gid,
+                                                                    e
+                                                                ),
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            }
                                             None
                                         }
                                         // Other message types (ExternalJoinProposal) are not persisted as chat messages
@@ -5897,7 +5970,7 @@ struct GroupMembers {
 
 /// Sync the participants array for an MLS group chat with the actual members from the engine
 /// This ensures chat.participants is always up-to-date
-async fn sync_mls_group_participants(group_id: String) -> Result<(), String> {
+pub(crate) async fn sync_mls_group_participants(group_id: String) -> Result<(), String> {
     // Get actual members from the engine
     let group_members = get_mls_group_members(group_id.clone()).await?;
     
@@ -6341,6 +6414,7 @@ pub fn run() {
             is_scanning,
             get_chat_messages_paginated,
             get_message_views,
+            replay_mls_automation_side_effects,
             get_messages_around_id,
             get_chat_message_count,
             delete_dm_chat,

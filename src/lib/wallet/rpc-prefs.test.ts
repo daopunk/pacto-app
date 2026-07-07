@@ -73,42 +73,25 @@ describe('rpc prefs', () => {
   });
 
   it('persists under scoped storage key', () => {
-    saveDefaultRpc(NPUB, 'optimism', 'https://mainnet.optimism.io');
+    saveDefaultRpc(NPUB, 'mainnet', 'https://ethereum.publicnode.com');
     expect(store.has(`${WALLET_RPC_PREFS_PREFIX}_${NPUB}`)).toBe(true);
-    expect(loadRpcPrefs(NPUB).defaultRpc.optimism).toBe('https://mainnet.optimism.io');
+    expect(loadRpcPrefs(NPUB).defaultRpc.mainnet).toBe('https://ethereum.publicnode.com');
   });
 
-  it('ignores local personal RPCs in non-DEV builds', () => {
-    expect(addPersonalRpc(NPUB, 'local', 'http://localhost:8545').ok).toBe(true);
-    expect(listPersonalRpcs(NPUB, 'local')).toEqual([]);
-  });
-
-  it('ignores local default RPCs in non-DEV builds', () => {
-    saveDefaultRpc(NPUB, 'local', 'http://localhost:8545');
-    expect(loadDefaultRpc(NPUB, 'local')).toBeNull();
-  });
-
-  it('resolves empty URLs for local in non-DEV builds', () => {
-    expect(resolveUserRpcUrls('local', NPUB)).toEqual([]);
-  });
-
-  it('allows local personal RPCs in dev builds', () => {
-    setDev(true);
+  it('allows local personal RPCs like any other chain (both builds)', () => {
     const url = 'http://localhost:8545';
     expect(addPersonalRpc(NPUB, 'local', url).ok).toBe(true);
     expect(listPersonalRpcs(NPUB, 'local')).toEqual([url]);
   });
 
-  it('allows local default RPCs in dev builds', () => {
-    setDev(true);
+  it('allows local default RPCs like any other chain (both builds)', () => {
     const url = 'http://localhost:8545';
     addPersonalRpc(NPUB, 'local', url);
     saveDefaultRpc(NPUB, 'local', url);
     expect(loadDefaultRpc(NPUB, 'local')).toBe(url);
   });
 
-  it('resolves local URLs in dev builds', () => {
-    setDev(true);
+  it('resolves local URLs like any other chain (both builds)', () => {
     const url = 'http://localhost:8545';
     addPersonalRpc(NPUB, 'local', url);
     saveDefaultRpc(NPUB, 'local', url);

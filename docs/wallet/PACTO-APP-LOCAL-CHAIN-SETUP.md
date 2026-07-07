@@ -1,25 +1,31 @@
 # Wiring the local Docker dev stack into pacto-app
 
-This guide explains how to use the `local` Anvil chain (chain ID `31337`) with the `pacto-dev-env` Docker stack. In Vite dev builds the app can auto-wire the local relay and RPC; the rest of this guide covers manual setup, contract deployment, and how the network is kept out of production builds.
+This guide explains how to use the `local` Anvil chain (chain ID `31337`) with the `pacto-dev-env` Docker stack. `local` is a **normal opt-in network available in every build** — you enable and configure it like Sepolia or Arbitrum. The sections below cover the two supported dev workflows, the one dev-only convenience, manual setup, and contract deployment.
 
-## Auto-wiring in dev builds
+## Two supported dev workflows
 
-In **Vite dev builds** (`import.meta.env.DEV`), the app automatically wires the local stack into a newly unlocked account once per session:
+Both are first-class and do **not** conflict. They differ only in how the frontend is built and which chains are **auto-checked** on a fresh account. Everything else — network availability, the pickers, RPC settings, and the DM-wallet UX — is identical.
 
-1. Adds `ws://localhost:7000` as a custom Nostr relay if it is missing.
-2. Enables the `Local Anvil` chain in Settings → EVM.
-3. Sets the default RPC for `Local Anvil` to `http://localhost:8545` if none is set.
+| | A. Live relays + Sepolia | B. Docker stack + Anvil |
+|---|---|---|
+| Typically run with | `pnpm tauri:dev` | production build (`pnpm build` / `pnpm tauri:build`), or `pnpm tauri:dev` |
+| `import.meta.env.DEV` | `true` | `false` for a production build; `true` under `tauri:dev` |
+| Nostr transport | real/public relays you add | local relay `ws://localhost:7000` |
+| Chain under test | Sepolia (plus mainnet/Arbitrum as needed) | Local Anvil `http://localhost:8545` (chain `31337`) |
+| Fresh-account enabled chains | **dev:** Sepolia + Local Anvil auto-checked | **prod build:** Arbitrum only → enable Local Anvil manually |
+| Needs the `pacto-dev-env` Docker stack | no | yes |
 
-Existing user changes are never overwritten. The applied marker is stored in `sessionStorage`, so it resets when the app restarts. Auto-wiring lives in `src/lib/dev/local-dev-setup.ts` and runs from account create / import / unlock flows in `src/stores/auth.ts`.
+Why they don't collide: **Local Anvil is opt-in in every build and never force-enabled.** If a network's RPC is unreachable, only that row degrades — the DM/Wallet summary shows "Anvil not detected" (or "Couldn't reach {Network}") for it and still loads every other enabled chain. So workflow A can leave Local Anvil auto-checked without a stopped Anvil node breaking Sepolia balances, and workflow B can run Anvil without affecting anyone testing on live relays.
 
-If the relay is not running when the account unlocks, auto-wiring logs a warning and continues. The manual steps below cover the same configuration.
+> Note: the wallet panels only work inside the Tauri shell (the `invoke` calls are gated on `isTauri()`). A browser-only `pnpm dev` still exercises relays/UI but won't show on-chain balances.
 
-## Build gating
+## The one dev-only convenience: local relay auto-add
 
-`Local Anvil` is a **dev-only** network. Two mechanisms keep it out of production builds:
+In **Vite dev builds** (`import.meta.env.DEV`), the app adds `ws://localhost:7000` as a custom Nostr relay to a newly unlocked account if it is missing — a convenience for workflow B. It does **not** auto-enable the `local` chain or set its RPC; those are manual, opt-in steps (see §3). Existing user changes are never overwritten; the applied marker lives in `sessionStorage` and resets on restart. Source: `src/lib/dev/local-dev-setup.ts`, wired from account create / import / unlock in `src/stores/auth.ts`. If the relay is not running at unlock, it logs a warning and continues.
 
-1. **TypeScript:** `import.meta.env.DEV` guards the auto-wiring logic, enabled-chain defaults (`src/lib/wallet/wallet-ui-prefs.ts`), and RPC prefs (`src/lib/wallet/rpc-prefs.ts`). Production builds never show `Local Anvil` in Settings or persist local RPC URLs.
-2. **Rust:** `NETWORK_KEYS` in `src-tauri/src/evm/wallet_chain_config.rs` includes `local` only under `#[cfg(any(debug_assertions, test))]`. In release builds, `wallet_networks()` omits `local` and `network_by_key("local")` returns `None`, so the wallet summary never attempts to connect to `http://localhost:8545`.
+## How `local` behaves across builds
+
+`Local Anvil` is a normal network in **both** dev and production builds — it appears in the network picker and RPC settings everywhere, and reaches `http://localhost:8545` by default via the curated RPC catalog (`src/lib/wallet/rpc-catalog.ts`). The only dev/prod difference is the default **Enabled chains** set on a fresh account (`defaultWalletEnabledChains()` in `src/lib/wallet/wallet-ui-prefs.ts`): **dev** auto-checks `sepolia` + `local`; **production** auto-checks `arbitrum` only. Users can toggle any chain on or off afterward in either build. The backend `get_wallet_summary` only queries the chains the user has enabled and returns a per-network error instead of failing the whole summary when one RPC is down.
 
 
 ## 1. Start the local services
@@ -185,7 +191,7 @@ Then run the app and test:
 ## Files to review when changing local behavior
 
 - `src/lib/dev/local-dev-setup.ts` — dev auto-wiring
-- `src/lib/wallet/chains.ts` — frontend chain config + `anvil` alias
+- `src/lib/wallet/chains.ts` — frontend chain config (canonical `local` key; see `docs/CHAIN_TERMINOLOGY.md`)
 - `src/lib/wallet/assets.ts` — chain groups and asset metadata
 - `src/lib/wallet/wallet-ui-prefs.ts` — enabled-chains list
 - `src/lib/wallet/rpc-prefs.ts` — RPC preferences

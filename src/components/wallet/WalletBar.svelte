@@ -34,6 +34,7 @@
   import WalletSendModal from './WalletSendModal.svelte';
   import WalletRequestModal from './WalletRequestModal.svelte';
   import WalletImportTokensModal from './WalletImportTokensModal.svelte';
+  import RefreshIconButton from '../ui/RefreshIconButton.svelte';
 
   /** Active DM counterparty npub */
   export let npub: string;
@@ -203,6 +204,12 @@
   let networksForBalance: WalletSummaryNetwork[] = [];
   $: networksForBalance = networksForBalanceList(summary, networkFilter, enabledChainSet);
 
+  /** Friendly per-network read failure copy (raw RPC text stays off the primary line). */
+  function networkErrorMessage(net: WalletSummaryNetwork): string {
+    if (net.network === 'local') return 'Anvil not detected';
+    return `Couldn't reach ${getWalletNetworkDisplayName(net.network as SupportedChainId)}`;
+  }
+
   /**
    * Network dropdown matches Wallet settings toggles (enabled chains), not only chains that appear
    * in the latest summary (zero-balance or missing RPC rows would otherwise disappear from the list).
@@ -240,7 +247,8 @@
     const hadDisplay = summary != null;
     summaryLoading = true;
 
-    const r = await getWalletSummary(wire);
+    const enabledChains = loadWalletEnabledChains(accountNpub);
+    const r = await getWalletSummary(wire, enabledChains);
     if (r.ok) {
       summary = r.summary;
       summaryError = null;
@@ -309,15 +317,12 @@
   <section class="wallet-bar-section" aria-labelledby="wallet-balance-heading">
     <div class="wallet-bar-section-head">
       <h3 id="wallet-balance-heading" class="wallet-bar-section-title">Balance</h3>
-      <button
-        type="button"
-        class="wallet-bar-refresh"
+      <RefreshIconButton
         disabled={summaryLoading}
+        spinning={summaryLoading}
+        ariaLabel={summaryLoading ? 'Refreshing balances' : 'Refresh balances'}
         on:click={refreshSummary}
-        aria-label="Refresh balances"
-      >
-        {summaryLoading ? '…' : 'Refresh'}
-      </button>
+      />
     </div>
     {#if summaryLoading && !summary}
       <p class="wallet-bar-placeholder">Loading balances…</p>
@@ -365,15 +370,19 @@
                   >{getWalletNetworkDisplayName(n.network as SupportedChainId)}</span
                 >
               {/if}
-              <ul class="wallet-bar-assets">
-                {#each n.assets as a, i (`${n.network}-${(a as WalletSummaryAsset).symbol}-${i}`)}
-                  {@const asset = a as WalletSummaryAsset}
-                  <li>
-                    <span class="wallet-bar-asset-sym">{asset.symbol}</span>
-                    <span class="wallet-bar-asset-amt" title={asset.balanceRaw}>{asset.balanceDecimal}</span>
-                  </li>
-                {/each}
-              </ul>
+              {#if n.error}
+                <p class="wallet-bar-net-error" title={n.error}>{networkErrorMessage(n)}</p>
+              {:else}
+                <ul class="wallet-bar-assets">
+                  {#each n.assets as a, i (`${n.network}-${(a as WalletSummaryAsset).symbol}-${i}`)}
+                    {@const asset = a as WalletSummaryAsset}
+                    <li>
+                      <span class="wallet-bar-asset-sym">{asset.symbol}</span>
+                      <span class="wallet-bar-asset-amt" title={asset.balanceRaw}>{asset.balanceDecimal}</span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -628,23 +637,6 @@
     color: var(--text-secondary);
   }
 
-  .wallet-bar-refresh {
-    flex-shrink: 0;
-    padding: 4px 8px;
-    font-size: 0.6875rem;
-    border-radius: 4px;
-    border: 1px solid var(--border);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .wallet-bar-refresh:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   .wallet-bar-total {
     margin: 0 0 12px;
     font-size: 0.8125rem;
@@ -711,6 +703,13 @@
     letter-spacing: 0.03em;
     color: var(--text-muted);
     margin-bottom: 6px;
+  }
+
+  .wallet-bar-net-error {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.35;
   }
 
   .wallet-bar-assets {

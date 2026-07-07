@@ -10,8 +10,12 @@
   import { getActiveSquadEvmSignerAddress } from '../../../lib/wallet/evm-accounts';
   import { resolveSquadRosterEvmAddress } from '../../../lib/squad/squad-roster-binding';
   import { parseEther } from 'viem';
+  import { normalizeLeadingDotDecimalInput } from '../../../lib/wallet/amount-input';
+  import SquadDeployNetworkField from './SquadDeployNetworkField.svelte';
 
   export let parentId: string;
+  /** Established squad network; when set the picker is pinned to it. */
+  export let squadNetwork: SupportedChainId | null = null;
   export let onClose: () => void;
   export let onComplete: (result: {
     txHash: string;
@@ -32,7 +36,7 @@
     error: string;
   };
 
-  let deployNetwork: SupportedChainId = 'sepolia';
+  let deployNetwork: SupportedChainId | '' = squadNetwork ?? '';
   let signerWallet: SquadSponsorDeploySignerWallet = 'squad';
   let initialDepositEth = '';
   let deployError = '';
@@ -105,7 +109,7 @@
   }
 
   async function fetchBalance(address: string | null): Promise<SignerBalance> {
-    if (!address) return emptyBalance();
+    if (!address || !deployNetwork) return emptyBalance();
     const loading = { ...emptyBalance(), loading: true };
     const result = await getEvmNativeBalance(deployNetwork, address);
     if (result.ok) {
@@ -150,6 +154,7 @@
     signerWallet === 'default' ? !defaultSignerAddress : !squadSignerAddress;
 
   $: canDeploy =
+    deployNetwork !== '' &&
     !addressesLoading &&
     !signerUnavailable &&
     depositWei !== null &&
@@ -157,8 +162,17 @@
     !depositExceedsBalance &&
     !selectedBalance.loading;
 
+  function onDepositInput(e: Event) {
+    const el = e.currentTarget as HTMLInputElement;
+    initialDepositEth = normalizeLeadingDotDecimalInput(el.value);
+  }
+
   async function confirmDeploy() {
     deployError = '';
+    if (!deployNetwork) {
+      deployError = 'Select a network for this squad.';
+      return;
+    }
     if (signerUnavailable) {
       deployError =
         signerWallet === 'default'
@@ -207,16 +221,13 @@
   </p>
 
   <div class="sponsor-deploy-field">
-    <label class="sponsor-deploy-label" for="sponsor-deploy-network">Network</label>
-    <select
+    <SquadDeployNetworkField
       id="sponsor-deploy-network"
-      class="sponsor-deploy-input sponsor-deploy-select"
+      {squadNetwork}
       bind:value={deployNetwork}
-    >
-      <option value="sepolia">Sepolia</option>
-      <option value="mainnet">Ethereum</option>
-      <option value="optimism">Optimism</option>
-    </select>
+      labelClass="sponsor-deploy-label"
+      selectClass="sponsor-deploy-input sponsor-deploy-select"
+    />
   </div>
 
   <fieldset class="sponsor-signer-fieldset" disabled={addressesLoading}>
@@ -284,7 +295,8 @@
       class="sponsor-deploy-input"
       class:input-invalid={depositInvalidFormat || depositExceedsBalance}
       placeholder="e.g. 0.01"
-      bind:value={initialDepositEth}
+      value={initialDepositEth}
+      on:input={onDepositInput}
       disabled={signerUnavailable}
       autocomplete="off"
       required

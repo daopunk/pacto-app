@@ -14,7 +14,7 @@ const AMOUNT_REGEX = /^(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/;
 const MAX_AMOUNT_LEN = 32;
 const TX_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
-const NETWORKS = new Set<string>(['mainnet', 'arbitrum', 'optimism', 'gnosis', 'sepolia', 'local', 'anvil']);
+const NETWORKS = new Set<string>(['mainnet', 'arbitrum', 'sepolia', 'local']);
 
 const EVM_ADDR_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
@@ -22,11 +22,7 @@ function isWireEvmAddress(s: unknown): s is string {
   return typeof s === 'string' && EVM_ADDR_REGEX.test(s.trim());
 }
 
-function normalizeSupportedNetwork(s: 'local' | 'anvil'): SupportedChainId {
-  return s === 'anvil' ? 'local' : s;
-}
-
-function isSupportedNetwork(s: unknown): s is 'local' | 'anvil' {
+function isSupportedNetwork(s: unknown): s is SupportedChainId {
   return typeof s === 'string' && NETWORKS.has(s);
 }
 
@@ -144,7 +140,7 @@ export function parseWalletTxRequest(content: string): WalletTxRequestPayload | 
   if (o.version !== SCHEMA_VERSION) return null;
   if (typeof o.request_id !== 'string' || o.request_id.length === 0) return null;
   if (!isSupportedNetwork(o.network)) return null;
-  const network = normalizeSupportedNetwork(o.network);
+  const network = o.network;
   if (!isWalletAssetLabel(o.asset)) return null;
   if (!isValidAmountString(o.amount)) return null;
   if (o.created_at_ms !== undefined) {
@@ -182,7 +178,7 @@ export function parseWalletTxAnnouncement(content: string): WalletTxAnnouncement
   if (o.type !== WALLET_TX_ANNOUNCEMENT_WIRE_TYPE) return null;
   if (o.version !== SCHEMA_VERSION) return null;
   if (!isSupportedNetwork(o.network)) return null;
-  const network = normalizeSupportedNetwork(o.network);
+  const network = o.network;
   if (!isWalletAssetLabel(o.asset)) return null;
   if (!isValidAmountString(o.amount)) return null;
   if (!isValidTxHash(o.tx_hash)) return null;
@@ -230,6 +226,55 @@ export function getFulfilledWalletRequestIdsFromMessages(
     if (ann?.request_id) s.add(ann.request_id);
   }
   return s;
+}
+
+export function walletTxAnnouncementHash(content: string): string | null {
+  return parseWalletTxAnnouncement(content)?.tx_hash.toLowerCase() ?? null;
+}
+
+function walletTxAnnouncementRank(msg: {
+  id?: string;
+  content?: string | null;
+  pending?: boolean;
+  failed?: boolean;
+}): number {
+  const ann = parseWalletTxAnnouncement(msg.content ?? '');
+  if (!ann) return -1;
+  let score = 0;
+  if (ann.block_number) score += 100;
+  if (!msg.id?.startsWith('opt-')) score += 50;
+  if (!msg.pending) score += 10;
+  if (!msg.failed) score += 5;
+  return score;
+}
+
+/** One confirmed card per `tx_hash` in a DM thread (sender and recipient each see one). */
+export function dedupeWalletTxAnnouncements<
+  T extends { id?: string; content?: string | null; pending?: boolean; failed?: boolean; at?: number },
+>(messages: readonly T[]): T[] {
+  const bestByHash = new Map<string, { idx: number; score: number; at: number }>();
+  const dropIndices = new Set<number>();
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]!;
+    const hash = walletTxAnnouncementHash(msg.content ?? '');
+    if (!hash) continue;
+    const score = walletTxAnnouncementRank(msg);
+    const at = msg.at ?? 0;
+    const prev = bestByHash.get(hash);
+    if (!prev) {
+      bestByHash.set(hash, { idx: i, score, at });
+      continue;
+    }
+    if (score > prev.score || (score === prev.score && at >= prev.at)) {
+      dropIndices.add(prev.idx);
+      bestByHash.set(hash, { idx: i, score, at });
+    } else {
+      dropIndices.add(i);
+    }
+  }
+
+  return messages.filter((_, i) => !dropIndices.has(i));
 }
 
 /** DM-only pairwise wallet exchange (not published on Kind 0). */

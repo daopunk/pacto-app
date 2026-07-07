@@ -4,7 +4,7 @@
  */
 
 import { createPublicClient, type Chain, type PublicClient, fallback, http } from 'viem';
-import { anvil as anvilChain, arbitrum, gnosis, mainnet, optimism, sepolia } from 'viem/chains';
+import { anvil as anvilChain, arbitrum, mainnet, sepolia } from 'viem/chains';
 
 /** Anvil local testnet chain from viem/chains (chain id 31337). */
 
@@ -14,9 +14,7 @@ import { anvil as anvilChain, arbitrum, gnosis, mainnet, optimism, sepolia } fro
  */
 export const SUPPORTED_CHAINS = {
   arbitrum,
-  gnosis,
   mainnet,
-  optimism,
   sepolia,
   local: anvilChain,
 } as const;
@@ -85,10 +83,8 @@ export function createWalletPublicClient(
 export function parseSupportedChainId(raw: string | undefined | null): SupportedChainId {
   const c = (raw ?? 'sepolia').trim().toLowerCase();
   if (c === 'mainnet' || c === 'ethereum' || c === 'eth') return 'mainnet';
-  if (c === 'optimism' || c === 'op') return 'optimism';
   if (c === 'arbitrum' || c === 'arb') return 'arbitrum';
-  if (c === 'gnosis' || c === 'gno' || c === 'xdai') return 'gnosis';
-  if (c === 'local' || c === 'anvil') return 'local';
+  if (c === 'local') return 'local';
   return 'sepolia';
 }
 
@@ -106,11 +102,9 @@ export function explorerAddressUrl(chainId: SupportedChainId, address: string): 
  */
 const SAFE_APP_CHAIN_PREFIX: Record<SupportedChainId, string> = {
   arbitrum: 'arb1',
-  gnosis: 'gno',
   local: '',
   mainnet: 'eth',
   sepolia: 'sep',
-  optimism: 'oeth',
 };
 
 const SAFE_APP_ORIGIN = 'https://app.safe.global';

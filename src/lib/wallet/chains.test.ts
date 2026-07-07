@@ -22,15 +22,14 @@ describe('SUPPORTED_CHAINS.local', () => {
 });
 
 describe('parseSupportedChainId', () => {
-  it('recognizes local and anvil aliases', () => {
+  it('recognizes the canonical local key (case-insensitive)', () => {
     expect(parseSupportedChainId('local')).toBe('local');
-    expect(parseSupportedChainId('anvil')).toBe('local');
     expect(parseSupportedChainId('LOCAL')).toBe('local');
-    expect(parseSupportedChainId('ANVIL')).toBe('local');
-    expect(parseSupportedChainId('  anvil  ')).toBe('local');
+    expect(parseSupportedChainId('  local  ')).toBe('local');
   });
 
-  it('falls back to sepolia for unknown values', () => {
+  it('falls back to sepolia for unknown values (including the retired anvil alias)', () => {
+    expect(parseSupportedChainId('anvil')).toBe('sepolia');
     expect(parseSupportedChainId('hardhat')).toBe('sepolia');
     expect(parseSupportedChainId('')).toBe('sepolia');
     expect(parseSupportedChainId(undefined)).toBe('sepolia');

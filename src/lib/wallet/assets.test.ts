@@ -10,6 +10,15 @@ import {
 } from './assets';
 
 describe('WALLET_ASSETS_CHAIN_IDS', () => {
+  it('is exactly the trimmed set in canonical order', () => {
+    expect(WALLET_ASSETS_CHAIN_IDS).toEqual(['mainnet', 'arbitrum', 'sepolia', 'local']);
+  });
+
+  it('excludes the removed Optimism and Gnosis chains', () => {
+    expect(WALLET_ASSETS_CHAIN_IDS).not.toContain('optimism');
+    expect(WALLET_ASSETS_CHAIN_IDS).not.toContain('gnosis');
+  });
+
   it('includes local in the last position', () => {
     expect(WALLET_ASSETS_CHAIN_IDS.at(-1)).toBe('local');
     expect(WALLET_ASSETS_CHAIN_IDS).toContain('local');
