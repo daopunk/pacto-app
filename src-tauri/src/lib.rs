@@ -1679,6 +1679,28 @@ async fn handle_text_message(mut msg: Message, contact: &str, is_mine: bool, is_
             })).unwrap();
         }
 
+        // Backfill reply context for any messages that arrived earlier and reference this one.
+        // This fixes the race where a bot reply (which references the original message's rumor id)
+        // is processed before the user's own outbound message has been persisted under its real id.
+        let updated_replies = {
+            let mut state = STATE.lock().await;
+            if let Some(chat) = state.get_chat_mut(contact) {
+                chat.update_replies_to_message(&msg, is_mine)
+            } else {
+                Vec::new()
+            }
+        };
+        for reply in updated_replies {
+            if let Some(handle) = TAURI_APP.get() {
+                let reply_id = reply.id.clone();
+                let _ = handle.emit("message_update", serde_json::json!({
+                    "old_id": reply_id,
+                    "message": reply,
+                    "chat_id": contact
+                }));
+            }
+        }
+
         // OS notification: incoming DMs, and outgoing `wallet_tx_announcement` (transfer completed)
         if is_new {
             if !is_mine {
@@ -1732,6 +1754,8 @@ async fn handle_text_message(mut msg: Message, contact: &str, is_mine: bool, is_
         if let Some(handle) = TAURI_APP.get() {
             let _ = update_unread_counter(handle.clone()).await;
         }
+    } else {
+        // Message was not added to state (duplicate or filtered)
     }
 
     was_msg_added_to_state
