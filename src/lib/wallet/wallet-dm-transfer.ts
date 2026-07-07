@@ -127,6 +127,7 @@ async function relayConfirmedWalletTx(
   if (relayedWalletTxKeys.has(key) || peerThreadAlreadyHasRelayedWalletTx(params.peerNpub, params.txHash)) {
     return;
   }
+  if (relayedWalletTxKeys.size > 2000) relayedWalletTxKeys.clear();
   relayedWalletTxKeys.add(key);
   try {
     const ok = await params.sendDm(confirmedContent);
