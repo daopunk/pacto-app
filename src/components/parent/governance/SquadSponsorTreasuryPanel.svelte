@@ -37,7 +37,7 @@
   let periodicRefreshTimer: ReturnType<typeof setInterval> | null = null;
   let hydratedSponsorKey = '';
 
-  $: network = (sponsorRow?.chain?.trim() || 'sepolia') as SupportedChainId;
+  $: network = parseSupportedChainId(sponsorRow?.chain?.trim() || 'sepolia');
   $: poolBalanceWei = summary ? BigInt(summary.poolBalanceWei) : null;
   $: lowBalance =
     poolBalanceWei != null && poolBalanceWei < SPONSOR_LOW_BALANCE_WEI;
