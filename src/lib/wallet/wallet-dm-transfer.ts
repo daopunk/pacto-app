@@ -39,6 +39,10 @@ const RECEIPT_RETRY_DELAY_MS = 15_000;
 const RECEIPT_RETRY_ATTEMPTS = 24;
 const relayedWalletTxKeys = new Set<string>();
 
+export function resetRelayedWalletTxKeys(): void {
+  relayedWalletTxKeys.clear();
+}
+
 function relayKey(peerNpub: string, txHash: string): string {
   return `${peerNpub.trim()}:${txHash.trim().toLowerCase()}`;
 }
