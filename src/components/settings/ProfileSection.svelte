@@ -11,6 +11,7 @@
   import SettingsCollapsibleSection from './SettingsCollapsibleSection.svelte';
   import EvmAccountKeyExportModal from './EvmAccountKeyExportModal.svelte';
   import ExportAllSecretsModal from './ExportAllSecretsModal.svelte';
+  import EditIconButton from '../ui/EditIconButton.svelte';
   $: userNpub = $currentUser?.npub || '';
   $: profile = userNpub ? $profiles[userNpub] : null;
   $: loading = userNpub ? ($profileLoadingStates[userNpub] || false) : false;
@@ -132,6 +133,16 @@
         </div>
       {:else if profile}
         <div class="profile-content">
+        {#if !isEditing}
+          <div class="profile-top-bar">
+            <EditIconButton
+              ariaLabel="Edit profile"
+              title="Edit profile"
+              className="profile-edit-btn"
+              on:click={startEditing}
+            />
+          </div>
+        {/if}
         <!-- Banner -->
         {#if bannerSrc}
           <div class="profile-banner">
@@ -286,28 +297,6 @@
 
             <!-- Actions -->
             <div class="profile-actions">
-              <button 
-                class="btn-edit-profile" 
-                type="button"
-                on:click={startEditing}
-              >
-                <svg
-                  class="btn-edit-profile-icon"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.75"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M12 20h9" />
-                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                Profile
-              </button>
               <div class="profile-actions-exports">
                 <button
                   type="button"
@@ -386,6 +375,15 @@
     display: flex;
     flex-direction: column;
     gap: 32px;
+  }
+
+  .profile-top-bar {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .profile-top-bar :global(.profile-edit-btn) {
+    flex-shrink: 0;
   }
 
   .profile-banner {
@@ -543,9 +541,6 @@
     margin-top: 24px;
     padding-top: 24px;
     border-top: 1px solid var(--border-subtle);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
   }
 
   .profile-actions-exports {
@@ -675,7 +670,6 @@
     cursor: wait;
   }
 
-  .btn-edit-profile,
   .btn-export-seed,
   .btn-export-all {
     width: 100%;
@@ -697,11 +691,6 @@
     gap: 8px;
   }
 
-  .btn-edit-profile-icon {
-    flex-shrink: 0;
-  }
-
-  .btn-edit-profile:hover,
   .btn-export-seed:hover,
   .btn-export-all:hover {
     border-color: var(--accent);

@@ -1,10 +1,12 @@
 import {
+  cancelCommonsBroadcast,
   getLocalActiveCommonsBroadcast,
   publishCommonsBroadcast,
 } from '../api/commons';
 import { getInvokeErrorMessage } from '../utils/tauri-errors';
 import type { CommonsBroadcastDurationHours, CommonsBroadcastLocalState } from './types';
 import {
+  clearCommonsBroadcastLocalState,
   getActiveCommonsBroadcastLocalState,
   localStateFromDto,
   recordCommonsBroadcastLocalState,
@@ -13,6 +15,17 @@ import {
   isPublicSquadForCommonsBroadcast,
   type PublicSquadBroadcastTarget,
 } from './squad-create-broadcast';
+import { normalizeSquadBroadcastTags } from './tags';
+import { ensureSquadBot } from '../squad/squad-bot';
+
+async function requireBotHolder(squadId: string): Promise<string | null> {
+  const state = await ensureSquadBot(squadId);
+  if (!state) return 'Squad bot is not initialized. Open Join inbox settings first.';
+  if (!state.iAmHolder || !state.hasLocalSecret) {
+    return 'Only bot key holders with a local secret can publish or cancel squad Commons broadcasts.';
+  }
+  return null;
+}
 
 export async function fetchActiveSquadCommonsBroadcast(
   squadId: string
@@ -43,6 +56,20 @@ export function formatBroadcastCooldownRemaining(
   return 'under 1m';
 }
 
+export async function cancelSquadCommonsBroadcast(
+  squadId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const gate = await requireBotHolder(squadId);
+  if (gate) return { ok: false, error: gate };
+  try {
+    await cancelCommonsBroadcast('squad', squadId);
+    clearCommonsBroadcastLocalState('squad', squadId);
+    return { ok: true };
+  } catch (e: unknown) {
+    return { ok: false, error: getInvokeErrorMessage(e, 'Failed to cancel broadcast.') };
+  }
+}
+
 export async function publishSquadCommonsBroadcast(
   squad: PublicSquadBroadcastTarget,
   options: {
@@ -51,10 +78,12 @@ export async function publishSquadCommonsBroadcast(
     skipIfActive?: boolean;
     /** Reserved tags applied by the app (e.g. `#new` at creation). */
     extraTags?: string[];
+    /** Author-selected tags; falls back to squad.commonsTags when omitted. */
+    tags?: string[];
   }
 ): Promise<{ ok: true; skipped?: boolean } | { ok: false; error: string }> {
   if (!isPublicSquadForCommonsBroadcast(squad)) {
-    return { ok: false, error: 'Only public squads with tags can broadcast.' };
+    return { ok: false, error: 'Turn Commons on for this squad before broadcasting.' };
   }
 
   const message = options.message.trim();
@@ -62,13 +91,20 @@ export async function publishSquadCommonsBroadcast(
     return { ok: false, error: 'Message is required.' };
   }
 
+  const gate = await requireBotHolder(squad.id);
+  if (gate) return { ok: false, error: gate };
+
   const active = await fetchActiveSquadCommonsBroadcast(squad.id);
   if (active) {
     if (options.skipIfActive) return { ok: true, skipped: true };
     return { ok: false, error: 'A broadcast is still active for this squad.' };
   }
 
-  const tags = [...(squad.commonsTags ?? []), ...(options.extraTags ?? [])];
+  const normalized = normalizeSquadBroadcastTags(options.tags ?? squad.commonsTags ?? []);
+  if (!normalized) {
+    return { ok: false, error: 'Choose exactly 3 valid tags.' };
+  }
+  const tags = [...normalized, ...(options.extraTags ?? [])];
 
   try {
     const dto = await publishCommonsBroadcast({

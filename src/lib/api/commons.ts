@@ -1,8 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type {
-  CommonsBroadcastDto,
-  CommonsPublishBroadcastInput,
-} from '../commons/types';
+import type { CommonsBroadcastDto, CommonsPublishBroadcastInput } from '../commons/types';
 
 export async function publishCommonsBroadcast(
   input: CommonsPublishBroadcastInput

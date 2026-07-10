@@ -4,6 +4,14 @@
   import ParentSettingUp from '../parent/ParentSettingUp.svelte';
   import { partitionHubSidebarChannels } from '../../lib/parent-navbar';
   import chevronDownIcon from '../../icons/chevron-down.svg';
+  import {
+    hubChannelAlertCount,
+    personalAlertsNeededBySquadId,
+  } from '../../stores/squad-hub-alerts';
+  import { pendingJoinRequestsBySquadId } from '../../stores/squad-join-requests';
+
+  /** Squad row id for hub-channel alert badges. */
+  export let squadId: string | null = null;
 
   /** Channel shape for list items (name, groupId, order). Re-exported via type. */
   interface ParentChannel {
@@ -37,10 +45,6 @@
   export let onCreateChannel: () => void = () => {};
   export let onRetryCreate: () => void = () => {};
   export let onInvite: () => void = () => {};
-  export let showBroadcastSquad = false;
-  export let broadcastSquadDisabled = false;
-  export let broadcastSquadDisabledTitle = '';
-  export let onBroadcastSquad: (() => void) | undefined = undefined;
   export let onExitSquad: (() => void) | undefined = undefined;
 
   /** Partner squad-pairs linked to the active hub. */
@@ -69,9 +73,17 @@
 
   $: showPartnerSquads = partnerSquads.length > 0 || showPairWithSquadAction;
   $: ({ defaultHubChannels, customChannels } = partitionHubSidebarChannels(channels));
+  $: hubAlertByChannelName = (() => {
+    const personal = $personalAlertsNeededBySquadId;
+    const joinRequests = $pendingJoinRequestsBySquadId;
+    const out: Record<string, number> = {};
+    for (const channel of [...defaultHubChannels, ...customChannels]) {
+      out[channel.name] = hubChannelAlertCount(channel.name, squadId, joinRequests, personal);
+    }
+    return out;
+  })();
   $: showCustomChannelDivider = defaultHubChannels.length > 0 && customChannels.length > 0;
   $: inviteLabel = 'Invite to Squad';
-  $: showBroadcastSquadItem = showBroadcastSquad || broadcastSquadDisabled;
   $: showExit = typeof onExitSquad === 'function';
   $: exitLabel = 'Exit Squad';
   $: onExit = onExitSquad;
@@ -114,23 +126,6 @@
               >
                 {inviteLabel}
               </button>
-              {#if showBroadcastSquadItem}
-                <button
-                  type="button"
-                  class="parent-menu-item"
-                  class:parent-menu-item-disabled={broadcastSquadDisabled}
-                  role="menuitem"
-                  disabled={broadcastSquadDisabled}
-                  title={broadcastSquadDisabled ? broadcastSquadDisabledTitle : undefined}
-                  on:click={() => {
-                    if (broadcastSquadDisabled || !onBroadcastSquad) return;
-                    menuOpen = false;
-                    onBroadcastSquad();
-                  }}
-                >
-                  Broadcast Squad
-                </button>
-              {/if}
               {#if showExit && onExit}
                 <button
                   type="button"
@@ -186,6 +181,7 @@
               <Channel
                 name={channel.name}
                 type="text"
+                alertCount={hubAlertByChannelName[channel.name] ?? 0}
                 active={activeView === 'hub' &&
                   activeChannelId === channel.groupId &&
                   (groupIdDupCount[channel.groupId] <= 1 ||
@@ -208,6 +204,7 @@
               <Channel
                 name={channel.name}
                 type="text"
+                alertCount={hubAlertByChannelName[channel.name] ?? 0}
                 active={activeView === 'hub' &&
                   activeChannelId === channel.groupId &&
                   (groupIdDupCount[channel.groupId] <= 1 ||

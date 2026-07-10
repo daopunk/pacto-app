@@ -105,9 +105,12 @@ fn normalize_commons_tags(raw: Option<&[String]>, visibility: &str) -> Result<Op
         return Ok(None);
     }
     let Some(tags) = raw else {
-        return Err("public squads require commonsTags".to_string());
+        return Ok(None);
     };
-    if tags.is_empty() || tags.len() > 3 {
+    if tags.is_empty() {
+        return Ok(None);
+    }
+    if tags.len() > 3 {
         return Err("commonsTags must contain 1 to 3 tags".to_string());
     }
     let mut out: Vec<String> = Vec::new();
@@ -385,6 +388,7 @@ pub(crate) fn delete_squad_inner(conn: &rusqlite::Connection, parent_id: &str) -
         rusqlite::params![pid],
     )
     .map_err(|e| format!("Failed to delete squad_member_evm: {e}"))?;
+    crate::squad_bot::delete_squad_bot_rows(conn, pid)?;
     conn.execute("DELETE FROM squads WHERE id = ?1", rusqlite::params![pid])
         .map_err(|e| format!("Failed to delete squad: {e}"))?;
     Ok(())
@@ -593,11 +597,14 @@ mod tests {
     }
 
     #[test]
-    fn public_squad_requires_commons_tags() {
+    fn commons_on_allows_missing_catalog_tags() {
+        // `visibility: public` means Commons broadcasting enabled; tags are chosen per broadcast.
         let mut input = sample_upsert("grp-announce", "Alpha");
         input.visibility = Some(VIS_PUBLIC.to_string());
         input.commons_tags = None;
-        assert!(prepare_row(input).is_err());
+        let row = prepare_row(input).expect("commons on without catalog tags");
+        assert_eq!(row.visibility, VIS_PUBLIC);
+        assert!(row.commons_tags.is_none());
     }
 
     #[test]
@@ -639,8 +646,8 @@ mod tests {
             normalize_commons_tags(Some(&tags), VIS_PUBLIC).unwrap(),
             Some(vec!["pacto".to_string()])
         );
-        assert!(normalize_commons_tags(None, VIS_PUBLIC).is_err());
-        assert!(normalize_commons_tags(Some(&[]), VIS_PUBLIC).is_err());
+        assert_eq!(normalize_commons_tags(None, VIS_PUBLIC).unwrap(), None);
+        assert_eq!(normalize_commons_tags(Some(&[]), VIS_PUBLIC).unwrap(), None);
         assert!(normalize_commons_tags(Some(&["new".to_string()]), VIS_PUBLIC).is_err());
         assert!(normalize_commons_tags(Some(&["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()]), VIS_PUBLIC).is_err());
     }

@@ -880,6 +880,21 @@ fn parent_has_pacto_gov_infra(conn: &rusqlite::Connection, parent_id: &str) -> b
         > 0
 }
 
+/// Whether this parent already has a `pacto_gov` infra row (duplicate-deploy guard).
+pub fn parent_has_pacto_gov_infra_row<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+) -> Result<bool, String> {
+    let pid = parent_id.trim();
+    if pid.is_empty() {
+        return Ok(false);
+    }
+    let conn = crate::account_manager::get_db_connection(handle)?;
+    let has = parent_has_pacto_gov_infra(&conn, pid);
+    crate::account_manager::return_db_connection(conn);
+    Ok(has)
+}
+
 /// Interim v1: mutations require deployed Pacto Gov. Target: on-chain captain / allowlist-admin role.
 fn require_allowlist_mutation_allowed(conn: &rusqlite::Connection, parent_id: &str) -> Result<(), String> {
     let pid = parent_id.trim();
@@ -1165,7 +1180,49 @@ pub fn remove_squad_contract_allowlist<R: Runtime>(
     Ok(())
 }
 
-pub fn try_apply_squad_contract_allowlist_announce<R: Runtime>(handle: &AppHandle<R>, content: &str) {
+/// True when payload parent/squad id matches the MLS chat (announcements group id).
+pub fn side_effect_parent_matches_chat(chat_id: &str, payload_parent_id: &str) -> bool {
+    let chat = chat_id.trim();
+    let parent = payload_parent_id.trim();
+    !chat.is_empty() && !parent.is_empty() && chat == parent
+}
+
+/// True when `author_npub` is the MLS group creator for `chat_id`.
+/// Interim v1: only the group creator is an MLS admin; reject if the group is unknown.
+fn is_author_mls_admin_for_chat<R: Runtime>(
+    handle: &AppHandle<R>,
+    chat_id: &str,
+    author_npub: &str,
+) -> bool {
+    let Ok(conn) = crate::account_manager::get_db_connection(handle) else {
+        return false;
+    };
+    let creator: Option<String> = conn
+        .query_row(
+            "SELECT creator_pubkey FROM mls_groups WHERE group_id = ?1",
+            rusqlite::params![chat_id.trim()],
+            |r| r.get(0),
+        )
+        .optional()
+        .unwrap_or(None);
+    crate::account_manager::return_db_connection(conn);
+    creator
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|c| c == author_npub.trim())
+        .unwrap_or(false)
+}
+
+pub fn try_apply_squad_contract_allowlist_announce<R: Runtime>(
+    handle: &AppHandle<R>,
+    content: &str,
+    chat_id: &str,
+    author_npub: Option<&str>,
+) {
+    let Some(author) = author_npub.map(str::trim).filter(|s| !s.is_empty()) else {
+        return;
+    };
     let parsed: serde_json::Value = match serde_json::from_str(content) {
         Ok(v) => v,
         Err(_) => return,
@@ -1181,6 +1238,23 @@ pub fn try_apply_squad_contract_allowlist_announce<R: Runtime>(handle: &AppHandl
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return,
     };
+    if !side_effect_parent_matches_chat(chat_id, parent_id) {
+        return;
+    }
+    // Prefer MLS author; reject if payload claims a different adder.
+    if let Some(claimed) = p
+        .get("added_by_npub")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        if claimed != author {
+            return;
+        }
+    }
+    if !is_author_mls_admin_for_chat(handle, chat_id, author) {
+        return;
+    }
     let action = p.get("action").and_then(|v| v.as_str()).unwrap_or("upsert");
     let entry_id = p
         .get("entry_id")
@@ -1214,14 +1288,6 @@ pub fn try_apply_squad_contract_allowlist_announce<R: Runtime>(handle: &AppHandl
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let added_by = p
-        .get("added_by_npub")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    if added_by.is_empty() {
-        return;
-    }
     let abi_ref = p
         .get("abi_ref")
         .and_then(|v| v.as_str())
@@ -1269,7 +1335,7 @@ pub fn try_apply_squad_contract_allowlist_announce<R: Runtime>(handle: &AppHandl
             &chain_norm,
             &addr_norm,
             label.trim(),
-            added_by,
+            author,
             &abi_ref,
             &notes,
             created_at_ms,
@@ -1281,7 +1347,7 @@ pub fn try_apply_squad_contract_allowlist_announce<R: Runtime>(handle: &AppHandl
 
 #[cfg(test)]
 mod allowlist_tests {
-    use super::allowlist_row_id;
+    use super::{allowlist_row_id, side_effect_parent_matches_chat};
 
     #[test]
     fn stable_allowlist_row_id_normalizes_address_case() {
@@ -1294,6 +1360,52 @@ mod allowlist_tests {
             id,
             "allowlist-parent-1-sepolia-0xabcdefabcdefabcdefabcdefabcdefabcdefab"
         );
+    }
+
+    #[test]
+    fn side_effect_parent_must_match_chat() {
+        assert!(side_effect_parent_matches_chat("grp-a", "grp-a"));
+        assert!(side_effect_parent_matches_chat(" grp-a ", "grp-a"));
+        assert!(!side_effect_parent_matches_chat("grp-a", "grp-b"));
+        assert!(!side_effect_parent_matches_chat("", "grp-a"));
+        assert!(!side_effect_parent_matches_chat("grp-a", ""));
+    }
+}
+
+#[cfg(test)]
+mod squad_infra_row_id_tests {
+    use super::{
+        pacto_gov_infra_row_id, pacto_gov_treasury_row_id, squad_admin_infra_row_id,
+        squad_sponsor_infra_row_id, SQUAD_INFRA_ID_MAX,
+    };
+
+    const LONG_PARENT: &str =
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+    #[test]
+    fn short_parent_uses_direct_pacto_gov_id() {
+        let parent = "smoke-squad-alpha";
+        assert_eq!(pacto_gov_infra_row_id(parent), format!("pacto-gov-{parent}"));
+    }
+
+    #[test]
+    fn long_parent_hashes_pacto_gov_ids_within_limit() {
+        assert_eq!(LONG_PARENT.len(), 64);
+        let gov = pacto_gov_infra_row_id(LONG_PARENT);
+        let treasury = pacto_gov_treasury_row_id(LONG_PARENT);
+        let sponsor = squad_sponsor_infra_row_id(LONG_PARENT);
+        let admin = squad_admin_infra_row_id(LONG_PARENT);
+
+        for id in [&gov, &treasury, &sponsor, &admin] {
+            assert!(id.len() <= SQUAD_INFRA_ID_MAX);
+        }
+        assert!(gov.starts_with("pg-"));
+        assert!(treasury.starts_with("pgt-"));
+        assert_eq!(
+            gov,
+            "pg-68025c1968089de1fee3538c1da6fb961996d68a176ad60013a5d8bba755508f"
+        );
+        assert_eq!(gov, pacto_gov_infra_row_id(LONG_PARENT));
     }
 }
 
@@ -1439,6 +1551,78 @@ pub fn squad_admin_infra_row_id(parent_id: &str) -> String {
     }
 }
 
+/// Stable SQLite row id for the pacto-gov infra entry for this parent.
+pub fn pacto_gov_infra_row_id(parent_id: &str) -> String {
+    let pid = parent_id.trim();
+    let direct = format!("pacto-gov-{pid}");
+    if direct.len() <= SQUAD_INFRA_ID_MAX {
+        direct
+    } else {
+        format!(
+            "pg-{}",
+            hex::encode(alloy::primitives::keccak256(pid.as_bytes()).as_slice())
+        )
+    }
+}
+
+/// Stable SQLite row id for the pacto-gov treasury entry for this parent.
+pub fn pacto_gov_treasury_row_id(parent_id: &str) -> String {
+    let pid = parent_id.trim();
+    let direct = format!("pacto-gov-treasury-{pid}");
+    if direct.len() <= SQUAD_INFRA_ID_MAX {
+        direct
+    } else {
+        format!(
+            "pgt-{}",
+            hex::encode(alloy::primitives::keccak256(pid.as_bytes()).as_slice())
+        )
+    }
+}
+
+/// Persist or refresh the pacto-gov infra row after deploy (and for announce ingest).
+/// `canonical_ref` is the top hat id string.
+pub fn persist_pacto_gov_infra<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+    chain: &str,
+    top_hat_id: &str,
+    provider_payload: &str,
+) -> Result<(), String> {
+    let hat = top_hat_id.trim();
+    if hat.is_empty() {
+        return Err("top_hat_id must be non-empty".to_string());
+    }
+    upsert_squad_infra_inner(
+        handle,
+        pacto_gov_infra_row_id(parent_id).as_str(),
+        parent_id,
+        "pacto_gov",
+        Some(chain),
+        hat,
+        None,
+        Some(provider_payload),
+    )
+}
+
+/// Persist governance treasury Safe after Pacto Gov deploy (idempotent).
+pub fn persist_pacto_gov_treasury_safe<R: Runtime>(
+    handle: &AppHandle<R>,
+    parent_id: &str,
+    chain: &str,
+    safe_address: &str,
+) -> Result<(), String> {
+    let norm = crate::evm::normalize_hex_address(safe_address.trim())
+        .ok_or_else(|| "invalid safe address".to_string())?;
+    upsert_parent_treasury_row(
+        handle,
+        parent_id,
+        norm.as_str(),
+        chain,
+        "",
+        Some(pacto_gov_treasury_row_id(parent_id).as_str()),
+    )
+}
+
 /// Persist or refresh the squad-admin infra row after deploy (and for announce ingest).
 pub fn persist_squad_admin_infra<R: Runtime>(
     handle: &AppHandle<R>,
@@ -1487,7 +1671,17 @@ pub fn upsert_squad_infra<R: Runtime>(
 
 /// If content is a squad_safe_updated announce JSON, upsert a treasury row (idempotent per parent + address + chain).
 /// Wire format uses `squad_id` for the parent id. Optional: `chain`, `label`, `entry_id`.
-pub fn apply_parent_safe_announce<R: Runtime>(handle: &AppHandle<R>, content: &str) {
+/// `chat_id` must match `payload.squad_id` (MLS announcements group id).
+/// Requires MLS message author and `payload.squad_id` == `chat_id`. Author must be the MLS group creator.
+pub fn apply_parent_safe_announce<R: Runtime>(
+    handle: &AppHandle<R>,
+    content: &str,
+    chat_id: &str,
+    author_npub: Option<&str>,
+) {
+    let Some(author) = author_npub.map(str::trim).filter(|s| !s.is_empty()) else {
+        return;
+    };
     let parsed: serde_json::Value = match serde_json::from_str(content) {
         Ok(v) => v,
         Err(_) => return,
@@ -1503,6 +1697,12 @@ pub fn apply_parent_safe_announce<R: Runtime>(handle: &AppHandle<R>, content: &s
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return,
     };
+    if !side_effect_parent_matches_chat(chat_id, parent_id) {
+        return;
+    }
+    if !is_author_mls_admin_for_chat(handle, chat_id, author) {
+        return;
+    }
     let safe_address = match p.get("safe_address").and_then(|v| v.as_str()) {
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return,
@@ -1527,7 +1727,16 @@ pub fn apply_parent_safe_announce<R: Runtime>(handle: &AppHandle<R>, content: &s
 
 /// If content is a `governance_updated` announce JSON, upsert `squad_infra` (merge by `entry_id` or generated id).
 /// Wire format: `payload.parent_id`, `payload.provider`, `payload.canonical_ref`; optional `chain`, `pacto_gov_revision`, `provider_payload`, `entry_id`.
-pub fn maybe_upsert_governance_from_announce<R: Runtime>(handle: &AppHandle<R>, content: &str) {
+/// Requires MLS message author and `payload.parent_id` == `chat_id`. Author must be the MLS group creator.
+pub fn maybe_upsert_governance_from_announce<R: Runtime>(
+    handle: &AppHandle<R>,
+    content: &str,
+    chat_id: &str,
+    author_npub: Option<&str>,
+) {
+    let Some(author) = author_npub.map(str::trim).filter(|s| !s.is_empty()) else {
+        return;
+    };
     let parsed: serde_json::Value = match serde_json::from_str(content) {
         Ok(v) => v,
         Err(_) => return,
@@ -1543,6 +1752,12 @@ pub fn maybe_upsert_governance_from_announce<R: Runtime>(handle: &AppHandle<R>, 
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return,
     };
+    if !side_effect_parent_matches_chat(chat_id, parent_id) {
+        return;
+    }
+    if !is_author_mls_admin_for_chat(handle, chat_id, author) {
+        return;
+    }
     let provider = match p.get("provider").and_then(|v| v.as_str()) {
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return,
@@ -1730,51 +1945,77 @@ pub fn upsert_squad_member_evm_account<R: Runtime>(
     }
 
     let conn = crate::account_manager::get_db_connection(&handle)?;
-    let purpose: String = conn
-        .query_row(
-            "SELECT purpose FROM evm_accounts WHERE id = ?1",
-            rusqlite::params![account_id],
-            |r| r.get(0),
-        )
-        .map_err(|_| "Unknown EVM account.".to_string())?;
-    if purpose.trim().eq_ignore_ascii_case("advanced") {
-        crate::account_manager::return_db_connection(conn);
-        return Err(
-            "Advanced-purpose EVM accounts cannot be linked to squad rosters.".to_string(),
-        );
-    }
-    let address: String = conn
-        .query_row(
-            "SELECT address FROM evm_accounts WHERE id = ?1",
-            rusqlite::params![account_id],
-            |r| r.get(0),
-        )
-        .map_err(|_| "Unknown EVM account.".to_string())?;
-    crate::account_manager::return_db_connection(conn);
+    let purpose_addr: Result<(String, String), String> = (|| {
+        let purpose: String = conn
+            .query_row(
+                "SELECT purpose FROM evm_accounts WHERE id = ?1",
+                rusqlite::params![account_id],
+                |r| r.get(0),
+            )
+            .map_err(|_| "Unknown EVM account.".to_string())?;
+        if purpose.trim().eq_ignore_ascii_case("advanced") {
+            return Err(
+                "Advanced-purpose EVM accounts cannot be linked to squad rosters.".to_string(),
+            );
+        }
+        let address: String = conn
+            .query_row(
+                "SELECT address FROM evm_accounts WHERE id = ?1",
+                rusqlite::params![account_id],
+                |r| r.get(0),
+            )
+            .map_err(|_| "Unknown EVM account.".to_string())?;
+        Ok((purpose, address))
+    })();
+    let (_purpose, address) = match purpose_addr {
+        Ok(v) => v,
+        Err(e) => {
+            crate::account_manager::return_db_connection(conn);
+            return Err(e);
+        }
+    };
 
-    let norm = crate::evm::normalize_hex_address(address.trim())
-        .ok_or_else(|| "Invalid EVM address".to_string())?;
-    crate::evm::evm_accounts::ensure_address_allowed_on_squad_roster(&handle, norm.as_str())?;
+    let norm = match crate::evm::normalize_hex_address(address.trim()) {
+        Some(n) => n,
+        None => {
+            crate::account_manager::return_db_connection(conn);
+            return Err("Invalid EVM address".to_string());
+        }
+    };
+    if let Err(e) =
+        crate::evm::evm_accounts::ensure_address_allowed_on_squad_roster(&handle, norm.as_str())
+    {
+        crate::account_manager::return_db_connection(conn);
+        return Err(e);
+    }
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
 
-    let conn = crate::account_manager::get_db_connection(&handle)?;
-    conn.execute(
-        "INSERT INTO squad_member_evm_account (parent_id, member_npub, evm_account_id, updated_at_ms) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(parent_id, member_npub) DO UPDATE SET evm_account_id = excluded.evm_account_id, updated_at_ms = excluded.updated_at_ms",
-        rusqlite::params![parent, member_npub.as_str(), account_id, now_ms],
-    )
-    .map_err(|e| format!("Failed to upsert squad_member_evm_account: {}", e))?;
-    conn.execute(
-        "INSERT INTO squad_member_evm (parent_id, member_npub, evm_address, updated_at_ms) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(parent_id, member_npub) DO UPDATE SET evm_address = excluded.evm_address, updated_at_ms = excluded.updated_at_ms",
-        rusqlite::params![parent, member_npub.as_str(), norm, now_ms],
-    )
-    .map_err(|e| format!("Failed to upsert squad_member_evm: {}", e))?;
+    let write_result = (|| -> Result<(), String> {
+        let tx = conn
+            .unchecked_transaction()
+            .map_err(|e| format!("Failed to begin squad EVM upsert transaction: {}", e))?;
+        tx.execute(
+            "INSERT INTO squad_member_evm_account (parent_id, member_npub, evm_account_id, updated_at_ms) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(parent_id, member_npub) DO UPDATE SET evm_account_id = excluded.evm_account_id, updated_at_ms = excluded.updated_at_ms",
+            rusqlite::params![parent, member_npub.as_str(), account_id, now_ms],
+        )
+        .map_err(|e| format!("Failed to upsert squad_member_evm_account: {}", e))?;
+        tx.execute(
+            "INSERT INTO squad_member_evm (parent_id, member_npub, evm_address, updated_at_ms) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(parent_id, member_npub) DO UPDATE SET evm_address = excluded.evm_address, updated_at_ms = excluded.updated_at_ms",
+            rusqlite::params![parent, member_npub.as_str(), norm, now_ms],
+        )
+        .map_err(|e| format!("Failed to upsert squad_member_evm: {}", e))?;
+        tx.commit()
+            .map_err(|e| format!("Failed to commit squad EVM upsert: {}", e))?;
+        Ok(())
+    })();
     crate::account_manager::return_db_connection(conn);
+    write_result?;
 
     Ok(SquadMemberEvmRow {
         member_npub,
@@ -1999,6 +2240,7 @@ pub async fn replay_automation_side_effects_for_chat<R: Runtime>(
     for msg in &messages {
         apply_inbox_virtual_bucket_side_effects(
             handle,
+            chat_id,
             msg.virtual_bucket.as_deref(),
             &msg.content,
             msg.npub.as_deref(),
@@ -2010,8 +2252,10 @@ pub async fn replay_automation_side_effects_for_chat<R: Runtime>(
 /// Applies treasury (`squad_safe_updated`), governance (`governance_updated`), and roster EVM (`squad_member_evm_share`)
 /// side effects when the MLS chat row is classified into the **inbox** virtual bucket (routing ADR).
 /// Squad sponsor `governance_updated` announces also ingest from **announcements** so all members sync infra.
+/// `chat_id` is the MLS group id (squad announcements id); payload parent ids must match it.
 pub fn apply_inbox_virtual_bucket_side_effects<R: Runtime>(
     handle: &AppHandle<R>,
+    chat_id: &str,
     virtual_bucket: Option<&str>,
     content: &str,
     author_npub: Option<&str>,
@@ -2025,24 +2269,59 @@ pub fn apply_inbox_virtual_bucket_side_effects<R: Runtime>(
     });
     let effective_bucket = derived_bucket.as_deref();
 
-    // Sponsor infra must sync for every squad member even when bucket metadata was missing on ingest.
-    if is_sponsor_governance_announce_content(content) {
-        maybe_upsert_governance_from_announce(handle, content);
+    // Squad-wide governance deploys sync even when bucket metadata was missing on ingest.
+    if is_announcements_governance_announce_content(content) {
+        maybe_upsert_governance_from_announce(handle, content, chat_id, author_npub);
+    }
+
+    if effective_bucket == Some("announcements") || effective_bucket.is_none() {
+        try_apply_squad_bot_meta(handle, content, chat_id);
     }
 
     if effective_bucket == Some("inbox") {
-        try_apply_squad_member_evm_share(handle, content, author_npub);
-        apply_parent_safe_announce(handle, content);
-        maybe_upsert_governance_from_announce(handle, content);
-        try_apply_squad_contract_allowlist_announce(handle, content);
+        try_apply_squad_member_evm_share(handle, content, chat_id, author_npub);
+        apply_parent_safe_announce(handle, content, chat_id, author_npub);
+        maybe_upsert_governance_from_announce(handle, content, chat_id, author_npub);
+        try_apply_squad_contract_allowlist_announce(handle, content, chat_id, author_npub);
         return;
     }
-    if effective_bucket == Some("announcements") && is_sponsor_governance_announce_content(content) {
+    if effective_bucket == Some("announcements") && is_announcements_governance_announce_content(content) {
         return;
     }
 }
 
-fn is_sponsor_governance_announce_content(content: &str) -> bool {
+fn try_apply_squad_bot_meta<R: Runtime>(handle: &AppHandle<R>, content: &str, chat_id: &str) {
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(content.trim()) else {
+        return;
+    };
+    let schema = val.get("schema").and_then(|x| x.as_str()).unwrap_or("");
+    if schema != crate::squad_bot::SQUAD_BOT_META_SCHEMA
+        && schema != crate::squad_bot::SQUAD_BOT_KEY_ROTATED_SCHEMA
+    {
+        return;
+    }
+    let Some(squad_id) = val
+        .get("squadId")
+        .or_else(|| val.get("squad_id"))
+        .and_then(|x| x.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return;
+    };
+    if !side_effect_parent_matches_chat(chat_id, squad_id) {
+        return;
+    }
+    let Ok(conn) = crate::account_manager::get_db_connection(handle) else {
+        return;
+    };
+    if let Err(e) = crate::squad_bot::apply_meta_from_content(&conn, content) {
+        eprintln!("[squad_bot] apply meta failed: {e}");
+    }
+    crate::account_manager::return_db_connection(conn);
+}
+
+fn is_announcements_governance_announce_content(content: &str) -> bool {
     let Ok(val) = serde_json::from_str::<serde_json::Value>(content.trim()) else {
         return false;
     };
@@ -2052,7 +2331,10 @@ fn is_sponsor_governance_announce_content(content: &str) -> bool {
     val.get("payload")
         .and_then(|p| p.get("provider"))
         .and_then(|x| x.as_str())
-        .map(|s| s.trim().eq_ignore_ascii_case("sponsor"))
+        .map(|s| {
+            let p = s.trim();
+            p.eq_ignore_ascii_case("sponsor") || p.eq_ignore_ascii_case("pacto_gov")
+        })
         .unwrap_or(false)
 }
 
@@ -2060,6 +2342,7 @@ fn is_sponsor_governance_announce_content(content: &str) -> bool {
 pub fn try_apply_squad_member_evm_share<R: Runtime>(
     handle: &AppHandle<R>,
     content: &str,
+    chat_id: &str,
     author_npub: Option<&str>,
 ) {
     let Some(author) = author_npub.map(str::trim).filter(|s| !s.is_empty()) else {
@@ -2090,6 +2373,9 @@ pub fn try_apply_squad_member_evm_share<R: Runtime>(
     else {
         return;
     };
+    if !side_effect_parent_matches_chat(chat_id, parent_id) {
+        return;
+    }
     let Some(raw_addr) = p
         .get("evm_address")
         .and_then(|v| v.as_str())
@@ -2112,11 +2398,16 @@ pub fn try_apply_squad_member_evm_share<R: Runtime>(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
-    let _ = conn.execute(
+    if let Err(e) = conn.execute(
         "INSERT INTO squad_member_evm (parent_id, member_npub, evm_address, updated_at_ms) VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(parent_id, member_npub) DO UPDATE SET evm_address = excluded.evm_address, updated_at_ms = excluded.updated_at_ms",
         rusqlite::params![parent_id, author, norm, now_ms],
-    );
+    ) {
+        eprintln!(
+            "[squad_member_evm_share] failed to upsert for parent {}: {}",
+            parent_id, e
+        );
+    }
     crate::account_manager::return_db_connection(conn);
 }
 
@@ -3693,69 +3984,174 @@ pub fn event_exists_by_wrapper<R: Runtime>(
 /// Get events for a chat with pagination
 ///
 /// Returns events ordered by created_at descending (newest first).
-/// Optionally filter by event kinds.
+/// Optionally filter by event kinds and/or persisted `virtual_bucket`
+/// (`announcements` | `inbox` | `polls` | `join_requests`) so LIMIT/OFFSET apply to the filtered set.
 pub async fn get_events<R: Runtime>(
     handle: &AppHandle<R>,
     chat_id: i64,
     kinds: Option<&[u16]>,
     limit: usize,
     offset: usize,
+    virtual_bucket_filter: Option<&str>,
 ) -> Result<Vec<StoredEvent>, String> {
+    let bucket = virtual_bucket_filter
+        .map(str::trim)
+        .filter(|w| matches!(*w, "announcements" | "inbox" | "polls" | "join_requests"));
+
     // Do all SQLite work synchronously in a block to avoid Send issues
     let events: Vec<StoredEvent> = {
         let conn = crate::account_manager::get_db_connection(handle)?;
 
-        // Build query based on whether kinds filter is provided
         let events = if let Some(k) = kinds {
-            // Build numbered placeholders for the IN clause
-            // chat_id=?1, kinds=?2,?3,..., limit=?N, offset=?N+1
             let kind_placeholders: String = (0..k.len())
                 .map(|i| format!("?{}", i + 2))
                 .collect::<Vec<_>>()
                 .join(",");
-            let limit_param = k.len() + 2;
-            let offset_param = k.len() + 3;
+            let mut next = k.len() + 2;
+            let bucket_clause = if bucket.is_some() {
+                let clause = format!(" AND virtual_bucket = ?{next}");
+                next += 1;
+                clause
+            } else {
+                String::new()
+            };
+            let limit_param = next;
+            let offset_param = next + 1;
 
             let sql = format!(
                 r#"
                 SELECT id, kind, chat_id, user_id, content, tags, reference_id,
                        created_at, received_at, mine, pending, failed, wrapper_event_id, npub, virtual_bucket
                 FROM events
-                WHERE chat_id = ?1 AND kind IN ({})
+                WHERE chat_id = ?1 AND kind IN ({kind_placeholders}){bucket_clause}
                 ORDER BY created_at DESC
-                LIMIT ?{} OFFSET ?{}
-                "#,
-                kind_placeholders, limit_param, offset_param
+                LIMIT ?{limit_param} OFFSET ?{offset_param}
+                "#
             );
 
-            let mut stmt = conn.prepare(&sql)
+            let mut stmt = conn
+                .prepare(&sql)
                 .map_err(|e| format!("Failed to prepare events query: {}", e))?;
 
-            // Use rusqlite params! macro with dynamic kinds
-            let result: Vec<StoredEvent> = match k.len() {
-                1 => {
-                    let rows = stmt.query_map(
-                        rusqlite::params![chat_id, k[0] as i32, limit as i64, offset as i64],
-                        parse_event_row
-                    ).map_err(|e| format!("Failed to query events: {}", e))?;
+            let result: Vec<StoredEvent> = match (k.len(), bucket) {
+                (1, None) => {
+                    let rows = stmt
+                        .query_map(
+                            rusqlite::params![chat_id, k[0] as i32, limit as i64, offset as i64],
+                            parse_event_row,
+                        )
+                        .map_err(|e| format!("Failed to query events: {}", e))?;
                     rows.filter_map(|r| r.ok()).collect()
-                },
-                2 => {
-                    let rows = stmt.query_map(
-                        rusqlite::params![chat_id, k[0] as i32, k[1] as i32, limit as i64, offset as i64],
-                        parse_event_row
-                    ).map_err(|e| format!("Failed to query events: {}", e))?;
+                }
+                (2, None) => {
+                    let rows = stmt
+                        .query_map(
+                            rusqlite::params![
+                                chat_id,
+                                k[0] as i32,
+                                k[1] as i32,
+                                limit as i64,
+                                offset as i64
+                            ],
+                            parse_event_row,
+                        )
+                        .map_err(|e| format!("Failed to query events: {}", e))?;
                     rows.filter_map(|r| r.ok()).collect()
-                },
-                3 => {
-                    let rows = stmt.query_map(
-                        rusqlite::params![chat_id, k[0] as i32, k[1] as i32, k[2] as i32, limit as i64, offset as i64],
-                        parse_event_row
-                    ).map_err(|e| format!("Failed to query events: {}", e))?;
+                }
+                (3, None) => {
+                    let rows = stmt
+                        .query_map(
+                            rusqlite::params![
+                                chat_id,
+                                k[0] as i32,
+                                k[1] as i32,
+                                k[2] as i32,
+                                limit as i64,
+                                offset as i64
+                            ],
+                            parse_event_row,
+                        )
+                        .map_err(|e| format!("Failed to query events: {}", e))?;
                     rows.filter_map(|r| r.ok()).collect()
-                },
-                _ => return Err("Unsupported number of kinds".to_string()),
+                }
+                (1, Some(b)) => {
+                    let rows = stmt
+                        .query_map(
+                            rusqlite::params![
+                                chat_id,
+                                k[0] as i32,
+                                b,
+                                limit as i64,
+                                offset as i64
+                            ],
+                            parse_event_row,
+                        )
+                        .map_err(|e| format!("Failed to query events: {}", e))?;
+                    rows.filter_map(|r| r.ok()).collect()
+                }
+                (2, Some(b)) => {
+                    let rows = stmt
+                        .query_map(
+                            rusqlite::params![
+                                chat_id,
+                                k[0] as i32,
+                                k[1] as i32,
+                                b,
+                                limit as i64,
+                                offset as i64
+                            ],
+                            parse_event_row,
+                        )
+                        .map_err(|e| format!("Failed to query events: {}", e))?;
+                    rows.filter_map(|r| r.ok()).collect()
+                }
+                (3, Some(b)) => {
+                    let rows = stmt
+                        .query_map(
+                            rusqlite::params![
+                                chat_id,
+                                k[0] as i32,
+                                k[1] as i32,
+                                k[2] as i32,
+                                b,
+                                limit as i64,
+                                offset as i64
+                            ],
+                            parse_event_row,
+                        )
+                        .map_err(|e| format!("Failed to query events: {}", e))?;
+                    rows.filter_map(|r| r.ok()).collect()
+                }
+                _ => {
+                    drop(stmt);
+                    crate::account_manager::return_db_connection(conn);
+                    return Err("Unsupported number of kinds".to_string());
+                }
             };
+
+            drop(stmt);
+            result
+        } else if let Some(b) = bucket {
+            let sql = r#"
+                SELECT id, kind, chat_id, user_id, content, tags, reference_id,
+                       created_at, received_at, mine, pending, failed, wrapper_event_id, npub, virtual_bucket
+                FROM events
+                WHERE chat_id = ?1 AND virtual_bucket = ?2
+                ORDER BY created_at DESC
+                LIMIT ?3 OFFSET ?4
+            "#;
+
+            let mut stmt = conn
+                .prepare(sql)
+                .map_err(|e| format!("Failed to prepare events query: {}", e))?;
+
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![chat_id, b, limit as i64, offset as i64],
+                    parse_event_row,
+                )
+                .map_err(|e| format!("Failed to query events: {}", e))?;
+            let result: Vec<StoredEvent> = rows.filter_map(|r| r.ok()).collect();
 
             drop(stmt);
             result
@@ -3769,13 +4165,16 @@ pub async fn get_events<R: Runtime>(
                 LIMIT ?2 OFFSET ?3
             "#;
 
-            let mut stmt = conn.prepare(sql)
+            let mut stmt = conn
+                .prepare(sql)
                 .map_err(|e| format!("Failed to prepare events query: {}", e))?;
 
-            let rows = stmt.query_map(
-                rusqlite::params![chat_id, limit as i64, offset as i64],
-                parse_event_row
-            ).map_err(|e| format!("Failed to query events: {}", e))?;
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![chat_id, limit as i64, offset as i64],
+                    parse_event_row,
+                )
+                .map_err(|e| format!("Failed to query events: {}", e))?;
             let result: Vec<StoredEvent> = rows.filter_map(|r| r.ok()).collect();
 
             drop(stmt);
@@ -3790,7 +4189,8 @@ pub async fn get_events<R: Runtime>(
     let mut decrypted_events = Vec::with_capacity(events.len());
     for mut event in events {
         if event.kind == event_kind::PRIVATE_DIRECT_MESSAGE {
-            event.content = internal_decrypt(event.content, None).await
+            event.content = internal_decrypt(event.content, None)
+                .await
                 .unwrap_or_else(|_| "[Decryption failed]".to_string());
         }
         decrypted_events.push(event);
@@ -4055,7 +4455,15 @@ pub async fn get_message_views<R: Runtime>(
         event_kind::FILE_ATTACHMENT,
         event_kind::APPLICATION_SPECIFIC,
     ];
-    let message_events = get_events(handle, chat_id, Some(&message_kinds), limit, offset).await?;
+    let message_events = get_events(
+        handle,
+        chat_id,
+        Some(&message_kinds),
+        limit,
+        offset,
+        virtual_bucket_filter.as_deref(),
+    )
+    .await?;
 
     let message_events: Vec<StoredEvent> = message_events
         .into_iter()
@@ -4262,13 +4670,6 @@ pub async fn get_message_views<R: Runtime>(
                     message.replied_to_has_attachment = Some(ctx.has_attachment);
                 }
             }
-        }
-    }
-
-    if let Some(want) = virtual_bucket_filter {
-        let w = want.trim();
-        if matches!(w, "announcements" | "inbox" | "polls") {
-            messages.retain(|m| m.virtual_bucket.as_deref() == Some(w));
         }
     }
 

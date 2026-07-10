@@ -1,7 +1,7 @@
 /**
  * Virtual bucket routing for squad/network default channels when one MLS group backs
- * announcements, inbox, and polls. Matches docs/mls/VIRTUAL_CHANNEL_ROUTING_ADR.md (client-side;
- * rumor tags are not available on DmMessage).
+ * announcements, inbox, polls, and join_requests. Matches docs/mls/VIRTUAL_CHANNEL_ROUTING_ADR.md
+ * (client-side; rumor tags are not available on DmMessage).
  */
 
 import {
@@ -11,7 +11,7 @@ import {
   ANNOUNCE_TYPE_SAFE_PROPOSAL,
   ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE,
   ANNOUNCE_TYPE_SQUAD_SAFE_UPDATED,
-  isSponsorGovernanceAnnounce,
+  isAnnouncementsGovernanceAnnounce,
   type AnnounceMessage,
 } from '../announcements';
 import {
@@ -21,7 +21,16 @@ import {
   normalizeHubChannelName,
 } from '../squad/hub-channel-names';
 
-export type VirtualBucket = 'announcements' | 'inbox' | 'polls';
+export type VirtualBucket = 'announcements' | 'inbox' | 'polls' | 'join_requests';
+
+function isVirtualBucket(value: string): value is VirtualBucket {
+  return (
+    value === 'announcements' ||
+    value === 'inbox' ||
+    value === 'polls' ||
+    value === 'join_requests'
+  );
+}
 
 /** Separator between MLS parent id and bucket in {@link groupTimelineKey} (not valid in hex MLS ids). */
 export const GROUP_TIMELINE_KEY_SEP = '\x1f';
@@ -35,7 +44,7 @@ export function parseGroupTimelineKey(key: string): { parentGroupId: string; buc
   if (i <= 0) return null;
   const parentGroupId = key.slice(0, i);
   const bucket = key.slice(i + GROUP_TIMELINE_KEY_SEP.length);
-  if (bucket !== 'announcements' && bucket !== 'inbox' && bucket !== 'polls') return null;
+  if (!isVirtualBucket(bucket)) return null;
   return { parentGroupId, bucket };
 }
 
@@ -96,7 +105,7 @@ export function deriveVirtualBucketFromMessageContent(content: string | undefine
   const rec = parsed as Record<string, unknown>;
 
   const vb = rec['pacto_virtual_bucket'];
-  if (vb === 'announcements' || vb === 'inbox' || vb === 'polls') return vb;
+  if (typeof vb === 'string' && isVirtualBucket(vb)) return vb;
 
   if (
     rec['schema'] === 'pacto.dashboard_poll.v1' &&
@@ -108,11 +117,25 @@ export function deriveVirtualBucketFromMessageContent(content: string | undefine
     return 'polls';
   }
 
+  const schema = rec['schema'];
+  if (
+    schema === 'pacto.squad.join_request.v1' ||
+    schema === 'pacto.squad.join_request_response.v1'
+  ) {
+    return 'join_requests';
+  }
+  if (schema === 'pacto.squad_bot.meta.v1' || schema === 'pacto.squad_bot.key_rotated.v1') {
+    return 'announcements';
+  }
+  if (schema === 'pacto.squad_bot.rotate_prompt.v1') {
+    return 'inbox';
+  }
+
   const ann = parseAnnouncement(trimmed);
   if (ann?.type === ANNOUNCE_TYPE_DASHBOARD_POLL_CREATED) return 'announcements';
-  if (ann?.type === ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE) return 'inbox';
+  if (ann?.type === ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE) return 'announcements';
   if (ann?.type === ANNOUNCE_TYPE_GOVERNANCE_UPDATED) {
-    return isSponsorGovernanceAnnounce(ann) ? 'announcements' : 'inbox';
+    return isAnnouncementsGovernanceAnnounce(ann) ? 'announcements' : 'inbox';
   }
   if (ann?.type === ANNOUNCE_TYPE_SQUAD_SAFE_UPDATED || ann?.type === ANNOUNCE_TYPE_SAFE_PROPOSAL) {
     return 'inbox';
@@ -123,11 +146,10 @@ export function deriveVirtualBucketFromMessageContent(content: string | undefine
 
 /** Automation-shaped announces belong in **inbox** for MLS timeline partitioning (ADR), except squad sponsor deploys. */
 export function isInboxOnlyStructuredAnnounce(parsed: AnnounceMessage): boolean {
-  if (isSponsorGovernanceAnnounce(parsed)) return false;
+  if (isAnnouncementsGovernanceAnnounce(parsed)) return false;
   switch (parsed.type) {
     case ANNOUNCE_TYPE_SQUAD_SAFE_UPDATED:
     case ANNOUNCE_TYPE_SAFE_PROPOSAL:
-    case ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE:
     case ANNOUNCE_TYPE_GOVERNANCE_UPDATED:
       return true;
     default:
@@ -135,13 +157,14 @@ export function isInboxOnlyStructuredAnnounce(parsed: AnnounceMessage): boolean 
   }
 }
 
-/**
- * Prefer rendering structured automation rows only when the message resolves to **inbox**, matching SQLite ingest gates.
- */
+/** Prefer rendering structured automation rows only when the message resolves to the correct virtual bucket. */
 export function announceCardAllowedForTimelineBucket(
   parsed: AnnounceMessage,
   msg: { virtual_bucket?: string | null; content?: string | null },
 ): boolean {
+  if (parsed.type === ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE) {
+    return resolveVirtualBucketForTimelineMessage(msg) === 'announcements';
+  }
   if (!isInboxOnlyStructuredAnnounce(parsed)) return true;
   return resolveVirtualBucketForTimelineMessage(msg) === 'inbox';
 }
@@ -162,9 +185,10 @@ export function resolveVirtualBucketForTimelineMessage(m: {
   const ann =
     m.content?.trim().startsWith('{') === true ? parseAnnouncement(m.content) : null;
   if (ann?.type === ANNOUNCE_TYPE_DASHBOARD_POLL_CREATED) return 'announcements';
+  if (ann?.type === ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE) return 'announcements';
 
   const pb = m.virtual_bucket?.trim();
-  if (pb === 'announcements' || pb === 'inbox' || pb === 'polls') return pb;
+  if (pb && isVirtualBucket(pb)) return pb;
   return deriveVirtualBucketFromMessageContent(m.content);
 }
 

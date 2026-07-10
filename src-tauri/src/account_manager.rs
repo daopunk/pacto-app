@@ -1123,6 +1123,8 @@ fn run_migrations(conn: &rusqlite::Connection) -> Result<(), String> {
 
     crate::commons::ensure_commons_broadcasts_table(&conn)
         .map_err(|e| format!("Failed to create commons_broadcasts table: {e}"))?;
+    crate::squad_bot::ensure_squad_bot_tables(&conn)
+        .map_err(|e| format!("Failed to create squad_bot tables: {e}"))?;
 
     let has_squads_catalog: bool = conn
         .query_row(

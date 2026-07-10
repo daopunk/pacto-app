@@ -49,3 +49,18 @@ export interface CommonsBroadcastLocalState {
   message: string;
   audience?: CommonsBroadcastAudience;
 }
+
+export type CommonsJoinRequestStatus = 'pending' | 'accepted' | 'rejected';
+
+/** Pending join row materialized from MLS `join_requests` bucket (not public Nostr). */
+export interface CommonsJoinRequestDto {
+  eventId: string;
+  requesterNpub: string;
+  squadId: string;
+  squadName: string;
+  broadcastEventId: string;
+  createdAt: number;
+  status: CommonsJoinRequestStatus;
+  respondedAt?: number;
+  responderNpub?: string;
+}

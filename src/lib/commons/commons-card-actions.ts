@@ -1,3 +1,12 @@
+import { sendDmMessage } from '../api/nostr';
+import { getInvokeErrorMessage } from '../utils/tauri-errors';
+import type { CommonsBroadcastDto } from './types';
+import {
+  commonsJoinRequestBlockReason,
+  recordJoinRequestSent,
+  squadIdFromBroadcast,
+} from './commons-join-request';
+import { formatBotJoinDm } from '../squad/squad-join-mls';
 import { activeTopNavTab, activeView } from '../../stores/navigation';
 import {
   activeDmId,
@@ -6,16 +15,6 @@ import {
   newChatDraftMessage,
 } from '../../stores/dm';
 import { loadProfile } from '../../stores/profiles';
-import { sendDmMessage } from '../api/nostr';
-import { getInvokeErrorMessage } from '../utils/tauri-errors';
-import type { CommonsBroadcastDto } from './types';
-import {
-  commonsJoinRequestBlockReason,
-  formatCommonsJoinRequestMessage,
-  recordJoinRequestSent,
-  squadIdFromBroadcast,
-  type CommonsJoinRequestPayload,
-} from './commons-join-request';
 
 /**
  * Open the DMs "New Chat" compose view with the recipient and a partial
@@ -33,6 +32,7 @@ export function openCommonsUserDmRequest(authorNpub: string, displayName?: strin
   void loadProfile(authorNpub);
 }
 
+/** Send a structured join request DM to the squad bot (card author). */
 export async function sendCommonsJoinRequest(
   broadcast: CommonsBroadcastDto,
   requesterNpub: string,
@@ -43,21 +43,19 @@ export async function sendCommonsJoinRequest(
     return { ok: false, error: blockReason };
   }
 
+  const botNpub = broadcast.authorNpub?.trim() ?? '';
+  if (!botNpub.startsWith('npub1')) {
+    return { ok: false, error: 'Squad broadcast is missing a bot author.' };
+  }
+
   const squadId = squadIdFromBroadcast(broadcast);
-  const payload: CommonsJoinRequestPayload = {
-    type: 'commons_join_request',
+  const content = formatBotJoinDm({
     squadId,
     squadName: broadcast.squadName ?? 'Squad',
-    squadKind: broadcast.squadKind,
     broadcastEventId: broadcast.eventId,
-    requesterNpub,
-  };
-
+  });
   try {
-    const ok = await sendDmMessage(broadcast.authorNpub, formatCommonsJoinRequestMessage(payload));
-    if (!ok) {
-      return { ok: false, error: 'Could not send join request.' };
-    }
+    await sendDmMessage(botNpub, content);
     recordJoinRequestSent(squadId);
     return { ok: true };
   } catch (e: unknown) {

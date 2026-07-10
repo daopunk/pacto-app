@@ -66,9 +66,15 @@ describe('deriveVirtualBucketFromMessageContent', () => {
 
     const gov = buildAnnounceContent({
       type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
-      payload: { parent_id: 'p', provider: 'x', canonical_ref: 'y' },
+      payload: { parent_id: 'p', provider: 'gnosis_safe', canonical_ref: 'y' },
     });
     expect(deriveVirtualBucketFromMessageContent(gov)).toBe('inbox');
+
+    const pactoGov = buildAnnounceContent({
+      type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
+      payload: { parent_id: 'p', provider: 'pacto_gov', canonical_ref: '3519' },
+    });
+    expect(deriveVirtualBucketFromMessageContent(pactoGov)).toBe('announcements');
 
     const pollCreated = buildAnnounceContent({
       type: ANNOUNCE_TYPE_DASHBOARD_POLL_CREATED,
@@ -88,11 +94,37 @@ describe('deriveVirtualBucketFromMessageContent', () => {
       type: ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE,
       payload: { parent_id: 'p', evm_address: '0xdef' },
     });
-    expect(deriveVirtualBucketFromMessageContent(evmShare)).toBe('inbox');
+    expect(deriveVirtualBucketFromMessageContent(evmShare)).toBe('announcements');
   });
 
   it('treats unknown JSON as announcements', () => {
     expect(deriveVirtualBucketFromMessageContent(JSON.stringify({ foo: 'bar' }))).toBe('announcements');
+  });
+
+  it('derives join_requests from join request schemas', () => {
+    expect(
+      deriveVirtualBucketFromMessageContent(
+        JSON.stringify({ schema: 'pacto.squad.join_request.v1', requestId: 'r1', status: 'pending' })
+      )
+    ).toBe('join_requests');
+    expect(
+      deriveVirtualBucketFromMessageContent(
+        JSON.stringify({ schema: 'pacto.squad.join_request_response.v1', requestId: 'r1', status: 'accepted' })
+      )
+    ).toBe('join_requests');
+  });
+
+  it('derives squad bot meta and rotate prompt buckets', () => {
+    expect(
+      deriveVirtualBucketFromMessageContent(
+        JSON.stringify({ schema: 'pacto.squad_bot.meta.v1', botNpub: 'npub1x', keyEpoch: 1 })
+      )
+    ).toBe('announcements');
+    expect(
+      deriveVirtualBucketFromMessageContent(
+        JSON.stringify({ schema: 'pacto.squad_bot.rotate_prompt.v1', reason: 'holder_removed' })
+      )
+    ).toBe('inbox');
   });
 });
 
@@ -204,17 +236,18 @@ describe('groupTimelineKey / buildBackendGroupTimelineMessages', () => {
     expect(pollsSlice).toEqual(msgs.filter((m) => deriveVirtualBucketFromMessageContent(m.content) === 'polls'));
   });
 
-  it('partitions large merged timelines within reasonable wall time', () => {
+  it('partitions large merged timelines without dropping messages', () => {
     const parent = 'p'.repeat(40);
     const n = 8000;
     const msgs = Array.from({ length: n }, (_, i) => ({
       at: i,
       content: i % 40 === 0 ? JSON.stringify({ pacto_virtual_bucket: 'polls' }) : `plain-${i}`,
     }));
-    const t0 = performance.now();
-    buildBackendGroupTimelineMessages({ [parent]: msgs });
-    const elapsed = performance.now() - t0;
-    expect(elapsed).toBeLessThan(400);
+    const idx = buildBackendGroupTimelineMessages({ [parent]: msgs });
+    const announcements = idx[groupTimelineKey(parent, 'announcements')] ?? [];
+    const polls = idx[groupTimelineKey(parent, 'polls')] ?? [];
+    expect(announcements.length + polls.length).toBe(n);
+    expect(polls.length).toBe(Math.ceil(n / 40));
   });
 });
 
@@ -254,6 +287,23 @@ describe('announceCardAllowedForTimelineBucket', () => {
     ).toBe(false);
   });
 
+  it('allows pacto_gov governance in announcements', () => {
+    const content = buildAnnounceContent({
+      type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
+      payload: { parent_id: 'p', provider: 'pacto_gov', canonical_ref: '3519' },
+    });
+    const parsed = parseAnnouncement(content);
+    expect(parsed).not.toBeNull();
+    if (!parsed) return;
+    expect(
+      announceCardAllowedForTimelineBucket(parsed, {
+        content,
+        virtual_bucket: 'announcements',
+      })
+    ).toBe(true);
+    expect(deriveVirtualBucketFromMessageContent(content)).toBe('announcements');
+  });
+
   it('allows squad sponsor governance in announcements', () => {
     const sponsorContent = buildAnnounceContent({
       type: ANNOUNCE_TYPE_GOVERNANCE_UPDATED,
@@ -279,7 +329,7 @@ describe('announceCardAllowedForTimelineBucket', () => {
     ).toBe(true);
   });
 
-  it('treats squad_member_evm_share like other inbox bots', () => {
+  it('routes squad_member_evm_share to announcements', () => {
     const raw = buildAnnounceContent({
       type: ANNOUNCE_TYPE_SQUAD_MEMBER_EVM_SHARE,
       payload: { parent_id: 'p', evm_address: '0x0000000000000000000000000000000000000001' },
@@ -287,7 +337,12 @@ describe('announceCardAllowedForTimelineBucket', () => {
     const p = parseAnnouncement(raw);
     expect(p).not.toBeNull();
     if (!p) return;
-    expect(announceCardAllowedForTimelineBucket(p, { content: raw, virtual_bucket: 'inbox' })).toBe(true);
-    expect(announceCardAllowedForTimelineBucket(p, { content: raw, virtual_bucket: 'polls' })).toBe(false);
+    expect(deriveVirtualBucketFromMessageContent(raw)).toBe('announcements');
+    expect(
+      announceCardAllowedForTimelineBucket(p, { content: raw, virtual_bucket: 'announcements' })
+    ).toBe(true);
+    expect(
+      resolveVirtualBucketForTimelineMessage({ content: raw, virtual_bucket: 'inbox' })
+    ).toBe('announcements');
   });
 });

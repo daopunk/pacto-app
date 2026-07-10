@@ -51,6 +51,7 @@
   } from '../../stores/commons-ui';
   import { getInvokeErrorMessage, friendlyMessage } from '../../lib/utils/tauri-errors';
   import { persistCreatedSquad } from '../../lib/squad/squad-catalog';
+  import { initSquadBot } from '../../lib/squad/squad-bot';
   import { DEFAULT_CHAIN_ID, type SupportedChainId } from '../../lib/wallet/chains';
   import {
     listSquadDeployNetworkOptions,
@@ -206,6 +207,7 @@
           updatedAt: Date.now(),
         };
         await persistCreatedSquad(tempId, finalized);
+        void initSquadBot(groupId);
         const creatorNpub = get(currentUser)?.npub;
         if (creatorNpub && options.network) {
           saveSquadNetworkOverride(creatorNpub, groupId, options.network);
@@ -323,7 +325,7 @@
   $: canCreateSquad =
     organizeSquadName.trim().length > 0 &&
     organizeSquadMembers.length > 0 &&
-    (organizeSquadVisibility !== 'public' || organizeSquadTags.length > 0);
+    (organizeSquadVisibility !== 'public' || organizeSquadTags.length === 3);
   $: organizeMemberList = [...$pinnedList, ...$dmList];
 
   $: if (showOrganizeSquadModal) {
