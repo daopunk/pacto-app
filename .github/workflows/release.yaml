@@ -2,11 +2,51 @@ name: 'publish'
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 jobs:
+  release-notes:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest
+
+      - name: Write release body
+        id: notes
+        env:
+          CHANGELOG: ${{ steps.changelog.outputs.content }}
+        run: |
+          {
+            printf '%s\n' "$CHANGELOG"
+            echo ""
+            echo "## Install"
+            echo ""
+            echo "**macOS:** Download the \`.dmg\` for your architecture, open it, and drag Pacto to Applications. For Apple Silicon (M1/M2/M3) use the \`aarch64\` DMG; for Intel Macs use the \`x64\` DMG."
+            echo ""
+            echo "**Linux:** Download the \`.AppImage\` matching your architecture (\`amd64\` or \`arm64\`), run \`chmod +x <file>.AppImage\`, then execute it. Debian/Ubuntu users can install the \`.deb\` package instead."
+            echo ""
+            echo "**Windows:** Download the \`.msi\` or \`.exe\` installer and run it."
+          } > release-body.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-body.md
+          retention-days: 1
+
   publish-tauri:
+    needs: release-notes
     permissions:
       contents: write
     strategy:
@@ -17,14 +57,31 @@ jobs:
             args: '--target aarch64-apple-darwin'
           - platform: 'macos-latest' # for Intel based macs.
             args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
+          - platform: 'ubuntu-24.04'
+            args: '--target x86_64-unknown-linux-gnu'
+          - platform: 'ubuntu-24.04-arm'
+            args: '--target aarch64-unknown-linux-gnu'
           - platform: 'windows-latest'
-            args: ''
+            args: '--target x86_64-pc-windows-msvc'
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v6
+
+      - name: Download release notes
+        uses: actions/download-artifact@v7
+        with:
+          name: release-notes
+
+      - name: Read release notes
+        id: notes
+        shell: bash
+        run: |
+          body=$(cat release-body.md)
+          delimiter="RELEASE_NOTES_EOF_${{ github.run_id }}"
+          echo "body<<${delimiter}" >> $GITHUB_OUTPUT
+          echo "$body" >> $GITHUB_OUTPUT
+          echo "${delimiter}" >> $GITHUB_OUTPUT
 
       - name: setup node
         uses: actions/setup-node@v6.4.0
@@ -40,17 +97,17 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          # Targets are used on macOS runners (both architectures) and the Linux arm64 native runner.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || (matrix.args == '--target aarch64-unknown-linux-gnu' && 'aarch64-unknown-linux-gnu' || '') }}
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake clang libclang-dev file curl wget git pkg-config libvulkan-dev libxdo-dev libssl-dev libayatana-appindicator3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libasound2-dev
           # Install Vulkan SDK with glslc compiler
           wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
           sudo apt-get update
           sudo apt-get install -y vulkan-sdk
 
@@ -96,16 +153,18 @@ jobs:
       - name: install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'Pacto v__VERSION__'
-          releaseBody: 'A new Pacto release arrives! If you can see this, the changelog has not been written yet, wait around to see whats new!'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Pacto ${{ github.ref_name }}'
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.args }}
-          
+          uploadUpdaterJson: true
+          retryAttempts: 3
+          uploadWorkflowArtifacts: true
