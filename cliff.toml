@@ -1,0 +1,49 @@
+[changelog]
+# Header is rendered at the top of CHANGELOG.md; the release workflow composes its own body below it.
+header = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+"""
+footer = ""
+
+trim = true
+
+body = """{% if version %}\
+## {{ version }}{% else %}\
+## Unreleased{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message | upper_first }}{% if commit.scope %} ({{ commit.scope }}){% endif %}
+{% endfor %}
+{% endfor %}"""
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+
+commit_parsers = [
+    { message = "^Merge", skip = true },
+    { message = "^merge", skip = true },
+    { message = "^feat", group = "Features" },
+    { message = "^fix", group = "Bug Fixes" },
+    { message = "^doc", group = "Documentation" },
+    { message = "^perf", group = "Performance" },
+    { message = "^refactor", group = "Refactor" },
+    { message = "^style", group = "Styling" },
+    { message = "^test", group = "Testing" },
+    { message = "^chore", group = "Chores" },
+    { body = ".*security", group = "Security" },
+    { message = "^revert", group = "Revert" },
+    { message = ".*", group = "Other" },
+]
+
+filter_commits = false
+tag_pattern = "v[0-9].*"
+ignore_tags = "v0.1.0"
+topo_order = false
+sort_commits = "oldest"
