@@ -1,0 +1,9 @@
+# Large local caches — keep Cursor SCM/indexing from scanning them
+.pnpm-store/
+node_modules/
+target/
+target-dev-demo/
+src-tauri/target/
+src-tauri/target-dev-demo/
+.svelte-kit/
+coverage/
