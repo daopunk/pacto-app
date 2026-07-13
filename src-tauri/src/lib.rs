@@ -6262,13 +6262,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_deep_link::init());
 
-    // Parallel local demo session (`pnpm tauri:dev:demo`): skip single-instance + MCP bridge.
-    let local_dev_demo = std::env::var("PACTO_DEV_DEMO")
-        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-
     // MCP Bridge plugin for AI-assisted debugging (desktop debug builds only)
     #[cfg(all(debug_assertions, desktop))]
-    if !local_dev_demo {
+    {
         builder = builder.plugin(tauri_plugin_mcp_bridge::init());
     }
 
@@ -6284,23 +6280,21 @@ pub fn run() {
                 .build()
         );
 
-        // Single-instance: skip for the parallel local demo session.
-        if !local_dev_demo {
-            builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-                // Handle deep links from single-instance (Windows/Linux)
-                let urls: Vec<String> = args.iter()
-                    .filter(|arg| arg.starts_with("vector://") || arg.contains("vectorapp.io"))
-                    .cloned()
-                    .collect();
-                if !urls.is_empty() {
-                    deep_link::handle_deep_link(app, urls);
-                }
-                // Focus the existing window
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.set_focus();
-                }
-            }));
-        }
+        // Single-instance plugin: ensures deep links are passed to existing instance
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // Handle deep links from single-instance (Windows/Linux)
+            let urls: Vec<String> = args.iter()
+                .filter(|arg| arg.starts_with("vector://") || arg.contains("vectorapp.io"))
+                .cloned()
+                .collect();
+            if !urls.is_empty() {
+                deep_link::handle_deep_link(app, urls);
+            }
+            // Focus the existing window
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }));
     }
 
     builder
