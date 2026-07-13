@@ -1,6 +1,6 @@
 {
   "name": "pacto",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "",
   "type": "module",
   "scripts": {
@@ -9,6 +9,11 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "changelog": "git-cliff --output CHANGELOG.md && ./scripts/post-process-changelog.sh",
+    "bump-version": "./scripts/bump-version.sh",
+    "bump:patch": "./scripts/bump-version.sh patch",
+    "bump:minor": "./scripts/bump-version.sh minor",
+    "bump:major": "./scripts/bump-version.sh major",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "lint": "eslint .",
