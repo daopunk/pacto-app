@@ -2,6 +2,8 @@ import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 const host = process.env.TAURI_DEV_HOST;
+const devPort = Number(process.env.PACTO_DEV_PORT) || 1420;
+const hmrPort = Number(process.env.PACTO_HMR_PORT) || devPort + 1;
 
 const plugins = await sveltekit();
 
@@ -15,14 +17,14 @@ export default defineConfig({
   clearScreen: false,
 
   server: {
-    port: 1420,
+    port: devPort,
     strictPort: true,
     host: host || false,
     hmr: host
       ? {
           protocol: 'ws',
           host,
-          port: 1421,
+          port: hmrPort,
         }
       : undefined,
     watch: {

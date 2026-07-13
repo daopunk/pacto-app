@@ -1,15 +1,17 @@
 {
-  "name": "pacto",
+  "name": "pacto-demo",
   "version": "0.1.0",
   "description": "",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:demo": "PACTO_DEV_PORT=1430 vite dev",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri:dev": "tauri dev",
+    "tauri:dev:demo": "PACTO_DEV_DEMO=1 CARGO_TARGET_DIR=target-dev-demo tauri dev --config src-tauri/tauri.conf.dev-demo.json",
     "tauri:build": "tauri build",
     "lint": "eslint .",
     "test": "vitest run",
