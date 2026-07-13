@@ -1,7 +1,8 @@
 .DS_Store
 coverage/
 tauri-dev.log
-node_modules
+node_modules/
+.pnpm-store/
 /build
 /.svelte-kit
 /package
@@ -17,3 +18,4 @@ landing/.astro
 landing/dist
 landing/pnpm-lock.yaml
 landing/public/pacto-release.json
+target-dev-demo/

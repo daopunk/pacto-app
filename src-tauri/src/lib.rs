@@ -6279,7 +6279,7 @@ pub fn run() {
                 .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
                 .build()
         );
-        
+
         // Single-instance plugin: ensures deep links are passed to existing instance
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // Handle deep links from single-instance (Windows/Linux)
